@@ -1,0 +1,44 @@
+project:
+  name: woundscope
+  seed: 42
+
+data:
+  root: "${WOUNDSCOPE_DATA_DIR:-data}"
+  source_repository: "https://github.com/uwm-bigdata/wound-segmentation.git"
+  source_revision: "42a272dfe0679f20675e826385925cb7562934b6"
+  source_subdirectory: "data/Foot Ulcer Segmentation Challenge"
+  raw_subdirectory: "raw/fuseg"
+  manifest_subdirectory: "manifests"
+  image_size: 512
+  internal_dev_fraction: 0.2
+  split_seed: 42
+  near_duplicate_hamming: 4
+
+artifacts:
+  root: "${WOUNDSCOPE_ARTIFACT_DIR:-artifacts}"
+
+training:
+  batch_size: 8
+  gradient_accumulation: 2
+  amp: true
+  max_epochs: 50
+  early_stopping_patience: 8
+  early_stopping_min_delta: 0.0001
+  optimizer: adamw
+  weight_decay: 0.0001
+  num_workers: 2
+  threshold: 0.5
+
+evaluation:
+  bootstrap_samples: 2000
+  bootstrap_seed: 42
+  threshold_start: 0.1
+  threshold_stop: 0.9
+  threshold_step: 0.02
+  confidence_quantile: 0.1
+  temperature_scaling: true
+  tta_horizontal_flip: true
+
+runtime:
+  device: auto
+  deterministic_warn_only: true

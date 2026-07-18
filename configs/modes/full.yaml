@@ -1,0 +1,11 @@
+mode:
+  name: full
+  official_validation: true
+
+data:
+  max_train_samples: null
+  max_dev_samples: null
+
+training:
+  max_epochs: 50
+  early_stopping_patience: 8

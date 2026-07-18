@@ -1,0 +1,57 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.venv/
+dist/
+build/
+*.egg-info/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# FUSeg and derived image-level metadata
+data/**
+!data/.gitkeep
+!data/README.md
+data_manifest.csv
+*data_manifest*.csv
+
+# Training and inference artifacts
+artifacts/
+checkpoints/
+runs/
+lightning_logs/
+wandb/
+*.safetensors
+*.onnx
+*.pt
+*.pth
+events.out.tfevents.*
+
+# Generated reports may contain source clinical images
+reports/generated/
+reports/error_gallery/
+reports/sample_predictions/
+
+# Notebook runtime state
+.ipynb_checkpoints/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.partial
