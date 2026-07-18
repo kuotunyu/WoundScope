@@ -1,0 +1,4 @@
+interface:
+  display_name: "WoundScope Development"
+  short_description: "安全、可重現地延續 WoundScope 實作與驗證"
+  default_prompt: "Use $woundscope-development to continue the next verified WoundScope milestone."

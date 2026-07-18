@@ -1,0 +1,12 @@
+mode:
+  name: quick
+  official_validation: false
+
+data:
+  max_train_samples: 128
+  max_dev_samples: 32
+
+training:
+  max_epochs: 2
+  early_stopping_patience: 2
+  num_workers: 2
