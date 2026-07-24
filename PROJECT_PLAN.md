@@ -402,14 +402,18 @@ Data integration、Colab GPU quick mode、CUDA benchmark 與 Docker app smoke �
 | 2026-07-19 | 正式實作時初始化 local Git，但不設定 remote | Locked |
 | 2026-07-19 | 人讀文件與 UI 以正體中文為主，專有名詞保留原文 | Locked |
 | 2026-07-19 | Pre-implementation 先完成兩份文件並停在 review gate | Locked |
+| 2026-07-19 | Pinned revision 實測有 7 組 train–validation exact duplicates；data report 可產生，但 training 預設停止，mitigation 待使用者確認 | Open |
+| 2026-07-19 | HF Space Docker 明確安裝 PyTorch CPU wheel，僅包含 app/export dependencies | Locked |
 
 ## 17. Review gate
 
 開始正式實作前，確認：
 
-- [ ] `PROJECT_PLAN.md` 的科學 protocol、授權政策與 milestones 可接受。
-- [ ] `PROGRESS.md` 的續作格式足以在中斷後恢復工作。
-- [ ] 同意正式實作後先做 M0，再依序執行 M1–M6。
-- [ ] 同意不在本機自動執行 full training，也不對外推送。
+- [x] `PROJECT_PLAN.md` 的科學 protocol、授權政策與 milestones 可接受。
+- [x] `PROGRESS.md` 的續作格式足以在中斷後恢復工作。
+- [x] 同意正式實作後先做 M0，再依序執行 M1–M6。
+- [x] 同意不在本機自動執行 full training，也不對外推送。
+
+Review gate 已於 2026-07-19 由使用者明確解除。後續唯一未決的 scientific gate 是 cross-split exact-duplicate mitigation，不等同於重新關閉整體 implementation gate。
 
 Review 通過後，以明確指示「開始正式實作」解除 gate；下一步是建立 `.gitignore`、確認 `.env` 被忽略，再初始化 local Git。

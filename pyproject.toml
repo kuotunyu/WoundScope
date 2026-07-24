@@ -43,10 +43,13 @@ train = [
 export = [
   "onnx>=1.16,<2",
   "onnxruntime>=1.18,<2",
+  "torch>=2,<3",
 ]
 app = [
   "gradio>=5,<7",
   "huggingface-hub>=0.25,<2",
+  "opencv-python-headless>=4.9,<5",
+  "torch>=2,<3",
 ]
 dev = [
   "pytest>=8,<10",
@@ -75,7 +78,7 @@ extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
-ignore = ["E501"]
+ignore = ["E501", "RUF001"]
 
 [tool.ruff.format]
 quote-style = "double"

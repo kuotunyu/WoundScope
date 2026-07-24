@@ -21,6 +21,7 @@ description: Continue, implement, verify, or hand off the WoundScope medical ima
 5. Keep official validation out of tuning and official test out of quantitative claims.
 6. Avoid full local GPU training unless the user explicitly requests it.
 7. On Windows workspaces with CJK path segments, create `.venv` with a UTF-8-capable Python 3.11+; do not reuse the Anaconda 3.10 cp950 environment that fails on editable-install paths.
+8. Treat data-report generation and training approval as separate gates. An integrity flag that permits writing a duplicate report never authorizes contaminated training; require an explicit recorded cross-split mitigation policy.
 
 ## Verify and report
 

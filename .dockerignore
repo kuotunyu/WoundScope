@@ -1,0 +1,14 @@
+.git
+.env
+.venv
+data
+artifacts
+reports/generated
+reports/error_gallery
+reports/sample_predictions
+*.safetensors
+*.onnx
+*.pt
+__pycache__
+.pytest_cache
+.ruff_cache

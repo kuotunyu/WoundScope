@@ -1,0 +1,1 @@
+"""WoundScope Gradio application package."""
