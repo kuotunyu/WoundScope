@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use WoundScope, cite this software and the FUSeg source paper."
+title: "WoundScope"
+type: software
+version: 0.1.0
+date-released: 2026-07-19
+license: Apache-2.0
+authors:
+  - name: "WoundScope contributors"
+references:
+  - type: article
+    title: "Fully automatic wound segmentation with deep convolutional neural networks"
+    authors:
+      - family-names: Wang
+        given-names: Chuanbo
+      - family-names: Anisuzzaman
+        given-names: D. M.
+      - family-names: Williamson
+        given-names: Victor
+      - family-names: Dhar
+        given-names: Mrinal Kanti
+      - family-names: Rostami
+        given-names: Behrouz
+      - family-names: Niezgoda
+        given-names: Jeffrey
+      - family-names: Gopalakrishnan
+        given-names: Sandeep
+      - family-names: Yu
+        given-names: Zeyun
+    journal: Scientific Reports
+    volume: 10
+    year: 2020
+    doi: 10.1038/s41598-020-78799-w
