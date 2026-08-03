@@ -18,7 +18,7 @@ WoundScope 是一套可重現的足部潰瘍區域 segmentation 研究與部署 
 | validation | 200 | 200 | checkpoint、threshold 與 temperature 凍結後的最終評估 |
 | test | 200 | 0 | blind prediction／challenge-format smoke；不可宣稱 metrics |
 
-官方資料檢查另外發現 7 組 train–validation 完全相同影像，及多組 pHash near-duplicate 警告。訓練命令預設會拒絕啟動；必須明確指定經審閱的跨 split 政策。建議做法是從 training pool 排除 7 張 train copy，保留完整官方 validation 並另附 sensitivity analysis。資料沒有 patient ID，因此本專案不宣稱 patient-wise split，亦無法排除同一來源或同一個案相關性。
+官方資料檢查另外發現 7 組 train–validation 完全相同影像，及多組 pHash near-duplicate 警告。正式跨 split 政策已鎖定為 `exclude_train`：只從 training pool 排除 7 張 train copy，完整保留 official validation 200 張；official validation 不參與 loss、checkpoint、threshold 或 temperature 選擇。資料沒有 patient ID，因此本專案不宣稱 patient-wise split，亦無法排除同一來源或同一個案相關性。
 
 - [官方 FUSeg 目錄](https://github.com/uwm-bigdata/wound-segmentation/tree/42a272dfe0679f20675e826385925cb7562934b6/data/Foot%20Ulcer%20Segmentation%20Challenge)
 - [Challenge design PDF](https://github.com/uwm-bigdata/wound-segmentation/blob/42a272dfe0679f20675e826385925cb7562934b6/data/Foot%20Ulcer%20Segmentation%20Challenge/FootUlcerSegmentationChallenge2021.pdf)
@@ -71,7 +71,7 @@ export WOUNDSCOPE_DATA_DIR=data
 
 下載器採 pinned sparse-checkout，驗證 pairing、decode、尺寸、binary/anti-aliased masks、SHA-256、pHash 與 cross-split duplicates，並在 gitignored `data/manifests/` 產生 `data_manifest.csv` 與 `data_summary.json`。目前官方 revision 因已知 exact duplicates，預設會以 exit code 2 告警；manifest 仍會寫出供審閱。
 
-經研究決策確認後，quick smoke 可明確排除 train copies：
+所有 training 都必須明確使用已鎖定的 `exclude_train` 政策：
 
 ```bash
 .venv/bin/python scripts/train.py \

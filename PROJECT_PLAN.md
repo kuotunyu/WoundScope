@@ -2,7 +2,7 @@
 
 > 文件語言：正體中文（zh-TW）；medical computer vision、MLOps、程式符號與 CLI 名稱保留原文。  
 > 文件角色：本文件是 WoundScope 的穩定規格與 implementation contract。即時進度、測試證據與下一步請見 `PROGRESS.md`。  
-> 目前狀態：Pre-implementation review gate，尚未開始程式實作、Git 初始化或資料下載。
+> 目前狀態：實作中；M1 cross-split mitigation 已鎖定為 `exclude_train`，Colab 正式實驗待執行。
 
 ## 1. 專案目標
 
@@ -134,7 +134,7 @@ Challenge design PDF 的 Data usage agreement 寫作「CC BY NC」，但未提�
 - within-split 與 cross-split duplicate findings；
 - foreground pixel count、foreground ratio 與 empty-mask case。
 
-結構性錯誤（unpaired、corrupt、size mismatch、invalid mask）使命令失敗。Exact cross-split duplicates 標為 high severity 並阻止 training，除非留下明確的人工 acknowledgment；near-duplicates 只警告並寫入報告。
+結構性錯誤（unpaired、corrupt、size mismatch、invalid mask）使命令失敗。Exact cross-split duplicates 標為 high severity；允許產生 duplicate report 不等於允許 contaminated training。正式 training 固定採 `exclude_train`，只排除 train 端 exact copies；near-duplicates 只警告並寫入報告。
 
 ### 6.3 Manifest 與 split
 
@@ -148,6 +148,8 @@ image_phash,duplicate_group,validation_status,internal_split
 ```
 
 Official train 先按 duplicate group 隔離，再依 foreground ratio quantile bins 分層，以 seed 42 建立約 80/20 internal train/dev。Official validation 不參與 early stopping、loss selection、threshold sweep 或 temperature scaling。Official test 不產生 quantitative metrics。
+
+Pinned revision 已確認 7 組 official train–validation exact SHA-256 duplicate images。正式政策固定為 `exclude_train`：排除 train 端 7 張 copies，完整保留 official validation 200 張。pHash near-duplicate findings 維持 warning/reporting，不得據此聲稱 patient-wise split。
 
 ## 7. Models、Losses 與 Augmentation
 
@@ -402,7 +404,7 @@ Data integration、Colab GPU quick mode、CUDA benchmark 與 Docker app smoke �
 | 2026-07-19 | 正式實作時初始化 local Git，但不設定 remote | Locked |
 | 2026-07-19 | 人讀文件與 UI 以正體中文為主，專有名詞保留原文 | Locked |
 | 2026-07-19 | Pre-implementation 先完成兩份文件並停在 review gate | Locked |
-| 2026-07-19 | Pinned revision 實測有 7 組 train–validation exact duplicates；data report 可產生，但 training 預設停止，mitigation 待使用者確認 | Open |
+| 2026-08-03 | Pinned revision 的 7 組 train–validation exact duplicates 固定採 `exclude_train`：只排除 train copies、保留 official validation 200 張；validation 不參與任何 selection/calibration，pHash 只作警告 | Locked |
 | 2026-07-19 | HF Space Docker 明確安裝 PyTorch CPU wheel，僅包含 app/export dependencies | Locked |
 
 ## 17. Review gate
@@ -414,6 +416,6 @@ Data integration、Colab GPU quick mode、CUDA benchmark 與 Docker app smoke �
 - [x] 同意正式實作後先做 M0，再依序執行 M1–M6。
 - [x] 同意不在本機自動執行 full training，也不對外推送。
 
-Review gate 已於 2026-07-19 由使用者明確解除。後續唯一未決的 scientific gate 是 cross-split exact-duplicate mitigation，不等同於重新關閉整體 implementation gate。
+Review gate 已於 2026-07-19 由使用者明確解除；cross-split exact-duplicate mitigation 已於 2026-08-03 鎖定為 `exclude_train`。
 
 Review 通過後，以明確指示「開始正式實作」解除 gate；下一步是建立 `.gitignore`、確認 `.env` 被忽略，再初始化 local Git。

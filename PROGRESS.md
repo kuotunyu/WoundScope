@@ -7,12 +7,12 @@
 
 | 欄位 | 內容 |
 |---|---|
-| Project state | `IMPLEMENTING / M1_BLOCKED` |
-| Current milestone | M1 — Data integrity scientific gate；M2–M6 可離線部分已平行實作 |
-| Last updated | 2026-07-19（Asia/Taipei） |
-| Last verified state | Official 810/200/200 integrity audit 完成；Ruff PASS、50 tests PASS、CPU Docker build/app smoke PASS |
-| Active blocker | Pinned official split 有 7 組 train–validation exact duplicates；mitigation 尚未由使用者確認 |
-| Next action | 確認是否採建議的 `exclude_train`，再把 source repo 放到 Drive 並執行 Colab quick mode |
+| Project state | `IMPLEMENTING / M3_IN_PROGRESS` |
+| Current milestone | M3 — Resumable staged Colab pipeline；M1 scientific gate 已通過 |
+| Last updated | 2026-08-03（Asia/Taipei） |
+| Last verified state | Official 810/200/200 integrity audit與 `exclude_train` contract PASS；baseline 50 tests PASS；protocol/data focused 12 tests PASS |
+| Active blocker | 無科學決策 blocker；Colab CUDA quick/full run 尚未執行 |
+| Next action | 完成 staged orchestrator、safe bundle 與 local CPU preflight，建立 immutable pre-Colab commit／source ZIP |
 | External actions | Local data 已下載且 gitignored；建立 local CPU Docker image；無 GPU training、remote、push 或 upload |
 
 ## Resume checklist
@@ -33,7 +33,7 @@
 |---|---|---|---|
 | Pre-implementation docs | Completed | 兩份文件建立並經使用者確認 | 2026-07-19 使用者解除 review gate |
 | M0 — Governance/scaffold | Completed | Ignore/secret/config/import/Ruff/pytest gates 通過 | Ruff PASS；5 tests PASS；skill valid；ignore PASS |
-| M1 — Data integrity | Blocked | Synthetic + official data validation 通過 | 結構/count PASS；7 exact cross-split findings 需科學決策 |
+| M1 — Data integrity | Completed | Synthetic + official data validation 通過 | 2026-08-03 `exclude_train` gate：7 train copies excluded、validation 200 retained、group isolation PASS |
 | M2 — Vertical slice | Completed | Tiny end-to-end + ONNX parity 通過 | one epoch/save/resume、prediction、ONNX/app synthetic gates PASS |
 | M3 — Training/Colab | In review | CPU mini-train、resume、notebook、Colab quick gate 通過 | 兩正式模型 CPU optimizer step + notebook structure PASS；Colab quick 待執行 |
 | M4 — Evaluation/calibration | In review | Metrics/bootstrap/calibration/confidence/gallery gates 通過 | unit gates PASS；full weights/locked validation artifacts 尚無 |
@@ -54,10 +54,21 @@
 - Code license：Apache-2.0；FUSeg data／weights 不包含在內。
 - Language：人讀文件與 UI 以正體中文為主，專有名詞與程式介面維持英文。
 - Publication：目前不設定 remote、不 push、不上傳 data 或 weights。
+- Cross-split policy：`exclude_train`；只排除 7 張 exact train copies，official validation 200 張完整保留。
 
 重大調整必須先更新 `PROJECT_PLAN.md` Decision Log；本區只同步摘要，不取代完整規格。
 
 ## Test and verification evidence
+
+### 2026-08-03 — M1 locked `exclude_train` gate
+
+- Git baseline：`main@540063b`、clean tracked worktree、author `kuotunyu <61350295+kuotunyu@users.noreply.github.com>`、0 remotes；已建立 `portfolio/woundscope-colab-full-run`。
+- `.venv\Scripts\python.exe -m pytest -q`（變更前 baseline）→ PASS；50 passed、2 個既有 legacy ONNX exporter deprecation warnings。
+- `.venv\Scripts\python.exe -m pytest tests\test_protocol_reporting.py tests\test_data_integrity.py -q` → PASS；12 passed。
+- `.venv\Scripts\python.exe scripts\download_data.py --skip-download --allow-cross-split-exact` → structural PASS；train 810／validation 200／test 200，masks 810／200／0，structural issues 0，維持 anti-alias warning 與 pHash warning reporting。
+- `validate_exclude_train_contract(... expected_exclusion_count=7, expected_validation_count=200, split_seed=42)` → `M1_POLICY_GATE_PASS`；只排除 7 張 official-train copies、official validation 200 張完整保留、retained train/dev duplicate-group isolation PASS。
+- 科學決策：`exclude_train` 已由使用者明確批准並寫入 `PROJECT_PLAN.md` Decision Log；允許產生 duplicate report 不授權 contaminated training。
+- GPU/full training：未執行；本機 RTX 4090 未使用；remote/push/upload 未執行。
 
 ### 2026-07-19 — M1 integration 與 M2–M6 offline gates
 
@@ -121,8 +132,7 @@
 
 ### Active blocker
 
-- Pinned FUSeg official split 實測有 7 組 train–validation exact image duplicates。推薦 mitigation 是從 training pool 排除 `train/0121`、`0569`、`0636`、`0803`、`0980`、`0983`、`0997`，保留官方 validation 200 張並另做 deduplicated sensitivity summary。此選擇尚未由使用者確認，因此 M1 不標示完成，training CLI 與 notebook 預設停止。
-- M3 的 Colab GPU quick run 需要使用者明早開啟 runtime；其餘 code path 已以 CPU/synthetic 驗證。
+- 無未決科學決策；M3 的 Colab GPU quick/full run 尚待 staged pipeline、immutable source ZIP 與 CUDA runtime。
 
 ### Known risks
 
@@ -134,13 +144,41 @@
 
 ## Next actions
 
-1. 使用者確認 exact-duplicate mitigation；若接受推薦方案，將 notebook 的 `CROSS_SPLIT_POLICY` 設為 `"exclude_train"`。
-2. 在 `PROJECT_PLAN.md` Decision Log 鎖定選擇、重跑 M1 gate，建立下一個 local milestone commit；仍不 push。
-3. 將 `artifacts/handoff/WoundScope_colab_source.zip` 上傳為 Google Drive `MyDrive/WoundScope_colab_source.zip`，開啟 notebook 後 Run all quick mode。
-4. 取得 Drive quick artifacts 後驗證 resume、provenance、calibration、ONNX 與 sample predictions；quick metrics 不進 README。
-5. Full comparison／multi-seed training 必須等 quick gate 與 loss-selection protocol 通過後再執行。
+1. 完成單一 staged Colab orchestrator、forced quick resume、locked loss selection、seed-42 reuse 與 safe handoff tests。
+2. 完成 local CPU preflight、privacy／ignore／clean-export gates與 pre-Colab commit；重建而非信任既有 source ZIP。
+3. 將新 source ZIP 上傳為 Google Drive `MyDrive/WoundScope_colab_source.zip`，用 GPU runtime 只按一次 Run all。
+4. 回收並驗證單一 safe results ZIP；只有 schema-valid completed full-run artifacts 才可更新 README。
 
 ## Session log
+
+### 2026-08-03 — 鎖定 exact-duplicate mitigation
+
+**目標**
+
+- 將使用者已批准的 `exclude_train` 決策落地並重跑 M1 scientific gate。
+
+**變更**
+
+- 新增正式 contract verifier，驗證排除項目全為 train、official validation 完整保留、retained internal train/dev duplicate-group isolation。
+- 更新 `PROJECT_PLAN.md`、README、DATA_CARD、MODEL_CARD 與本文件，移除過時的未決決策文字。
+
+**驗證**
+
+- Official data 810/200/200、masks 810/200/0、structural issues 0。
+- 7 train copies excluded、validation 200 retained、split seed 42、duplicate-group isolation PASS。
+- Protocol/data focused tests：12 passed。
+
+**Artifacts**
+
+- `data/manifests/data_manifest.csv`、`data/manifests/data_summary.json`（gitignored；未追蹤）。
+
+**決策／偏差**
+
+- `exclude_train` 已 Locked；pHash findings 維持 warning，不宣稱 patient-wise split。
+
+**未完成與下一步**
+
+- 實作並驗證 staged Colab pipeline；尚未使用本機或 Colab GPU。
 
 ### 2026-07-19 — M1 audit 與 downstream CPU implementation
 

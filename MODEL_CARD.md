@@ -18,7 +18,7 @@ WoundScope 是研究與工程展示用的 binary foot-ulcer segmentation pipelin
 
 ## Training protocol
 
-比較 BCE+Dice 與 Focal+Tversky。Seed 42 做 architecture × loss selection；每架構選定 loss 後執行 seeds 42/43/44。Full mode 上限 50 epochs、patience 8、batch 8、gradient accumulation 2、CUDA AMP。每 epoch 保存可 resume state 與 provenance。
+Pinned split 的 7 張 exact train copies 在所有 training 前以鎖定的 `exclude_train` 政策排除，official validation 200 張完整保留且不參與調參。比較 BCE+Dice 與 Focal+Tversky；seed 42 做 architecture × loss selection，每架構選定 loss 後執行 seeds 42/43/44。Full mode 上限 50 epochs、patience 8、batch 8、gradient accumulation 2、CUDA AMP。每 epoch 保存可 resume state 與 provenance。
 
 ## Evaluation
 
