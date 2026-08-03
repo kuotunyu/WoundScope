@@ -51,7 +51,7 @@ flowchart LR
 
 ## 快速開始
 
-Python 支援 3.10–3.12。Windows 的含中文字徑若遇到舊版 Anaconda codepage 問題，建議以 UTF-8-capable Python 3.11/3.12 建立環境。
+Python 支援 3.11–3.12。Windows 的含中文字徑若遇到舊版 Anaconda codepage 問題，建議以 UTF-8-capable Python 3.11/3.12 建立環境。
 
 ```powershell
 # Windows PowerShell

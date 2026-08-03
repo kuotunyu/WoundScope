@@ -28,6 +28,20 @@ def test_release_identity_and_repository_urls() -> None:
     }
 
 
+def test_python_support_contract_matches_locked_runtime_wheels() -> None:
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    lock = tomllib.loads(Path("uv.lock").read_text(encoding="utf-8"))
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    project = pyproject["project"]
+    assert project["requires-python"] == ">=3.11,<3.13"
+    assert "Programming Language :: Python :: 3.10" not in project["classifiers"]
+    assert "Programming Language :: Python :: 3.11" in project["classifiers"]
+    assert "Programming Language :: Python :: 3.12" in project["classifiers"]
+    assert lock["requires-python"] == ">=3.11, <3.13"
+    assert "Python 支援 3.11–3.12。" in readme
+
+
 def test_readme_exposes_public_colab_and_reproducible_commands() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
