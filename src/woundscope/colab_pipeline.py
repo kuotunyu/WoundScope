@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections import deque
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -184,7 +185,13 @@ def run_pipeline(
     state = PipelineState.load_or_create(state_path, source_commit)
     for stage in STAGE_ORDER:
         existing = state.stages.get(stage, {})
-        if existing.get("status") == "completed" and _artifacts_valid(paths, existing):
+        if (
+            existing.get("status") == "completed"
+            and _artifacts_valid(paths, existing)
+            # Colab data lives under volatile /content. Revalidate it on every
+            # invocation before reusing any persisted downstream stage.
+            and stage != "data_integrity"
+        ):
             continue
         state.record(state_path, stage, "running", cuda=cuda_info)
         context = StageContext(stage, paths, source_commit, cuda_info)
@@ -230,12 +237,30 @@ class _DefaultStageExecutor:
         }
 
     def _run(self, command: list[str]) -> None:
-        subprocess.run(
+        process = subprocess.Popen(
             command,
             cwd=self.paths.project_root,
             env=self.environment,
-            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
         )
+        output_tail: deque[str] = deque(maxlen=80)
+        if process.stdout is None:
+            raise RuntimeError("Unable to capture stage subprocess output")
+        for line in process.stdout:
+            print(line, end="", flush=True)
+            output_tail.append(line.rstrip())
+        return_code = process.wait()
+        if return_code != 0:
+            detail = "\n".join(output_tail) or "(subprocess produced no output)"
+            raise RuntimeError(
+                f"Stage command failed with exit code {return_code}: {command!r}\n"
+                f"Last subprocess output:\n{detail}"
+            )
 
     def _load_json(self, path: Path) -> dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8"))

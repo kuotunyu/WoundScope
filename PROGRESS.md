@@ -10,10 +10,10 @@
 | Project state | `IMPLEMENTING / M3_IN_PROGRESS` |
 | Current milestone | M3 — Resumable staged Colab pipeline；M1 scientific gate 已通過 |
 | Last updated | 2026-08-03（Asia/Taipei） |
-| Last verified state | M1 `exclude_train` PASS；Ruff/format PASS；82 CPU tests PASS；privacy/ignore/remote audit PASS；augmentation grid visual PASS |
-| Active blocker | 無科學決策 blocker；Colab CUDA quick/full run 尚未執行 |
-| Next action | 完成 staged orchestrator、safe bundle 與 local CPU preflight，建立 immutable pre-Colab commit／source ZIP |
-| External actions | Local data 已下載且 gitignored；建立 local CPU Docker image；無 GPU training、remote、push 或 upload |
+| Last verified state | M1 `exclude_train` PASS；Ruff/format PASS；87 CPU tests PASS；Colab Drive/resume/diagnostic regressions PASS；privacy/ignore/remote audit PASS |
+| Active blocker | 無科學決策 blocker；Colab A100 已啟動但 pipeline 首次 GPU run 失敗，舊版未保存 child error；需以修正版 bundle 重跑 |
+| Next action | 建立並上傳修正版 immutable source ZIP 與 notebook，重新執行 Colab Run all |
+| External actions | 使用者已在 private Drive 上傳 source ZIP/notebook 並啟動 A100；無 remote、push、公開 upload 或本機 full GPU training |
 
 ## Resume checklist
 
@@ -123,7 +123,7 @@
 | `data/raw/fuseg/` | Local, gitignored | Pinned official sparse checkout；不可 commit／重傳 |
 | `data/manifests/` | Local, gitignored | `data_manifest.csv`、`data_summary.json` 與 duplicate findings |
 | M2–M5 source/tests | Created and CPU verified | data/model/loss/train/evaluate/calibration/ONNX/inference/Gradio stack |
-| `notebooks/01_train_colab.ipynb` | Thin staged wrapper, structure verified | Source checksum、CUDA hard gate、single Run-all orchestration、Drive persistence／resume |
+| `notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb` | Thin staged wrapper, structure verified | `MyDrive/WoundScope`、source checksum、CUDA hard gate、single Run-all orchestration、Drive persistence／resume |
 | `artifacts/handoff/WoundScope_colab_source.zip` | Local, gitignored; rebuild required | 2026-07-19 ZIP 已過時且不再信任；必須從新的 clean pre-Colab commit 重建／驗證 |
 | Release files | Created and verified | README/cards/CFF/CI/Docker/.env.example/artifact handoff |
 | Model/training artifacts | None | 無 checkpoint、ONNX performance artifact 或 full-training result |
@@ -146,10 +146,39 @@
 
 1. 完成單一 staged Colab orchestrator、forced quick resume、locked loss selection、seed-42 reuse 與 safe handoff tests。
 2. 完成 local CPU preflight、privacy／ignore／clean-export gates與 pre-Colab commit；重建而非信任既有 source ZIP。
-3. 將新 source ZIP 上傳為 Google Drive `MyDrive/WoundScope_colab_source.zip`，用 GPU runtime 只按一次 Run all。
+3. 將新 source ZIP 上傳為 Google Drive `MyDrive/WoundScope/WoundScope_colab_source.zip`，用 GPU runtime 只按一次 Run all。
 4. 回收並驗證單一 safe results ZIP；只有 schema-valid completed full-run artifacts 才可更新 README。
 
 ## Session log
+
+### 2026-08-03 — Colab Drive／resume／diagnostic 修正
+
+**目標**
+
+- 修正實際 Colab 首跑暴露的 Drive 路徑與可恢復性缺陷，並讓下一次失敗能保留真正的 stage/child process 診斷。
+
+**觀察與變更**
+
+- 舊 notebook 錯誤尋找 `MyDrive/WoundScope_colab_source.zip`；實際 private project 位於 `MyDrive/WoundScope/`，已改為零手動編輯的固定 project path。
+- 首次 A100 run 已完成 Drive mount、source verify/extract、dependency/CUDA gate，pipeline 約兩分鐘後 exit 1；舊 executor 只留下外層 `CalledProcessError`，已關閉的 runtime 無法回推出未保存的 child traceback，因此不臆測內層原因。
+- 每個 source commit 改用獨立 `WoundScopeArtifacts/<source-commit-prefix>/`，避免新 bundle 與舊 `pipeline_state.json` 衝突。
+- Colab `/content/woundscope_data` 是暫存資料；每次啟動 pipeline 都會重新執行 idempotent `data_integrity` 下載/驗證資料，再從 Drive trainer state 繼續或略過已驗證的後續 stages。
+- stage subprocess 現在即時串流 combined stdout/stderr，並將最後 80 行寫進 failed stage state；notebook 會直接回報失敗 stage、error type 與診斷內容。
+- bundle manifest 的 source commit 必須是 40 位小寫 hexadecimal Git SHA，且在任何 project/artifact path 建立前驗證。
+
+**驗證**
+
+- Notebook project-path executable regression、volatile-data resume regression、subprocess diagnostic regression → PASS。
+- Targeted Colab pipeline/notebook suite → 11 passed。
+- `.venv\Scripts\python.exe -m ruff check .`、`ruff format --check .`、`pytest -q`、`git diff --check` → PASS；87 tests passed，2 個既有 ONNX exporter deprecation warnings。
+- Production `data_integrity` handler 使用本機 pinned FUSeg 驗證 → PASS；810/200/200 scale 與 augmentation grid 正常。
+- Deliberate-stop quick CPU resume boundary → PASS；正式 U-Net EfficientNet-B0 與 SegFormer-B0 model construction → PASS。
+- 尚未宣稱 Colab quick/full、locked validation 或模型結果成功；需用修正版 immutable bundle 重跑。
+
+**Artifacts**
+
+- `notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb`
+- `artifacts/handoff/WoundScope_colab_source.zip`（需在 clean fix commit 後重建）
 
 ### 2026-08-03 — 可恢復 staged Colab orchestration
 
@@ -248,7 +277,7 @@
 **Artifacts**
 
 - `data/manifests/data_manifest.csv`、`data/manifests/data_summary.json`（gitignored）
-- `notebooks/01_train_colab.ipynb`
+- `notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb`
 - `artifacts/handoff/WoundScope_colab_source.zip`（gitignored safe source snapshot）
 - `artifacts/` 尚無 model run；Docker local tag `woundscope:local-test`
 

@@ -32,7 +32,7 @@ def _verify_clean_extract(bundle: Path, source_commit: str) -> None:
                 "-c",
                 (
                     "import json; import woundscope; from pathlib import Path; "
-                    "notebook=json.loads(Path('notebooks/01_train_colab.ipynb').read_text(encoding='utf-8')); "
+                    "notebook=json.loads(Path('notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb').read_text(encoding='utf-8')); "
                     "assert notebook['nbformat'] == 4"
                 ),
             ],

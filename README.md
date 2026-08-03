@@ -1,6 +1,6 @@
 # WoundScope
 
-[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](notebooks/01_train_colab.ipynb)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb)
 [![Hugging Face Space](https://img.shields.io/badge/Hugging%20Face-Space%20待發布-yellow)](#gradio-demo)
 [![CI](https://img.shields.io/badge/CI-local%20verified-blue)](#測試與驗收)
 
@@ -119,9 +119,9 @@ export WOUNDSCOPE_DATA_DIR=data
 
 ## Colab
 
-[notebooks/01_train_colab.ipynb](notebooks/01_train_colab.ipynb) 是 thin wrapper：掛載 private Drive、驗證 immutable source ZIP 與 CUDA，然後只呼叫一次 `scripts/run_colab_pipeline.py`。固定 stage 依序完成 data integrity、quick GPU gate、full comparison、locked loss selection、multi-seed final、official validation、ONNX/parity/benchmark 與 safe handoff；runtime 中斷後再次 Run all 會驗證 stage/output hashes並從相容 trainer state resume，不需人工切換 quick／comparison／final 或手選 loss。
+[notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb](notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb) 是 thin wrapper：從 `MyDrive/WoundScope/` 掛載 private Drive、驗證 immutable source ZIP 與 CUDA，然後只呼叫一次 `scripts/run_colab_pipeline.py`。固定 stage 依序完成 data integrity、quick GPU gate、full comparison、locked loss selection、multi-seed final、official validation、ONNX/parity/benchmark 與 safe handoff；runtime 中斷後再次 Run all 會重建暫存資料、驗證 stage/output hashes並從相容 trainer state resume，不需人工切換 quick／comparison／final 或手選 loss。
 
-先以 `scripts/build_colab_bundle.py --verify` 從乾淨 committed snapshot 產生 `artifacts/handoff/WoundScope_colab_source.zip`，再上傳為 `MyDrive/WoundScope_colab_source.zip`。所有 checkpoint、ONNX、TensorBoard、sample prediction 與 gallery 留在 `MyDrive/WoundScopeArtifacts`；只下載 `handoff/woundscope_colab_results_<source-commit-prefix>.zip`。取回與 checksum/schema/privacy 驗證方式見 [scripts/download_artifacts.md](scripts/download_artifacts.md)。
+先以 `scripts/build_colab_bundle.py --verify` 從乾淨 committed snapshot 產生 `artifacts/handoff/WoundScope_colab_source.zip`，再上傳為 `MyDrive/WoundScope/WoundScope_colab_source.zip`。所有 checkpoint、ONNX、TensorBoard、sample prediction 與 gallery 留在 `MyDrive/WoundScope/WoundScopeArtifacts/<source-commit-prefix>/`；只下載其中的 `handoff/woundscope_colab_results_<source-commit-prefix>.zip`。取回與 checksum/schema/privacy 驗證方式見 [scripts/download_artifacts.md](scripts/download_artifacts.md)。
 
 ## Gradio demo
 

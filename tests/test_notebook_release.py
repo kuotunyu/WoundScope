@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
+import zipfile
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
+
+import pytest
 
 
 def test_colab_notebook_has_locked_workflow_cells() -> None:
-    notebook = json.loads(Path("notebooks/01_train_colab.ipynb").read_text(encoding="utf-8"))
+    notebook = json.loads(
+        Path("notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb").read_text(encoding="utf-8")
+    )
     assert notebook["nbformat"] == 4
     sources = "\n".join("".join(cell.get("source", [])) for cell in notebook["cells"])
     required = (
@@ -17,6 +25,8 @@ def test_colab_notebook_has_locked_workflow_cells() -> None:
         "WOUNDSCOPE_SOURCE_COMMIT",
         "scripts/run_colab_pipeline.py",
         "--source-commit",
+        "artifact_base_dir / source_commit[:12]",
+        "pipeline_state.json",
     )
     for marker in required:
         assert marker in sources
@@ -33,6 +43,99 @@ def test_colab_notebook_has_locked_workflow_cells() -> None:
         assert marker not in sources
     assert len(notebook["cells"]) <= 6
     assert notebook["metadata"]["accelerator"] == "GPU"
+
+
+def test_colab_notebook_resolves_inputs_inside_woundscope_drive_folder(
+    tmp_path: Path, monkeypatch
+) -> None:
+    notebook = json.loads(
+        Path("notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb").read_text(encoding="utf-8")
+    )
+    drive_mount = tmp_path / "drive"
+    source_zip = drive_mount / "MyDrive" / "WoundScope" / "WoundScope_colab_source.zip"
+    source_zip.parent.mkdir(parents=True)
+    source_zip.write_bytes(b"source bundle placeholder")
+
+    fake_drive = SimpleNamespace(mount=lambda _path: None)
+    google_module = ModuleType("google")
+    colab_module = ModuleType("google.colab")
+    colab_module.drive = fake_drive
+    google_module.colab = colab_module
+    monkeypatch.setitem(sys.modules, "google", google_module)
+    monkeypatch.setitem(sys.modules, "google.colab", colab_module)
+    monkeypatch.setenv("WOUNDSCOPE_RUNTIME_ROOT", str(tmp_path))
+    monkeypatch.setenv("WOUNDSCOPE_DRIVE_MOUNT", str(drive_mount))
+    monkeypatch.chdir(Path.cwd())
+
+    namespace: dict[str, object] = {}
+    exec("".join(notebook["cells"][1]["source"]), namespace)
+
+    assert namespace["source_zip"] == source_zip
+    assert namespace["artifact_base_dir"] == source_zip.parent / "WoundScopeArtifacts"
+
+
+def test_colab_notebook_surfaces_failed_stage_diagnostic(tmp_path: Path, monkeypatch) -> None:
+    notebook = json.loads(
+        Path("notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb").read_text(encoding="utf-8")
+    )
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir()
+    (artifact_dir / "pipeline_state.json").write_text(
+        json.dumps(
+            {
+                "stages": {
+                    "quick_gpu": {
+                        "status": "failed",
+                        "error_type": "RuntimeError",
+                        "error": "CUDA OOM diagnostic",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    fake_subprocess = SimpleNamespace(run=lambda *_args, **_kwargs: SimpleNamespace(returncode=1))
+    namespace = {
+        "Path": Path,
+        "artifact_dir": artifact_dir,
+        "json": json,
+        "os": os,
+        "project_dir": tmp_path / "project",
+        "runtime_root": tmp_path,
+        "source_commit": "a" * 40,
+        "subprocess": fake_subprocess,
+        "sys": sys,
+    }
+    monkeypatch.delenv("WOUNDSCOPE_DATA_DIR", raising=False)
+
+    with pytest.raises(RuntimeError, match=r"quick_gpu.*CUDA OOM diagnostic"):
+        exec("".join(notebook["cells"][4]["source"]), namespace)
+
+
+def test_colab_notebook_rejects_invalid_source_commit_before_path_construction(
+    tmp_path: Path,
+) -> None:
+    notebook = json.loads(
+        Path("notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb").read_text(encoding="utf-8")
+    )
+    source_zip = tmp_path / "source.zip"
+    manifest = {
+        "kind": "source",
+        "schema_version": 1,
+        "source_commit": "../not-a-git-sha",
+        "files": [],
+    }
+    with zipfile.ZipFile(source_zip, "w") as archive:
+        archive.writestr("bundle_manifest.json", json.dumps(manifest))
+    namespace = {
+        "artifact_base_dir": tmp_path / "artifacts",
+        "os": os,
+        "runtime_root": tmp_path / "runtime",
+        "source_zip": source_zip,
+    }
+
+    with pytest.raises(RuntimeError, match="Invalid source commit"):
+        exec("".join(notebook["cells"][2]["source"]), namespace)
 
 
 def test_release_files_and_result_markers_exist() -> None:

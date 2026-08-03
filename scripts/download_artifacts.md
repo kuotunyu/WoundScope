@@ -1,10 +1,10 @@
 # 從 Google Drive 取回 WoundScope safe handoff
 
 Colab staged pipeline 將大型／private artifacts 保留在
-`MyDrive/WoundScopeArtifacts/`，最後只建立一份可回收的 aggregate bundle：
+`MyDrive/WoundScope/WoundScopeArtifacts/<source-commit-prefix>/`，最後只建立一份可回收的 aggregate bundle：
 
 ```text
-MyDrive/WoundScopeArtifacts/handoff/woundscope_colab_results_<source-commit-prefix>.zip
+MyDrive/WoundScope/WoundScopeArtifacts/<source-commit-prefix>/handoff/woundscope_colab_results_<source-commit-prefix>.zip
 ```
 
 ## 一次下載與驗證
