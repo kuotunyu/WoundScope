@@ -51,3 +51,18 @@ def test_release_notes_bind_the_verified_safe_result_bundle() -> None:
     assert "不包含" in notes
     for forbidden_claim in ("official-test metrics", "patient-wise split", "臨床效能"):
         assert f"不宣稱 {forbidden_claim}" in notes
+
+
+def test_public_model_comparison_is_aggregate_only_and_matches_results() -> None:
+    svg = Path("reports/public/model_comparison.svg").read_text(encoding="utf-8")
+
+    assert "<title>" in svg
+    assert "<desc>" in svg
+    for value in ("0.8508", "0.7772", "0.8270", "0.7437"):
+        assert value in svg
+    assert "n=3 seeds" in svg
+    assert "official-test" in svg
+    assert not any(token in svg.lower() for token in ("patient", ".jpg", ".png", "sample_id"))
+
+    readme = Path("README.md").read_text(encoding="utf-8")
+    assert "reports/public/model_comparison.svg" in readme

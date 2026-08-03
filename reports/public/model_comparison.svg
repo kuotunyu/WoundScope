@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title>WoundScope locked official-validation aggregate comparison</title>
+  <desc>EfficientNet-B0 U-Net and SegFormer-B0 aggregate Dice and IoU across three training seeds on locked official validation.</desc>
+  <rect width="1200" height="520" fill="#f8fafc"/>
+  <text x="60" y="58" fill="#0f172a" font-family="Arial, sans-serif" font-size="30" font-weight="700">Locked official-validation aggregate</text>
+  <text x="60" y="91" fill="#475569" font-family="Arial, sans-serif" font-size="18">EfficientNet-B0 U-Net vs SegFormer-B0 · BCE+Dice · n=3 seeds</text>
+
+  <g stroke="#cbd5e1" stroke-width="1">
+    <line x1="350" y1="126" x2="350" y2="414"/>
+    <line x1="502" y1="126" x2="502" y2="414"/>
+    <line x1="654" y1="126" x2="654" y2="414"/>
+    <line x1="806" y1="126" x2="806" y2="414"/>
+    <line x1="958" y1="126" x2="958" y2="414"/>
+    <line x1="1110" y1="126" x2="1110" y2="414"/>
+  </g>
+  <g fill="#64748b" font-family="Arial, sans-serif" font-size="14" text-anchor="middle">
+    <text x="350" y="438">0.0</text>
+    <text x="502" y="438">0.2</text>
+    <text x="654" y="438">0.4</text>
+    <text x="806" y="438">0.6</text>
+    <text x="958" y="438">0.8</text>
+    <text x="1110" y="438">1.0</text>
+  </g>
+
+  <g font-family="Arial, sans-serif">
+    <text x="60" y="164" fill="#0f172a" font-size="20" font-weight="700">EfficientNet-B0 U-Net</text>
+    <text x="286" y="198" fill="#334155" font-size="16">Dice</text>
+    <rect x="350" y="178" width="646.6" height="28" rx="4" fill="#2563eb"/>
+    <text x="1008" y="198" fill="#0f172a" font-size="16" font-weight="700">0.8508</text>
+    <text x="286" y="244" fill="#334155" font-size="16">IoU</text>
+    <rect x="350" y="224" width="590.7" height="28" rx="4" fill="#0f766e"/>
+    <text x="952" y="244" fill="#0f172a" font-size="16" font-weight="700">0.7772</text>
+
+    <text x="60" y="314" fill="#0f172a" font-size="20" font-weight="700">SegFormer-B0</text>
+    <text x="286" y="348" fill="#334155" font-size="16">Dice</text>
+    <rect x="350" y="328" width="628.5" height="28" rx="4" fill="#2563eb"/>
+    <text x="990" y="348" fill="#0f172a" font-size="16" font-weight="700">0.8270</text>
+    <text x="286" y="394" fill="#334155" font-size="16">IoU</text>
+    <rect x="350" y="374" width="565.2" height="28" rx="4" fill="#0f766e"/>
+    <text x="927" y="394" fill="#0f172a" font-size="16" font-weight="700">0.7437</text>
+  </g>
+
+  <g font-family="Arial, sans-serif" font-size="14">
+    <rect x="60" y="464" width="18" height="12" rx="2" fill="#2563eb"/>
+    <text x="88" y="475" fill="#334155">Dice</text>
+    <rect x="148" y="464" width="18" height="12" rx="2" fill="#0f766e"/>
+    <text x="176" y="475" fill="#334155">IoU</text>
+    <text x="1110" y="475" fill="#64748b" text-anchor="end">locked official validation · n=3 seeds · not official-test or clinical performance</text>
+  </g>
+</svg>

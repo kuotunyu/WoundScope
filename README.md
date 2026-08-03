@@ -137,6 +137,8 @@ HF Space 採 CPU ONNX。若 repo 不含權重，可設定 `HF_MODEL_ID`、固定
 
 正式 `v0.1.0` 的 privacy-safe machine-readable results、ONNX parity diagnostics、CPU benchmark 與 aggregate charts 由 [GitHub Release](https://github.com/kuotunyu/WoundScope/releases/tag/v0.1.0) 提供；不包含 data、weights、ONNX binaries、private images 或 image-level results。
 
+![WoundScope locked official-validation aggregate comparison](reports/public/model_comparison.svg)
+
 <!-- RESULTS_TABLE_START -->
 
 | Model | Loss | Seeds | Dice mean±SD (95% CI) | IoU | Precision | Recall | Specificity |
