@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -11,6 +12,15 @@ import gradio as gr
 from woundscope.calibration import CalibrationArtifact
 from woundscope.demo import process_for_demo
 from woundscope.inference import OnnxPredictor
+
+IMMUTABLE_HF_REVISION = re.compile(r"[0-9a-f]{40}")
+
+
+def _require_immutable_hf_revision() -> str:
+    revision = os.environ.get("HF_MODEL_REVISION", "").strip()
+    if IMMUTABLE_HF_REVISION.fullmatch(revision) is None:
+        raise RuntimeError("HF_MODEL_REVISION must be a 40-character lowercase Git commit SHA.")
+    return revision
 
 
 def _resolve_model_artifacts() -> tuple[Path, Path]:
@@ -25,7 +35,7 @@ def _resolve_model_artifacts() -> tuple[Path, Path]:
         return model_path, calibration_path
     from huggingface_hub import hf_hub_download
 
-    revision = os.environ.get("HF_MODEL_REVISION", "main")
+    revision = _require_immutable_hf_revision()
     token = os.environ.get("HF_TOKEN") or None
     model_path = Path(
         hf_hub_download(
@@ -65,7 +75,11 @@ def _predict(image):
 
 
 def build_demo() -> gr.Blocks:
-    with gr.Blocks(title="WoundScope") as demo:
+    with gr.Blocks(
+        title="WoundScope",
+        analytics_enabled=False,
+        delete_cache=(600, 600),
+    ) as demo:
         gr.Markdown(
             """
             # WoundScope
@@ -76,11 +90,21 @@ def build_demo() -> gr.Blocks:
             Data source: Foot Ulcer Segmentation Challenge (FUSeg), UWM Big Data Lab.
             """
         )
-        input_image = gr.Image(type="pil", label="上傳影像")
+        input_image = gr.Image(
+            type="pil",
+            label="上傳影像",
+            sources=["upload"],
+            buttons=["fullscreen"],
+        )
         run_button = gr.Button("執行 segmentation", variant="primary")
+        gr.Markdown(
+            "請勿上傳任何可識別個人的健康資訊，包括 Patient Health Information (PHI)。"
+            "本工具僅供研究與技術展示，不構成臨床診斷、嚴重度判定、預後或治療建議；"
+            "系統不記錄檔名或影像內容。"
+        )
         with gr.Row():
-            original = gr.Image(label="原圖")
-            overlay = gr.Image(label="Mask overlay")
+            original = gr.Image(label="原圖", interactive=False, buttons=["fullscreen"])
+            overlay = gr.Image(label="Mask overlay", interactive=False, buttons=["fullscreen"])
         with gr.Row():
             ratio = gr.Textbox(label="傷口像素比例")
             confidence = gr.Textbox(label="模型分割信心")
@@ -90,6 +114,7 @@ def build_demo() -> gr.Blocks:
             _predict,
             inputs=[input_image],
             outputs=[original, overlay, ratio, confidence, timing, warning],
+            api_visibility="private",
         )
     return demo
 

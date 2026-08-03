@@ -9,6 +9,7 @@ from PIL import Image
 from torch import nn
 
 import woundscope.exporting as exporting
+import woundscope.gradio_app as gradio_app
 from woundscope.benchmarking import benchmark_onnx
 from woundscope.calibration import CalibrationArtifact
 from woundscope.demo import process_for_demo
@@ -209,3 +210,72 @@ def test_gradio_demo_builds_without_loading_model() -> None:
     demo = build_demo()
 
     assert demo is not None
+
+
+def test_gradio_demo_uses_private_upload_only_defaults() -> None:
+    demo = build_demo()
+    image_components = [
+        component for component in demo.config["components"] if component["type"] == "image"
+    ]
+    markdown = "\n".join(
+        component["props"].get("value", "")
+        for component in demo.config["components"]
+        if component["type"] == "markdown"
+    )
+
+    assert demo.analytics_enabled is False
+    assert demo.delete_cache == (600, 600)
+    assert image_components[0]["props"]["sources"] == ["upload"]
+    assert all(component["props"]["buttons"] == ["fullscreen"] for component in image_components)
+    assert all(
+        dependency["api_visibility"] == "private" for dependency in demo.config["dependencies"]
+    )
+    assert "請勿上傳任何可識別個人的健康資訊" in markdown
+    assert "Patient Health Information (PHI)" in markdown
+    assert "不構成臨床診斷" in markdown
+
+
+@pytest.mark.parametrize("revision", ["", "main", "master", "v0.1.0", "ABCDEF"])
+def test_remote_model_requires_immutable_commit_revision(
+    monkeypatch: pytest.MonkeyPatch, revision: str
+) -> None:
+    def unexpected_download(*_args: object, **_kwargs: object) -> str:
+        raise AssertionError("remote download must not run before revision validation")
+
+    monkeypatch.delenv("WOUNDSCOPE_MODEL_PATH", raising=False)
+    monkeypatch.setenv("HF_MODEL_ID", "owner/private-model")
+    monkeypatch.setenv("HF_MODEL_REVISION", revision)
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", unexpected_download)
+
+    with pytest.raises(RuntimeError, match="40-character"):
+        gradio_app._resolve_model_artifacts()
+
+
+def test_remote_model_uses_one_immutable_revision_without_printing_token(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[dict[str, object]] = []
+    model = tmp_path / "model.onnx"
+    calibration = tmp_path / "calibration.json"
+    model.write_bytes(b"onnx")
+    calibration.write_text("{}", encoding="utf-8")
+
+    def fake_download(model_id: str, *, filename: str, revision: str, token: str | None) -> str:
+        calls.append(
+            {"model_id": model_id, "filename": filename, "revision": revision, "token": token}
+        )
+        return str(model if filename == "model.onnx" else calibration)
+
+    monkeypatch.delenv("WOUNDSCOPE_MODEL_PATH", raising=False)
+    monkeypatch.setenv("HF_MODEL_ID", "owner/private-model")
+    monkeypatch.setenv("HF_MODEL_REVISION", "a" * 40)
+    monkeypatch.setenv("HF_TOKEN", "test-private-token")
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", fake_download)
+
+    resolved = gradio_app._resolve_model_artifacts()
+
+    assert resolved == (model, calibration)
+    assert [call["revision"] for call in calls] == ["a" * 40, "a" * 40]
+    assert "test-private-token" not in capsys.readouterr().out
