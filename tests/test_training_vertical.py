@@ -81,3 +81,44 @@ def test_one_epoch_vertical_slice_persists_and_resumes(tmp_path: Path) -> None:
         resume=True,
     )
     assert resumed["epochs_completed"] == 1
+
+
+def test_quick_gate_forces_a_real_compatible_resume(tmp_path: Path) -> None:
+    torch.set_num_threads(1)
+    loader = DataLoader(_SyntheticSegmentationDataset(), batch_size=2)
+    run_dir = tmp_path / "quick"
+    config = _config()
+    config["training"]["max_epochs"] = 2
+
+    interrupted = train_model(
+        TinyUNet(base_channels=2),
+        loader,
+        loader,
+        config,
+        run_dir,
+        manifest_hash="synthetic-manifest",
+        device="cpu",
+        stop_after_epoch=1,
+    )
+
+    assert interrupted["status"] == "interrupted_for_resume_test"
+    assert interrupted["epochs_completed"] == 1
+    assert interrupted["resume_verified"] is False
+    assert not (run_dir / "results.json").exists()
+
+    resumed = train_model(
+        TinyUNet(base_channels=2),
+        loader,
+        loader,
+        config,
+        run_dir,
+        manifest_hash="synthetic-manifest",
+        device="cpu",
+        resume=True,
+    )
+
+    assert resumed["status"] == "completed"
+    assert resumed["epochs_completed"] == 2
+    assert resumed["resume_verified"] is True
+    assert resumed["resumed_from_epoch"] == 0
+    assert resumed["amp_enabled"] is False

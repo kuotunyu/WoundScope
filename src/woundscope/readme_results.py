@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import math
+import statistics
 from typing import Any
+
+import numpy as np
 
 METRICS = ("dice", "iou", "precision", "recall", "specificity")
 
@@ -20,13 +24,48 @@ def validate_verified_results(payload: dict[str, Any]) -> list[dict[str, Any]]:
     for experiment in experiments:
         if sorted(experiment.get("seeds", [])) != [42, 43, 44]:
             raise ValueError("Every final experiment must aggregate seeds 42/43/44")
+        per_seed = experiment.get("per_seed")
+        if not isinstance(per_seed, list) or sorted(
+            int(seed_report.get("seed", -1)) for seed_report in per_seed
+        ) != [42, 43, 44]:
+            raise ValueError("Every final experiment must include per-seed aggregate evidence")
         for metric in METRICS:
             values = experiment.get(metric)
             if not isinstance(values, dict) or not {"mean", "std"} <= values.keys():
                 raise ValueError(f"Missing mean/std for {metric}")
+            seed_values = [
+                float(seed_report["image_summary"][metric]["mean"]) for seed_report in per_seed
+            ]
+            recomputed_mean = statistics.fmean(seed_values)
+            recomputed_std = statistics.stdev(seed_values)
+            if not math.isclose(
+                float(values["mean"]), recomputed_mean, abs_tol=1e-12
+            ) or not math.isclose(float(values["std"]), recomputed_std, abs_tol=1e-12):
+                raise ValueError(
+                    f"Published {metric} does not match recomputed per-seed aggregate evidence"
+                )
         ci = experiment.get("bootstrap_95_ci", {}).get("dice")
         if not isinstance(ci, list) or len(ci) != 2:
             raise ValueError("Missing two-sided Dice bootstrap 95% CI")
+        bootstrap = experiment.get("bootstrap", {})
+        distribution = experiment.get("bootstrap_distribution", {}).get("dice")
+        if (
+            bootstrap.get("samples") != 2000
+            or bootstrap.get("cluster") != "image"
+            or bootstrap.get("method") != "percentile"
+            or not isinstance(distribution, list)
+            or len(distribution) != 2000
+        ):
+            raise ValueError("Missing 2,000-sample image-cluster bootstrap evidence")
+        recomputed_ci = [
+            float(np.quantile(distribution, 0.025)),
+            float(np.quantile(distribution, 0.975)),
+        ]
+        if not all(
+            math.isclose(float(value), expected, abs_tol=1e-12)
+            for value, expected in zip(ci, recomputed_ci, strict=True)
+        ):
+            raise ValueError("Published bootstrap CI does not match safe distribution evidence")
     return experiments
 
 

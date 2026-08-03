@@ -7,6 +7,7 @@ import pytest
 import torch
 
 from woundscope.calibration import CalibrationArtifact, fit_temperature, threshold_sweep
+from woundscope.evaluation import evaluate_logits
 from woundscope.uncertainty import tta_confidence
 
 
@@ -63,3 +64,26 @@ def test_tta_confidence_accepts_stable_confident_prediction() -> None:
 
     assert not result.low_confidence
     assert result.score > 0.9
+
+
+def test_evaluation_records_deidentified_tta_confidence_summary() -> None:
+    original = torch.full((1, 1, 2, 2), 5.0)
+    flipped = torch.full((1, 1, 2, 2), 5.0)
+    targets = torch.ones((1, 1, 2, 2))
+
+    report = evaluate_logits(
+        original,
+        targets,
+        ["private-sample-id"],
+        flipped_logits=flipped,
+        threshold=0.5,
+        temperature=1.0,
+        confidence_cutoff=0.2,
+        bootstrap_samples=10,
+    )
+
+    assert report["confidence"]["count"] == 1
+    assert report["confidence"]["low_confidence_count"] == 0
+    assert report["confidence"]["low_confidence_fraction"] == 0.0
+    assert len(report["sample_order_sha256"]) == 64
+    assert "private-sample-id" not in report["sample_order_sha256"]

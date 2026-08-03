@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import math
 import random
 from pathlib import Path
 from typing import Any
@@ -117,6 +118,7 @@ def train_model(
     manifest_hash: str,
     device: str = "cpu",
     resume: bool = False,
+    stop_after_epoch: int | None = None,
 ) -> dict[str, Any]:
     run_dir = Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -141,6 +143,9 @@ def train_model(
     best_dice = -1.0
     stale_epochs = 0
     history: list[dict[str, Any]] = []
+    resume_verified = False
+    resumed_from_epoch: int | None = None
+    interrupted_for_resume_test = False
     last_weights = run_dir / "last_model.safetensors"
     state_path = run_dir / "trainer_state.pt"
     if resume and state_path.exists() and last_weights.exists():
@@ -159,6 +164,8 @@ def train_model(
         best_dice = float(payload["best_dice"])
         stale_epochs = int(payload["stale_epochs"])
         history = list(payload["history"])
+        resume_verified = True
+        resumed_from_epoch = int(payload["epoch"])
 
     writer = SummaryWriter(run_dir / "tensorboard")
     for epoch in range(start_epoch, max_epochs):
@@ -191,6 +198,8 @@ def train_model(
             "dev_dice": dev_dice,
             "learning_rate": optimizer.param_groups[0]["lr"],
         }
+        if not all(math.isfinite(float(value)) for value in row.values()):
+            raise RuntimeError(f"Non-finite training metric at epoch {epoch}: {row}")
         history.append(row)
         for name, value in row.items():
             if name != "epoch":
@@ -231,9 +240,41 @@ def train_model(
             run_dir / "results.partial.json",
         )
         writer.flush()
+        if (
+            stop_after_epoch is not None
+            and len(history) >= stop_after_epoch
+            and epoch + 1 < max_epochs
+        ):
+            interrupted_for_resume_test = True
+            write_json_atomic(
+                {
+                    "status": "interrupted_for_resume_test",
+                    "last_completed_epoch": epoch,
+                    "best_dev_dice": best_dice,
+                    "config_hash": resolved_hash,
+                    "manifest_hash": manifest_hash,
+                },
+                run_dir / "results.partial.json",
+            )
+            break
         if stale_epochs >= int(training["early_stopping_patience"]):
             break
     writer.close()
+    if interrupted_for_resume_test:
+        return {
+            "status": "interrupted_for_resume_test",
+            "best_dev_dice": best_dice,
+            "epochs_completed": len(history),
+            "history": history,
+            "config_hash": resolved_hash,
+            "manifest_hash": manifest_hash,
+            "device": str(torch_device),
+            "amp_enabled": use_amp,
+            "resume_verified": resume_verified,
+            "resumed_from_epoch": resumed_from_epoch,
+            "best_checkpoint_sha256": file_sha256(run_dir / "best_model.safetensors"),
+            "last_checkpoint_sha256": file_sha256(last_weights),
+        }
     result = {
         "status": "completed",
         "best_dev_dice": best_dice,
@@ -242,6 +283,9 @@ def train_model(
         "config_hash": resolved_hash,
         "manifest_hash": manifest_hash,
         "device": str(torch_device),
+        "amp_enabled": use_amp,
+        "resume_verified": resume_verified,
+        "resumed_from_epoch": resumed_from_epoch,
         "best_checkpoint_sha256": file_sha256(run_dir / "best_model.safetensors"),
         "last_checkpoint_sha256": file_sha256(last_weights),
     }

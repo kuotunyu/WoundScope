@@ -10,7 +10,7 @@
 | Project state | `IMPLEMENTING / M3_IN_PROGRESS` |
 | Current milestone | M3 — Resumable staged Colab pipeline；M1 scientific gate 已通過 |
 | Last updated | 2026-08-03（Asia/Taipei） |
-| Last verified state | Official 810/200/200 integrity audit與 `exclude_train` contract PASS；baseline 50 tests PASS；protocol/data focused 12 tests PASS |
+| Last verified state | M1 `exclude_train` PASS；Ruff/format PASS；82 CPU tests PASS；privacy/ignore/remote audit PASS；augmentation grid visual PASS |
 | Active blocker | 無科學決策 blocker；Colab CUDA quick/full run 尚未執行 |
 | Next action | 完成 staged orchestrator、safe bundle 與 local CPU preflight，建立 immutable pre-Colab commit／source ZIP |
 | External actions | Local data 已下載且 gitignored；建立 local CPU Docker image；無 GPU training、remote、push 或 upload |
@@ -123,8 +123,8 @@
 | `data/raw/fuseg/` | Local, gitignored | Pinned official sparse checkout；不可 commit／重傳 |
 | `data/manifests/` | Local, gitignored | `data_manifest.csv`、`data_summary.json` 與 duplicate findings |
 | M2–M5 source/tests | Created and CPU verified | data/model/loss/train/evaluate/calibration/ONNX/inference/Gradio stack |
-| `notebooks/01_train_colab.ipynb` | Created, structure verified | Drive persistence、quick/full、resume、calibration、ONNX、sample prediction |
-| `artifacts/handoff/WoundScope_colab_source.zip` | Local, gitignored | 78 safe source files、229,299 bytes、SHA-256 `3489A804EEFA73829259B9F75D174AB46F33641E54AE8AC3117A1DA34BDE17D4` |
+| `notebooks/01_train_colab.ipynb` | Thin staged wrapper, structure verified | Source checksum、CUDA hard gate、single Run-all orchestration、Drive persistence／resume |
+| `artifacts/handoff/WoundScope_colab_source.zip` | Local, gitignored; rebuild required | 2026-07-19 ZIP 已過時且不再信任；必須從新的 clean pre-Colab commit 重建／驗證 |
 | Release files | Created and verified | README/cards/CFF/CI/Docker/.env.example/artifact handoff |
 | Model/training artifacts | None | 無 checkpoint、ONNX performance artifact 或 full-training result |
 
@@ -150,6 +150,51 @@
 4. 回收並驗證單一 safe results ZIP；只有 schema-valid completed full-run artifacts 才可更新 README。
 
 ## Session log
+
+### 2026-08-03 — 可恢復 staged Colab orchestration
+
+**目標**
+
+- 將 manual quick／comparison／final notebook 改為一次啟動、可恢復、可驗證與 privacy-safe 的八-stage pipeline。
+
+**變更**
+
+- 新增固定 experiment matrix、internal-dev-only loss selection、四層 tie-break、seed-42 hash/provenance reuse gate 與 atomic stage state。
+- Quick mode 使用同一 config 先在第 1 epoch deliberate stop，再由 trainer state 實際 resume；結果記錄 `resume_verified`、`resumed_from_epoch` 與 `amp_enabled`。
+- 新增 CUDA-only default handlers，串接 integrity、augmentation、quick、comparison、selection、final、official validation、ONNX/parity/benchmark、private deterministic gallery 與 safe handoff。
+- 新增三-seed official-validation recomputation、image-cluster bootstrap、TTA confidence aggregate、source-commit provenance fallback，以及防手抄／tamper 的 README aggregate guardrail。
+- 新增 committed allowlist source ZIP與 curated results ZIP builders；驗證 path safety、exact inventory、size/SHA-256、schema、source commit、secret/absolute-path/private-artifact rejection。
+- Notebook 縮為 mount／source verification／install+CUDA gate／單一 staged command 五個 cells；更新 safe result 下載與驗證說明。
+
+**驗證**
+
+- `.venv\Scripts\python.exe -m ruff check .` → PASS。
+- `.venv\Scripts\python.exe -m ruff format --check .` → PASS；62 files formatted。
+- `.venv\Scripts\python.exe -m pytest -q` → PASS；82 passed，2 個既有 legacy ONNX exporter deprecation warnings。
+- Hard-coded platform path scan PASS；manual `RUN_MODE`／`FULL_STAGE`／selected-loss switch scan PASS。
+- Self-review regression：所有 CUDA training（quick/full）強制 `amp_enabled=true`；official aggregate 強制 calibration `source_split=dev`；safe bootstrap distribution 可在本機重算 2,000-sample percentile CI並拒絕 tamper。
+- `.venv\Scripts\python.exe -m pytest tests\test_training_vertical.py tests\test_notebook_release.py -q` → PASS；4 passed，包含 actual compatible resume 與 thin-notebook structure。
+- Mypy：`pyproject.toml` 未配置，依規格記錄為 `NOT_CONFIGURED`，未假裝執行。
+- Ignore gate：`.env`、data/manifests、artifacts、weights、ONNX、generated/gallery paths 全部命中 `.gitignore`。
+- Tracked privacy audit：除允許的 `data/.gitkeep`／`data/README.md` 外，無 tracked data、image-level manifest、醫療影像、masks、weights、ONNX、TensorBoard、sample predictions 或 error gallery。
+- Secret-like assigned-value filename audit PASS；`GIT_REMOTE_COUNT=0`。
+- `reports/generated/augmentation_preflight.png`（gitignored）實際 visual inspection PASS：image/mask alignment 一致，horizontal flip／rotation 同步，brightness/color mild；無 vertical flip、強 crop 或 mask drift。SHA-256 `011D40E6D3CA5D9834EDE6F9C6584BFD634617D36F8A80F5682F3F0AB6F3E637`。
+- 本機 RTX 4090／full local training：未使用／未執行。
+
+**Artifacts**
+
+- 新增 `src/woundscope/orchestration.py`、`colab_pipeline.py`、`results.py`、`bundles.py` 與三個 thin scripts。
+- `reports/generated/augmentation_preflight.png`（gitignored private visual evidence）。
+- 舊 `artifacts/handoff/WoundScope_colab_source.zip` 保留但標記為 obsolete；尚未以未 commit 工作樹打包。
+
+**決策／偏差**
+
+- 無 scientific protocol 偏差；official validation 只會在 selection、final configs、checkpoints 與 dev calibration 全部凍結後執行。
+- M3 仍未 Completed：缺少真實 Colab CUDA quick/full evidence。
+
+**未完成與下一步**
+
+- 建立 pre-Colab feature commit，從 clean HEAD 重建並 clean-extract 驗證 source ZIP，再進入 Colab GPU gate。
 
 ### 2026-08-03 — 鎖定 exact-duplicate mitigation
 

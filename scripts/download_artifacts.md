@@ -1,30 +1,29 @@
-# 從 Google Drive 取回 WoundScope artifacts
+# 從 Google Drive 取回 WoundScope safe handoff
 
-Colab notebook 預設把每個 run 直接寫入 `MyDrive/WoundScopeArtifacts/runs/`，因此 runtime 中斷後 checkpoint、trainer state、CSV、TensorBoard 與 partial results 仍在 Drive。
+Colab staged pipeline 將大型／private artifacts 保留在
+`MyDrive/WoundScopeArtifacts/`，最後只建立一份可回收的 aggregate bundle：
 
-## 建議步驟：Drive for desktop 或瀏覽器下載
-
-1. 在 Google Drive 將完成的單一 `runs/<RUN_ID>/` 資料夾下載成 ZIP；不要下載或分享 `data/`。
-2. 把 ZIP 放到 Windows 專案的 `artifacts/incoming/`（此路徑已被 Git ignore）。
-3. 在 WSL2 進入 repository，解壓並驗證：
-
-```bash
-mkdir -p artifacts/runs
-unzip /mnt/c/path/to/RUN_ID.zip -d artifacts/runs/RUN_ID
-sha256sum artifacts/runs/RUN_ID/best_model.safetensors \
-          artifacts/runs/RUN_ID/model.onnx
-cat artifacts/runs/RUN_ID/provenance.json
+```text
+MyDrive/WoundScopeArtifacts/handoff/woundscope_colab_results_<source-commit-prefix>.zip
 ```
 
-4. 執行本機 CPU smoke：
+## 一次下載與驗證
 
-```bash
-.venv/bin/python scripts/predict.py \
-  --model artifacts/runs/RUN_ID/model.onnx \
-  --calibration artifacts/runs/RUN_ID/calibration.json \
-  --input /path/to/local/image.jpg \
-  --output artifacts/runs/RUN_ID/local_smoke \
-  --device cpu
+1. 只下載上述 `woundscope_colab_results_*.zip`；不要下載或分享 `runs/`、data、weights、ONNX、TensorBoard、sample predictions 或 error galleries。
+2. 將 ZIP 放入 Windows repository 的 `artifacts/incoming/`（已 gitignored）。
+3. 在 repository 以 pre-Colab source commit 驗證並解壓：
+
+```powershell
+$resultBundle = (Get-ChildItem artifacts\incoming\woundscope_colab_results_*.zip |
+  Sort-Object LastWriteTime -Descending |
+  Select-Object -First 1).FullName
+$sourceCommit = git rev-parse HEAD
+.\.venv\Scripts\python.exe scripts\verify_results_bundle.py `
+  --bundle $resultBundle `
+  --expected-source-commit $sourceCommit `
+  --output artifacts\verified
 ```
 
-若要用 `rclone`，請自行在互動環境完成 Google Drive OAuth；不要把 token、Drive credentials 或 `.env` 放進 repository。模型權重在 FUSeg 授權未人工確認前只留在 private Drive／本機。
+驗證器會拒絕 path traversal、未列入 inventory 的 member、size／SHA-256 不符、source commit 不符、weights／ONNX／checkpoint／TensorBoard、image-level metrics、sample predictions、gallery、secret-like content 或 Drive absolute paths。只有通過 schema 與三-seed recomputation guardrail 的 `aggregate/verified_results.json` 才能用於 README 更新。
+
+Private Drive 內的 checkpoints／ONNX 可用於授權允許範圍內的本機研究，但不屬於 safe handoff，也不得因本流程而公開或追蹤。

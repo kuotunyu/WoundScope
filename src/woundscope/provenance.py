@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import importlib.metadata
 import json
+import os
 import platform
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -47,6 +49,10 @@ def build_provenance(
     seed: int,
     device: str,
 ) -> dict[str, Any]:
+    git_sha = _git_sha()
+    source_commit = os.environ.get("WOUNDSCOPE_SOURCE_COMMIT", git_sha)
+    if source_commit != "unavailable" and re.fullmatch(r"[0-9a-f]{40}", source_commit) is None:
+        raise ValueError("WOUNDSCOPE_SOURCE_COMMIT must be a lowercase 40-character Git SHA")
     packages = {}
     for name in (
         "torch",
@@ -61,7 +67,8 @@ def build_provenance(
         except importlib.metadata.PackageNotFoundError:
             packages[name] = "not-installed"
     return {
-        "git_sha": _git_sha(),
+        "git_sha": git_sha,
+        "source_commit": source_commit,
         "git_dirty": _git_dirty(),
         "data_revision": config["data"]["source_revision"],
         "manifest_sha256": file_sha256(manifest_path),
