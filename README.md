@@ -2,11 +2,11 @@
 
 [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb)
 [![Hugging Face Space](https://img.shields.io/badge/Hugging%20Face-Space%20待發布-yellow)](#gradio-demo)
-[![CI](https://img.shields.io/badge/CI-local%20verified-blue)](#測試與驗收)
+[![CI](https://github.com/kuotunyu/WoundScope/actions/workflows/ci.yml/badge.svg)](https://github.com/kuotunyu/WoundScope/actions/workflows/ci.yml)
 
 WoundScope 是一套可重現的足部潰瘍區域 segmentation 研究與部署 pipeline。它從官方 FUSeg 像素標註資料開始，涵蓋 integrity validation、U-Net／SegFormer 訓練、calibration、bootstrap evaluation、ONNX export 與 Gradio demo。輸出只描述模型預測的像素區域，不提供疾病診斷、嚴重度或治療建議。
 
-> 專案狀態：Colab full training、三-seed locked official-validation evaluation、ONNX parity／benchmark 與 privacy-safe handoff 已完成；模型權重仍只保存在 private Drive，未包含於 repository。請以 [PROGRESS.md](PROGRESS.md) 為準。
+> 專案狀態：M0–M6 已完成，GitHub hosted CI 已通過；Colab full training、三-seed locked official-validation evaluation、ONNX parity／benchmark 與 privacy-safe handoff 均已完成。模型權重仍只保存在 private Drive，未包含於 repository。請以 [PROGRESS.md](PROGRESS.md) 為準。
 
 ## 問題定義與資料
 

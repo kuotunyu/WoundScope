@@ -7,13 +7,13 @@
 
 | 欄位 | 內容 |
 |---|---|
-| Project state | `IMPLEMENTING / M6_IN_REVIEW` |
-| Current milestone | M6 — Release engineering 與完整驗收；M0–M5 gates 已通過 |
-| Last updated | 2026-08-03（Asia/Taipei） |
-| Last verified state | c7 results、full official-validation/ONNX/handoff、Ruff/format/107 tests/privacy 與 96-file clean-checkout PASS；default-history author 已正規化為單一 `kuotunyu`，tree 內容不變 |
-| Active blocker | 無；使用者已授權建立 Public `kuotunyu/WoundScope` 與 push 程式碼，禁止上傳 data/weights/private images |
-| Next action | 執行發布前 full gate，建立公開 repo 與 `zh-TW` About metadata，push `main`，等待 hosted CI 並驗證 Contributors 只有 `kuotunyu` |
-| External actions | GitHub CLI 已驗證為 `kuotunyu`；目標 repo 尚未建立、remote 尚未設定、尚未 push；private Drive artifacts 不公開 |
+| Project state | `RELEASED / M6_COMPLETED` |
+| Current milestone | M6 — Release engineering 與完整驗收已完成；M0–M6 gates 全部通過 |
+| Last updated | 2026-08-04（Asia/Taipei） |
+| Last verified state | Public repository、GitHub hosted CI、c7 full results、official-validation/ONNX/handoff、Ruff/format/107 tests/privacy、96-file clean-checkout 與單一 `kuotunyu` Contributors audit 全部 PASS |
+| Active blocker | 無；private Drive data／weights／image-level artifacts 仍維持不公開，屬發布政策而非 blocker |
+| Next action | 維護 hosted CI 與 dependency updates；只有新增實質功能或實驗時才開啟下一個 milestone |
+| External actions | Public `https://github.com/kuotunyu/WoundScope` 已建立；`main` 與 provenance tag 已 push，Description/About/topics 以 `zh-TW` 為主，private artifacts 未上傳 |
 
 ## Resume checklist
 
@@ -38,7 +38,7 @@
 | M3 — Training/Colab | Completed | CPU mini-train、resume、notebook、Colab quick gate 通過 | A100 staged quick/full、AMP、deliberate resume、loss selection與三-seed final completed |
 | M4 — Evaluation/calibration | Completed | Metrics/bootstrap/calibration/confidence/gallery gates 通過 | Locked official validation、dev calibration、2,000 bootstrap、五類 private gallery completed |
 | M5 — Inference/demo | Completed | CPU/CUDA/ONNX/benchmark/app gates 通過 | 六組 CUDA→ONNX parity、CPU benchmark completed；PyTorch/ONNX/app tests PASS |
-| M6 — Release | In review | CI/Docker/clean-clone/data-secret audit 通過 | 文件/CI/CPU Docker/secret/96-file clean-checkout reproduction PASS；hosted CI 待明確 remote/push 授權 |
+| M6 — Release | Completed | CI/Docker/clean-clone/data-secret audit 通過 | 文件/CI/CPU Docker/secret/96-file clean-checkout reproduction、GitHub hosted CI 與 Contributors audit PASS |
 
 允許的狀態值：`Not started`、`In progress`、`Blocked`、`In review`、`Completed`。
 
@@ -68,6 +68,10 @@
 - 已建立並驗證 gitignored recovery bundle `artifacts/pre_github_publish_f3e3b9f.bundle`，306,125 bytes，SHA-256 `EA00EDF71E0C714715EF09688E35413575A74F5BDCC62E25ECF93E2723D01F7E`。
 - Default-history placeholder author 已正規化為 `kuotunyu <61350295+kuotunyu@users.noreply.github.com>`；17 commits 的 author/committer 統一，改寫前後 HEAD tree hash 完全一致。
 - 舊 commit graph 以 annotated tag `provenance-pre-publication-f3e3b9f` 保留，training source `c7ec6060f1bd0a813a890b95b50c2855d3c2640c` 仍可從該 tag reachability 驗證。
+- Public repository 已建立於 `https://github.com/kuotunyu/WoundScope`；visibility=`PUBLIC`、default branch=`main`，Description 與 topics 已設定為 `zh-TW`-first。
+- GitHub hosted CI run `30831760839` 於 `main` 成功完成；dependency sync、Ruff、format、107 tests 與 prohibited-artifact audit 全部 PASS。
+- GitHub Contributors API（含 anonymous contributors）只回傳 `kuotunyu`，18 contributions；無 bot、placeholder 或共同作者。
+- Hosted CI 的 Node.js 20 deprecation annotation 已以 SHA-pinned `actions/checkout` v6.1.0 與 `astral-sh/setup-uv` v8.1.0 修正；本次 release commit 將再由 hosted CI 驗證。
 
 ### 2026-08-03 — Verified c7 full-run results ingestion
 
@@ -183,10 +187,10 @@
 
 ## Next actions
 
-1. 重跑 full release gate 與 contributor/privacy audit，將正規化後的 release branch fast-forward 到 `main`。
-2. 建立 Public `kuotunyu/WoundScope`，設定 `zh-TW` Description/About/topics，明確 push `main` 與 provenance tag。
-3. 等待 hosted CI，驗證 GitHub Contributors API/graph 只列 `kuotunyu`；PASS 後才將 M6 標示 `Completed`。
-4. 保留 private Drive 的 checkpoints／ONNX 作為未公開備份；不得公開 weights 或 FUSeg 衍生影像。
+1. 維護 GitHub hosted CI、dependency pin 與 security updates；任何變更都需保留 Ruff／format／pytest／privacy audit gates。
+2. Contributors policy 維持只有 `kuotunyu`；未來 commits 不得加入 bot、placeholder 或共同作者 trailer。
+3. 保留 private Drive 的 checkpoints／ONNX 作為未公開備份；不得公開 weights、FUSeg 衍生影像或 image-level artifacts。
+4. 只有新增實質功能、資料 protocol 或正式實驗時才建立下一個 milestone，並先更新 `PROJECT_PLAN.md`。
 
 ## Session log
 
