@@ -8,9 +8,9 @@
 | 欄位 | 內容 |
 |---|---|
 | Project state | `RELEASED_V0.1.0 / M7_HF_SPACE_CODE_ONLY_READY` |
-| Current milestone | M7 HF Space code-only candidate gates 全部通過；model-backed live deployment 維持 `PERMISSION_PENDING` |
+| Current milestone | M7 final-review correction gates 全部通過；code-only candidate 已從修復後 committed HEAD 重建，model-backed live deployment 維持 `PERMISSION_PENDING` |
 | Last updated | 2026-08-04（Asia/Taipei） |
-| Last verified state | M7 source `d271f794550994be67b18578f7910afa14dbb588`：36-file candidate、155,485-byte ZIP、SHA-256 `76E0AB57339A00102E3BD30A9BD61E1D946EBC5A0D987D692D0849DBA4DE50D7`；60 focused／153 full tests、privacy audit、import、CPU Docker 與 unpinned clean-clone reproduction 全部 PASS |
+| Last verified state | M7 corrected source `90835981c40acdd23a0e4a686fa1a7d6ec189859`：37 manifest files／38 exact tree+ZIP members、155,986-byte ZIP、SHA-256 `ECB81FFC63A417E956FF3BC98DB672774757A3DCF8D8D2D795DE91192EED4E9D`；62 focused／155 full tests、non-mutating import、pre/post-Docker verifier 與 unpinned clean-clone reproduction 全部 PASS |
 | Active blocker | `FUSeg derived-weight permission pending`；這是 model-backed live deployment blocker，不是 code-only candidate blocker |
 | Next action | 使用者審閱尚未寄出的權限請求；未獲明確指示前不執行任何 Hugging Face 或其他外部動作 |
 | External actions | 既有 Public repository 與 `v0.1.0` Release 維持不變；本輪未建立 Space／model repo，未使用 token，未寄出訊息，未 push／upload／deploy |
@@ -39,7 +39,7 @@
 | M4 — Evaluation/calibration | Completed | Metrics/bootstrap/calibration/confidence/gallery gates 通過 | Locked official validation、dev calibration、2,000 bootstrap、五類 private gallery completed |
 | M5 — Inference/demo | Completed | CPU/CUDA/ONNX/benchmark/app gates 通過 | 六組 CUDA→ONNX parity、CPU benchmark completed；PyTorch/ONNX/app tests PASS |
 | M6 — Release | Completed | CI/Docker/clean-clone/data-secret audit 通過 | v0.1.0 文件／CI／security／113-test clean checkout、兩次 hosted CI、Release asset、branch protection 與 Contributors audit PASS |
-| M7 — HF Space code-only readiness | Completed | Committed candidate、privacy inventory、tests、import、CPU Docker 與 real-clone reproduction 通過 | Source `d271f7945509`；36 files／155,485 bytes／SHA-256 `76E0AB57339A00102E3BD30A9BD61E1D946EBC5A0D987D692D0849DBA4DE50D7`；60 focused／153 full tests PASS；live deployment `PERMISSION_PENDING` |
+| M7 — HF Space code-only readiness | Completed | Committed candidate、privacy inventory、non-mutating import、pre/post-Docker verifier、tests 與 real-clone reproduction 通過 | Corrected source `90835981c40a`；37 manifest files／38 exact tree+ZIP members／155,986 bytes／SHA-256 `ECB81FFC63A417E956FF3BC98DB672774757A3DCF8D8D2D795DE91192EED4E9D`；62 focused／155 full tests PASS；live deployment `PERMISSION_PENDING` |
 
 允許的狀態值：`Not started`、`In progress`、`Blocked`、`In review`、`Completed`。
 
@@ -62,14 +62,32 @@
 
 ## Test and verification evidence
 
+### 2026-08-04 — M7 final review correction：non-mutating import 與 exact Docker context
+
+- Reviewer 在舊 final candidate 發現 `src/woundscope/__pycache__/` 下 7 個未列入 manifest 的 `.pyc`：manifest 預期含 manifest 共 37 files，實際 directory 為 44 files；`verify_huggingface_space_candidate` 正確拒絕 `Space candidate inventory does not match bundle`。舊 ZIP 本身仍為 37 members、155,485 bytes、SHA-256 `76E0AB57339A00102E3BD30A9BD61E1D946EBC5A0D987D692D0849DBA4DE50D7`。
+- Root cause 是舊 Task 5 以一般 Python 對 candidate 做 import smoke，Python 因而寫入 bytecode；當時 import 後、Docker 前沒有重新跑 exact verifier，candidate 也未包含 `.dockerignore`。因此先前「Docker 使用 exact verified 37-file context」的證據無效；舊 Docker build exit 0 只能證明 image 曾成功建立，不能證明其 context inventory 精確。下方舊 M7 紀錄保留為歷史，但與本節衝突處一律由本節取代。
+- TDD RED：real subprocess regression 先驗證舊一般 Python command 會改動 verified candidate，並使 verifier 失敗；目前 implementation plan 所開出的舊 command 也重現相同失敗。與 `.dockerignore` allowlist、token exception sanitization 合併的第一輪為 3 failed／1 passed；Space README 權限語意另有 1 個預期 RED。
+- TDD GREEN：Task 5 import 改用 `python -B`，import 後、Docker 前與 Docker 後都強制執行 `verify_huggingface_space_candidate`；candidate 加入 committed `.dockerignore` 並排除 `__pycache__` 作 defense-in-depth。精準 regressions 5 passed；focused suite 62 passed。
+- Remote model error boundary：成功路徑的 synthetic token 同時確認不在 stdout／stderr；model download 若拋出含 supplied token 的例外，對外只回固定 `Pinned Hugging Face model download failed.`，以 `raise ... from None` 抑制 secret-bearing context。Immutable lowercase 40-character revision gate 不變。
+- Deployment copy：目前 `PERMISSION_PENDING` code-only 階段不使用 token；只有未來另案核准的 Protected／Private model flow 可使用最小權限 read-only runtime secret。Space runtime 永遠拒絕 write token、私密 URL 與未固定 revision。
+- 修復 commit：`90835981c40acdd23a0e4a686fa1a7d6ec189859`（`fix: keep Space candidate immutable`）；author／committer 均只有 `kuotunyu <61350295+kuotunyu@users.noreply.github.com>`，無共同作者或其他 trailers。
+- 舊標準 candidate／ZIP 已精確移至 gitignored `review-invalidated-pyc-d271f79-*` 名稱保留，未刪除或覆寫其他 artifacts；新標準 outputs 從 clean committed `90835981...` 重建。
+- Corrected candidate：builder `status=verified`；37 manifest files；directory 與 ZIP 各 38 members（含 manifest）；ZIP 155,986 bytes；SHA-256 `ECB81FFC63A417E956FF3BC98DB672774757A3DCF8D8D2D795DE91192EED4E9D`。
+- Exact path/content audit：candidate／ZIP inventory 與 manifest 完全一致；包含 `.dockerignore`；`.pyc`、`.env`、model/weight/raster suffix、artifact directory components、secret-like content 與 absolute paths forbidden 0。
+- Runtime/Docker gate：`python -B` candidate-only import → `HF_SPACE_IMPORT_SMOKE_PASS`；immediate verifier → 38 files PASS；CPU Docker build exit 0、image `sha256:e6a879dc537c235e058bd3dc2a7830271ae157c9e530b23c6dbb40b9ac6d2da7`；post-Docker verifier → 38 files PASS。未啟動 container、未載入／下載 model、未使用 GPU。
+- Main worktree gate：62 focused passed；Ruff check PASS；format `67 files already formatted`；full suite 155 passed，只有 2 個既有 legacy ONNX exporter deprecation warnings；`git diff --check`、clean tracked status、identity 與 trailer audit PASS。
+- Fresh unpinned local clone：`uv sync --all-extras --frozen`、Ruff、format、155 tests 全部 PASS；重建得到相同 source／37 manifest files／38 members／155,986 bytes／ZIP SHA-256；`python -B` import 後 verifier PASS，clone tracked status clean。未記錄本機 home path。
+- External mutation：未建立 Space／model repository，未讀取或使用真實 token，未寄出訊息，未 push／upload／deploy；未使用 FUSeg data、weights、ONNX 或 GPU，也未執行 training。
+
 ### 2026-08-04 — M7 HF Space code-only readiness gate
 
+- 本節是 final review 前的歷史證據。其 candidate ZIP 與 pre-import checks 有效，但 normal-Python import 汙染使後續 Docker-context exactness 證據失效；final corrected state 請以上一節為準。
 - Clean committed source：`d271f794550994be67b18578f7910afa14dbb588`；build 前 worktree clean；author／committer 均為 `kuotunyu <61350295+kuotunyu@users.noreply.github.com>`；candidate 與 ZIP 均命中 `.gitignore` 的 `artifacts/` 規則。
 - Candidate builder：`status=verified`；manifest files `36`；staging 含 manifest 為 37 files；ZIP 37 members／155,485 bytes／SHA-256 `76E0AB57339A00102E3BD30A9BD61E1D946EBC5A0D987D692D0849DBA4DE50D7`；輸出路徑為本 repository 內的 gitignored `artifacts/huggingface-space/`。
 - Exact inventory audit：manifest `kind=huggingface_space`、source commit 與 ZIP members 完全一致；case-insensitive staging／ZIP path audit → `HF_SPACE_FORBIDDEN_ARTIFACT_AUDIT_PASS staging_files=37 zip_members=37 forbidden=0`。
 - Filename gate 的初次 broad-regex audit 曾把合法 Python source `src/woundscope/checkpointing.py` 誤判為 artifact；TDD 先得到 6 個 `DID NOT RAISE` RED cases（`.env.*`、checkpoints／gallery／sample_predictions／tensorboard／artifacts directories），再改為 path-component／suffix／content contract；positive `checkpointing.py` 與拒絕案例 GREEN，bundle focused suite 27 passed。
 - Task 5 focused suite：60 passed；Ruff check PASS；format check `67 files already formatted`；full suite 153 passed，只有 2 個既有 legacy ONNX exporter deprecation warnings；`git diff --check` PASS。
-- Candidate import：`HF_SPACE_IMPORT_SMOKE_PASS`；Gradio analytics disabled、cache deletion interval `(600, 600)`。CPU Docker：`docker build -t woundscope:hf-space-code-only artifacts/huggingface-space/candidate` exit 0；沒有 container launch、model load／model download 或 GPU 使用。
+- Historical import／Docker：normal-Python import 當時輸出 `HF_SPACE_IMPORT_SMOKE_PASS`，Docker build 也 exit 0；但 import 寫入 7 個 `.pyc`，且缺少 post-import verifier，因此這項紀錄不得再用來證明 Docker context 精確。沒有 container launch、model load／model download 或 GPU 使用。
 - Clean-clone 初次 unpinned pre-test 在 `uv sync` exit 2；`uv` 選到 Anaconda CPython 3.10.9，locked `onnxruntime==1.24.3` 沒有 cp310 wheel。Root fix 將 package contract 從 `>=3.10,<3.13` 改為 `>=3.11,<3.13`，移除 Python 3.10 classifier，並重建 `uv.lock`；metadata regression RED 後 GREEN。
 - Final clean-clone reproduction：全新 local clone `<TEMP>/woundscope-hf-verify-*/source` 含真實 `.git` metadata；未設 `UV_PYTHON`，`uv sync --all-extras --frozen` 自動選擇 Python 3.12.13 並安裝 96 packages；Ruff PASS、format 67 files、152 passed，candidate source／file count／ZIP SHA-256 與主 worktree 完全一致，privacy audit 0 forbidden，generated outputs 維持 ignored，clone status clean。
 - GPU／full training：未使用／未執行。External mutation：未建立 Hugging Face Space 或 model repository，未讀取／使用 token，未寄出權限訊息，未 push、upload 或 deploy。
@@ -210,7 +228,7 @@
 | `notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb` | Thin staged wrapper, structure verified | 優先使用 private Drive immutable source ZIP；缺少 ZIP 時 checkout public `v0.1.0`；CUDA hard gate、single Run-all orchestration、Drive persistence／resume |
 | `artifacts/handoff/WoundScope_colab_source.zip` | Local, gitignored; verified recovery bundle | Source `8345176593e3`、82 files、SHA-256 `773E0274487F54D040F68943A610BF53C97393157A49A5B50BA05A2B76537A8E`；clean-extract suite 107 passed |
 | `artifacts/handoff/WoundScope_colab_source_792d296.zip` | Local, gitignored; final clean-source audit | Source `792d29602a39`、82 files、248,166 bytes、SHA-256 `13B7611172551171D6504D96477B4500E3F9526C4409332D2525077AA0F18B91`；clean-extract suite 107 passed |
-| `artifacts/huggingface-space/` | Local, gitignored; M7 code-only candidate verified | Source `d271f7945509`；36 manifest files／155,485-byte ZIP／SHA-256 `76E0AB57339A00102E3BD30A9BD61E1D946EBC5A0D987D692D0849DBA4DE50D7`；privacy、import、CPU Docker 與 unpinned clean-clone gates PASS |
+| `artifacts/huggingface-space/` | Local, gitignored; corrected M7 code-only candidate verified | Source `90835981c40a`；37 manifest files／38 exact tree+ZIP members／155,986-byte ZIP／SHA-256 `ECB81FFC63A417E956FF3BC98DB672774757A3DCF8D8D2D795DE91192EED4E9D`；non-mutating import、pre/post-Docker verifier、privacy 與 unpinned clean-clone gates PASS；舊 contaminated outputs 以 `review-invalidated-pyc-*` 保留 |
 | Release files | Created and verified | README/cards/CFF/CI/Docker/.env.example、`SECURITY.md`、issue form、aggregate SVG、v0.1.0 notes 與 artifact handoff |
 | Model/training artifacts | Private Drive + verified safe local summary | 完整 checkpoints/ONNX/gallery 留在 private Drive；gitignored safe result evidence 52 members，不含 weights/images |
 
@@ -236,6 +254,37 @@
 4. 保留 private Drive 的 checkpoints／ONNX 作為未公開備份；不得公開 weights、FUSeg 衍生影像或 image-level artifacts。
 
 ## Session log
+
+### 2026-08-04 — M7 final review correction
+
+**目標**
+
+- 修正 reviewer 發現的 bytecode candidate contamination、token exception disclosure gap 與 Space token-policy ambiguity，並從含全部修正的 clean committed HEAD 重建 final candidate。
+
+**變更**
+
+- Task 5 import gate 改為 `python -B`，並在 import 後／Docker 前及 Docker 後執行 exact candidate verifier；allowlist 加入排除 `__pycache__` 的 `.dockerignore`。
+- Remote model download failure 改用固定 sanitized error 與 suppressed context；synthetic token test 同時覆蓋 stdout、stderr 與 exception chain。
+- Space README 明確區分目前 no-token code-only stage 與未來另案核准、read-only secret-only 的 Protected／Private flow。
+
+**驗證**
+
+- RED：3 failed／1 passed（candidate mutation、missing `.dockerignore`、token-bearing exception）；README contract 1 failed。GREEN：5 targeted passed；62 focused passed。
+- Corrected source `90835981c40a`；37 manifest files／38 directory+ZIP members；155,986 bytes；SHA-256 `ECB81FFC63A417E956FF3BC98DB672774757A3DCF8D8D2D795DE91192EED4E9D`。
+- Exact audit、`python -B` import、pre/post-Docker verifier、CPU Docker、Ruff、format、155 full tests、diff/status/identity/trailer 與 fresh unpinned clone gates 全部 PASS；2 個既有 ONNX warnings 不變。
+
+**Artifacts**
+
+- `artifacts/huggingface-space/candidate/`、`artifacts/huggingface-space/WoundScope_hf_space_code_only.zip`（corrected、gitignored）。
+- `artifacts/huggingface-space/review-invalidated-pyc-d271f79-*`（舊 reviewer evidence、gitignored、可復原）。
+
+**決策／偏差**
+
+- 無 scientific protocol 或授權邊界變更；code-only M7 完成仍不等於 derived weights 可公開。Model-backed live deployment 維持 `PERMISSION_PENDING`。
+
+**未完成與下一步**
+
+- 使用者審閱尚未寄出的 FUSeg derived-weight 權限請求；等待明確外部動作指示。
 
 ### 2026-08-04 — M7 HF Space code-only readiness
 
