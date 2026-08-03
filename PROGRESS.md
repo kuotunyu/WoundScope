@@ -10,9 +10,9 @@
 | Project state | `IMPLEMENTING / M3_IN_PROGRESS` |
 | Current milestone | M3 — Resumable staged Colab pipeline；M1 scientific gate 已通過 |
 | Last updated | 2026-08-03（Asia/Taipei） |
-| Last verified state | M1 `exclude_train` PASS；Ruff/format PASS；87 CPU tests PASS；Colab Drive/resume/diagnostic regressions PASS；privacy/ignore/remote audit PASS |
-| Active blocker | 無科學決策 blocker；Colab A100 已啟動但 pipeline 首次 GPU run 失敗，舊版未保存 child error；需以修正版 bundle 重跑 |
-| Next action | 建立並上傳修正版 immutable source ZIP 與 notebook，重新執行 Colab Run all |
+| Last verified state | M1 `exclude_train` PASS；Ruff/format PASS；88 CPU tests PASS；Colab Drive/resume/diagnostic 與 temperature calibration inference-tensor regressions PASS |
+| Active blocker | 無科學決策 blocker；Colab A100 quick gate 在 temperature calibration 發現 PyTorch inference-tensor/autograd 相容性 bug；修正版 bundle 待重跑 |
+| Next action | 建立並上傳 calibration 修正版 immutable source ZIP，沿用現有 notebook 重新執行 Run all |
 | External actions | 使用者已在 private Drive 上傳 source ZIP/notebook 並啟動 A100；無 remote、push、公開 upload 或本機 full GPU training |
 
 ## Resume checklist
@@ -150,6 +150,36 @@
 4. 回收並驗證單一 safe results ZIP；只有 schema-valid completed full-run artifacts 才可更新 README。
 
 ## Session log
+
+### 2026-08-03 — Colab temperature calibration inference-tensor 修正
+
+**目標**
+
+- 修正 A100 quick evaluation 在 dev-only temperature calibration 進入 LBFGS 時的 PyTorch runtime error。
+
+**根因與變更**
+
+- `collect_tta_logits` 正確使用 `torch.inference_mode()` 收集 logits/targets；但 `fit_temperature` 原本只做 `detach().float().cpu()`。當 tensor 已在 CPU/float32 時，這些操作可保留 inference-tensor 身分，LBFGS autograd 嘗試保存 `logits / temperature` 時即失敗。
+- 在 calibration/autograd boundary 明確 `clone()` logits 與 targets，轉成一般 tensor 後才執行 temperature optimization；不變更模型、loss、資料 split 或評估 protocol。
+- 新增 regression test，直接將 `torch.inference_mode()` 建立的 logits/targets 傳入真實 `fit_temperature`，修正前重現相同 RuntimeError，修正後通過。
+
+**Colab evidence**
+
+- `quick_gpu_gate` 已進入第一個 U-Net/BCE+Dice run 的 dev evaluation，checkpoint 與 calibration output path 已建立；失敗發生於 temperature fitting，尚無可宣稱的 quick/full metrics。
+- 舊版 `c3c98c2ad3bb` 的詳細 subprocess tail 成功保存真正 root cause，證明 diagnostic fix 生效。
+
+**驗證**
+
+- Inference-tensor calibration regression：RED 重現相同錯誤；GREEN → 1 passed。
+- Calibration/uncertainty focused suite → 7 passed。
+- `.venv\Scripts\python.exe -m ruff check .`、`ruff format --check .`、`pytest -q`、`git diff --check` → PASS；88 tests passed，2 個既有 ONNX exporter deprecation warnings。
+- Clean-source bundle verification 待本次修正 commit 後執行。
+
+**Artifacts**
+
+- `src/woundscope/calibration.py`
+- `tests/test_calibration_uncertainty.py`
+- `artifacts/handoff/WoundScope_colab_source.zip`（需從本次 clean fix commit 重建）
 
 ### 2026-08-03 — Colab Drive／resume／diagnostic 修正
 

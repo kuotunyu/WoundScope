@@ -38,8 +38,10 @@ class CalibrationArtifact:
 
 
 def fit_temperature(logits: Tensor, targets: Tensor, max_iter: int = 50) -> float:
-    logits = logits.detach().float().cpu()
-    targets = targets.detach().float().cpu()
+    # Evaluation deliberately collects tensors under inference_mode. Clone at
+    # the calibration boundary so LBFGS can save normal tensors for autograd.
+    logits = logits.detach().float().cpu().clone()
+    targets = targets.detach().float().cpu().clone()
     log_temperature = torch.nn.Parameter(torch.zeros(()))
     optimizer = torch.optim.LBFGS([log_temperature], lr=0.1, max_iter=max_iter)
 
