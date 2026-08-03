@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import tomllib
 from pathlib import Path
 
@@ -40,6 +41,13 @@ def test_python_support_contract_matches_locked_runtime_wheels() -> None:
     assert "Programming Language :: Python :: 3.12" in project["classifiers"]
     assert lock["requires-python"] == ">=3.11, <3.13"
     assert "Python 支援 3.11–3.12。" in readme
+
+
+def test_public_progress_does_not_expose_local_home_paths() -> None:
+    progress = Path("PROGRESS.md").read_text(encoding="utf-8")
+    home_path = re.compile(r"(?i)(?:[a-z]:[\\/]+users[\\/]+[^\\/\s`]+|/home/[^/\s`]+)")
+
+    assert home_path.search(progress) is None
 
 
 def test_readme_exposes_public_colab_and_reproducible_commands() -> None:
