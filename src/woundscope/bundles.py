@@ -38,7 +38,9 @@ PRIVATE_TOKENS = {
 SECRET_PATTERN = re.compile(
     r"(?i)(authorization|client_secret|refresh_token|access_token|hf_token)\s*[:=]"
 )
-ABSOLUTE_PATH_PATTERN = re.compile(r"(?i)(?<![a-z0-9_])(?:[a-z]:[\\/]|/content/drive/)")
+ABSOLUTE_PATH_PATTERN = re.compile(
+    r"(?i)(?<![a-z0-9_])(?:[a-z]:[\\/]|/content/drive/|\\\\(?:\?\\UNC\\)?[^\\/\s]+[\\/])"
+)
 
 
 def _sha256_bytes(content: bytes) -> str:
@@ -153,7 +155,7 @@ def _validate_result_member(path: str, content: bytes) -> None:
         if SECRET_PATTERN.search(text):
             raise ValueError(f"private or prohibited secret-like content: {path}")
         if ABSOLUTE_PATH_PATTERN.search(text):
-            raise ValueError(f"private or prohibited absolute Drive path: {path}")
+            raise ValueError(f"private or prohibited absolute path: {path}")
 
 
 def build_result_bundle(
