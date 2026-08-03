@@ -201,6 +201,10 @@ def test_postprocessing_resume_reuses_completed_training_without_calling_trainin
             cuda_probe=lambda: {"available": True},
         )
     assert first_calls == list(STAGE_ORDER[:7])
+    # Quick smoke and losing ablation artifacts are not dependencies of final
+    # ONNX/handoff recovery and must not force a full retrain.
+    (paths.artifact_root / "stage_markers" / "quick_gpu_gate.json").unlink()
+    (paths.artifact_root / "stage_markers" / "full_comparison.json").unlink()
 
     resume_calls: list[str] = []
 
@@ -246,7 +250,7 @@ def test_postprocessing_resume_aborts_when_upstream_training_artifact_is_invalid
         called = True
         raise AssertionError("no stage should execute")
 
-    with pytest.raises(RuntimeError, match="quick_gpu_gate"):
+    with pytest.raises(RuntimeError, match="locked_loss_selection"):
         pipeline.resume_postprocessing(
             paths,
             source_commit="a" * 40,

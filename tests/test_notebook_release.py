@@ -155,6 +155,8 @@ def test_postprocessing_recovery_notebook_is_pinned_to_existing_training_artifac
     assert "scripts/train.py" not in sources
     assert "record.get('implementation_source_commit') == implementation_source_commit" in sources
     assert "record != before_stage_records.get(stage)" in sources
+    assert "subprocess.Popen" in sources
+    assert "Last subprocess output" in sources
 
 
 def test_postprocessing_recovery_notebook_reuses_c7_artifact_directory(tmp_path: Path) -> None:
@@ -219,6 +221,15 @@ def test_postprocessing_recovery_notebook_does_not_report_stale_same_commit_fail
         ),
         encoding="utf-8",
     )
+    fake_process = SimpleNamespace(
+        stdout=iter(["preflight root cause\n"]),
+        wait=lambda: 1,
+    )
+    fake_subprocess = SimpleNamespace(
+        PIPE=object(),
+        STDOUT=object(),
+        Popen=lambda *_args, **_kwargs: fake_process,
+    )
     namespace = {
         "Path": Path,
         "artifact_dir": artifact_dir,
@@ -228,7 +239,7 @@ def test_postprocessing_recovery_notebook_does_not_report_stale_same_commit_fail
         "project_dir": tmp_path / "project",
         "runtime_root": tmp_path,
         "state_path": state_path,
-        "subprocess": SimpleNamespace(run=lambda *_args, **_kwargs: SimpleNamespace(returncode=1)),
+        "subprocess": fake_subprocess,
         "sys": sys,
         "training_source_commit": "c7ec6060f1bd0a813a890b95b50c2855d3c2640c",
     }
@@ -237,6 +248,7 @@ def test_postprocessing_recovery_notebook_does_not_report_stale_same_commit_fail
         exec("".join(notebook["cells"][4]["source"]), namespace)
 
     assert "stale first-attempt error" not in str(error.value)
+    assert "preflight root cause" in str(error.value)
 
 
 def test_release_files_and_result_markers_exist() -> None:
