@@ -19,6 +19,7 @@ from woundscope.evaluation import (
 )
 from woundscope.models import build_model
 from woundscope.provenance import write_json_atomic
+from woundscope.results import attach_seed_report_metadata
 from woundscope.training import resolve_device
 
 
@@ -40,12 +41,13 @@ def main() -> int:
 
     config = load_config(args.config, args.model_config, args.mode_config, args.overrides)
     provenance_path = args.checkpoint.parent / "provenance.json"
-    if provenance_path.is_file():
-        provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-        if provenance.get("config_sha256") != config_hash(config):
-            raise SystemExit(
-                "Resolved evaluation config does not match training provenance; pass the same --set overrides"
-            )
+    if not provenance_path.is_file():
+        raise SystemExit("Training provenance is required for evaluation")
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    if provenance.get("config_sha256") != config_hash(config):
+        raise SystemExit(
+            "Resolved evaluation config does not match training provenance; pass the same --set overrides"
+        )
     data_root = Path(config["data"]["root"])
     challenge_dir = (
         data_root / config["data"]["raw_subdirectory"] / config["data"]["source_subdirectory"]
@@ -88,14 +90,23 @@ def main() -> int:
         original,
         targets,
         sample_ids,
+        flipped_logits=flipped,
         threshold=calibration.threshold,
         temperature=calibration.temperature,
+        confidence_cutoff=calibration.confidence_cutoff,
+        bootstrap_samples=int(config["evaluation"]["bootstrap_samples"]),
+        bootstrap_seed=int(config["evaluation"]["bootstrap_seed"]),
+    )
+    report = attach_seed_report_metadata(
+        report,
+        config=config,
+        provenance=provenance,
+        split=args.selector,
+        checkpoint_sha256=file_sha256(args.checkpoint),
         bootstrap_samples=int(config["evaluation"]["bootstrap_samples"]),
         bootstrap_seed=int(config["evaluation"]["bootstrap_seed"]),
     )
     report["status"] = "completed"
-    report["split"] = args.selector
-    report["checkpoint_sha256"] = file_sha256(args.checkpoint)
     report["calibration"] = {
         "temperature": calibration.temperature,
         "threshold": calibration.threshold,

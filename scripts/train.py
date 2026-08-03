@@ -24,6 +24,12 @@ def main() -> int:
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     parser.add_argument("--run-dir", type=Path, default=None)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument(
+        "--stop-after-epoch",
+        type=int,
+        default=None,
+        help="Persist and stop after N completed epochs so quick mode can prove resume.",
+    )
     parser.add_argument("--no-pretrained", action="store_true")
     parser.add_argument(
         "--cross-split-policy",
@@ -51,9 +57,12 @@ def main() -> int:
         / f"{datetime.now(UTC):%Y%m%dT%H%M%SZ}_{config['model']['name']}_{mode_name}_seed{config['project']['seed']}"
     )
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "resolved_config.yaml").write_text(
+    resolved_config_path = run_dir / "config.resolved.yaml"
+    temporary_config_path = resolved_config_path.with_suffix(resolved_config_path.suffix + ".tmp")
+    temporary_config_path.write_text(
         yaml.safe_dump(config, sort_keys=False, allow_unicode=True), encoding="utf-8"
     )
+    temporary_config_path.replace(resolved_config_path)
     write_json_atomic(policy_record, run_dir / "cross_split_policy.json")
     common = {
         "challenge_dir": challenge_dir,
@@ -91,6 +100,7 @@ def main() -> int:
         manifest_hash=provenance["manifest_sha256"],
         device=args.device,
         resume=args.resume,
+        stop_after_epoch=args.stop_after_epoch,
     )
     provenance["best_checkpoint_sha256"] = result["best_checkpoint_sha256"]
     provenance["last_checkpoint_sha256"] = result["last_checkpoint_sha256"]

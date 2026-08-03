@@ -119,9 +119,9 @@ export WOUNDSCOPE_DATA_DIR=data
 
 ## Colab
 
-[notebooks/01_train_colab.ipynb](notebooks/01_train_colab.ipynb) 支援 Drive project path、官方資料下載、GPU 檢查、quick／full mode、兩模型、兩 loss、resume、dev calibration、ONNX 與 sample prediction。run directory 直接位於 Drive，因此每個 epoch 的 checkpoint、CSV、TensorBoard 與 partial JSON 都可跨 runtime 保留。
+[notebooks/01_train_colab.ipynb](notebooks/01_train_colab.ipynb) 是 thin wrapper：掛載 private Drive、驗證 immutable source ZIP 與 CUDA，然後只呼叫一次 `scripts/run_colab_pipeline.py`。固定 stage 依序完成 data integrity、quick GPU gate、full comparison、locked loss selection、multi-seed final、official validation、ONNX/parity/benchmark 與 safe handoff；runtime 中斷後再次 Run all 會驗證 stage/output hashes並從相容 trainer state resume，不需人工切換 quick／comparison／final 或手選 loss。
 
-第一次執行前，可把安全 source snapshot 上傳成 `MyDrive/WoundScope_colab_source.zip`，或把 source folder 放在 `MyDrive/WoundScope/`。Notebook 會在 cross-split policy gate 停止；閱讀 `data_summary.json` 後，若採建議 mitigation，只需把設定 cell 的 `CROSS_SPLIT_POLICY` 從 `"error"` 改成 `"exclude_train"`，再 Run all。取回 WSL 的方式見 [scripts/download_artifacts.md](scripts/download_artifacts.md)。
+先以 `scripts/build_colab_bundle.py --verify` 從乾淨 committed snapshot 產生 `artifacts/handoff/WoundScope_colab_source.zip`，再上傳為 `MyDrive/WoundScope_colab_source.zip`。所有 checkpoint、ONNX、TensorBoard、sample prediction 與 gallery 留在 `MyDrive/WoundScopeArtifacts`；只下載 `handoff/woundscope_colab_results_<source-commit-prefix>.zip`。取回與 checksum/schema/privacy 驗證方式見 [scripts/download_artifacts.md](scripts/download_artifacts.md)。
 
 ## Gradio demo
 

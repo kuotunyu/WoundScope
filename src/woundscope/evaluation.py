@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import csv
+import hashlib
+import json
+from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -155,8 +158,10 @@ def evaluate_logits(
     targets: Tensor,
     sample_ids: list[str],
     *,
+    flipped_logits: Tensor | None = None,
     threshold: float = 0.5,
     temperature: float = 1.0,
+    confidence_cutoff: float = 0.0,
     bootstrap_samples: int = 2000,
     bootstrap_seed: int = 42,
 ) -> dict[str, Any]:
@@ -174,9 +179,12 @@ def evaluate_logits(
         )
         for row in rows
     ]
-    return {
+    result = {
         "threshold": threshold,
         "temperature": temperature,
+        "sample_order_sha256": hashlib.sha256(
+            json.dumps(sample_ids, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        ).hexdigest(),
         "image_metrics": rows,
         "image_summary": summarize_image_metrics(rows),
         "global_metrics": global_metrics,
@@ -185,3 +193,29 @@ def evaluate_logits(
         ),
         "confusions": [asdict(confusion) for confusion in confusions],
     }
+    if flipped_logits is not None:
+        if flipped_logits.shape != logits.shape:
+            raise ValueError("Original and flipped logits must have identical shapes")
+        flipped_probabilities = torch.sigmoid(flipped_logits.float() / temperature).numpy()[:, 0]
+        confidence_rows = [
+            tta_confidence(
+                original,
+                flipped,
+                threshold=threshold,
+                cutoff=confidence_cutoff,
+                calibration_valid=True,
+            )
+            for original, flipped in zip(probabilities, flipped_probabilities, strict=True)
+        ]
+        scores = np.asarray([row.score for row in confidence_rows], dtype=np.float64)
+        reason_counts = Counter(reason for row in confidence_rows for reason in row.reasons)
+        low_confidence_count = sum(row.low_confidence for row in confidence_rows)
+        result["confidence"] = {
+            "count": len(confidence_rows),
+            "score_mean": float(np.mean(scores)),
+            "score_median": float(np.median(scores)),
+            "low_confidence_count": low_confidence_count,
+            "low_confidence_fraction": low_confidence_count / len(confidence_rows),
+            "reason_counts": dict(sorted(reason_counts.items())),
+        }
+    return result

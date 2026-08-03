@@ -11,18 +11,27 @@ def test_colab_notebook_has_locked_workflow_cells() -> None:
     required = (
         "drive.mount",
         "torch.cuda.is_available",
-        "scripts/download_data.py",
-        "CROSS_SPLIT_POLICY",
-        "scripts/train.py",
-        "--resume",
-        "scripts/evaluate.py",
-        "scripts/export_onnx.py",
-        "scripts/predict.py",
-        "best_model.safetensors",
-        "trainer_state.pt",
+        "WoundScope_colab_source.zip",
+        "WoundScopeArtifacts",
+        "bundle_manifest.json",
+        "WOUNDSCOPE_SOURCE_COMMIT",
+        "scripts/run_colab_pipeline.py",
+        "--source-commit",
     )
     for marker in required:
         assert marker in sources
+    forbidden = (
+        "RUN_MODE",
+        "FULL_STAGE",
+        "SELECTED_LOSS_UNET",
+        "SELECTED_LOSS_SEGFORMER",
+        "scripts/train.py",
+        "scripts/evaluate.py",
+        "scripts/export_onnx.py",
+    )
+    for marker in forbidden:
+        assert marker not in sources
+    assert len(notebook["cells"]) <= 6
     assert notebook["metadata"]["accelerator"] == "GPU"
 
 
