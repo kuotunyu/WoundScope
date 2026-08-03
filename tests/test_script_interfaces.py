@@ -25,6 +25,7 @@ def test_train_cli_exposes_forced_resume_gate() -> None:
     ("script", "required_option"),
     [
         ("scripts/build_colab_bundle.py", "--verify"),
+        ("scripts/build_huggingface_space_bundle.py", "--output-dir"),
         ("scripts/export_onnx.py", "--report"),
         ("scripts/verify_results_bundle.py", "--expected-source-commit"),
         ("scripts/run_colab_pipeline.py", "--source-commit"),
