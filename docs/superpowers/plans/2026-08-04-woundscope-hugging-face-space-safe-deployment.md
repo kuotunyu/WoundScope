@@ -711,7 +711,7 @@ $verificationSource = Join-Path $verificationRoot "source"
 New-Item -ItemType Directory -Path $verificationRoot | Out-Null
 git clone --no-local --no-hardlinks . $verificationSource
 Push-Location $verificationSource
-uv sync --all-extras --frozen
+uv sync --python 3.12 --all-extras --frozen
 uv run ruff check --no-cache .
 uv run ruff format --check .
 uv run pytest -q
