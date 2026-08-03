@@ -2,7 +2,7 @@
 
 ## Model status
 
-目前沒有 verified full-training checkpoint；所有 performance 欄位為「待填」。Repository 中的 synthetic／quick smoke 僅驗證程式可執行，不代表醫療影像效能。
+Colab full training、三-seed locked official-validation evaluation、ONNX parity／benchmark 與 safe handoff 均已完成並通過 schema、inventory、size、SHA-256 與 privacy 驗證。正式 checkpoints／ONNX 仍只保存在 private Drive，未包含於 repository；下列數字只代表 pinned FUSeg official validation，不是 official test、外部或臨床效能。
 
 ## Intended use
 
@@ -24,10 +24,12 @@ Pinned split 的 7 張 exact train copies 在所有 training 前以鎖定的 `ex
 
 Official validation 報告 image-level/global Dice、IoU、precision、recall、specificity，含 mean、median、SD、IQR、三 seeds mean±SD 及 image-cluster bootstrap 2,000 次 95% CI。Error gallery 固定涵蓋最佳、最差、小面積、低光與背景干擾，且不得只選漂亮案例。
 
-| Model | Loss | Seeds | Dice | IoU | Precision | Recall | Specificity |
-|---|---|---|---|---|---|---|---|
-| EfficientNet-B0 U-Net | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 |
-| SegFormer-B0 | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 |
+| Model | Loss | Seeds | Dice mean±SD (95% CI) | IoU | Precision | Recall | Specificity |
+|---|---|---|---:|---:|---:|---:|---:|
+| EfficientNet-B0 U-Net | BCE+Dice | 42/43/44 | 0.8508±0.0035 (0.8218–0.8768) | 0.7772±0.0039 | 0.8581±0.0056 | 0.9039±0.0032 | 0.9989±0.0000 |
+| SegFormer-B0 | BCE+Dice | 42/43/44 | 0.8270±0.0040 (0.7973–0.8550) | 0.7437±0.0053 | 0.8326±0.0038 | 0.8832±0.0045 | 0.9988±0.0000 |
+
+各 metric 為三個 seed 的 image-level mean 之 mean±sample SD；Dice CI 來自固定 seed 42、2,000 次 image-cluster percentile bootstrap。U-Net 在此 locked split 的 observed Dice 較高，但沒有 paired significance test，不能解讀為跨資料來源或臨床上的普遍優勢。
 
 ## Confidence and human review
 
@@ -39,4 +41,4 @@ FUSeg 沒有 patient ID，pinned official split 含 7 組 train–validation exa
 
 ## Artifact provenance
 
-每個正式 run 必須包含 config hash、official source revision、manifest hash、Git SHA、seed、environment/device versions、checkpoint hash、`best_model.safetensors`、`last_model.safetensors`、trainer state、calibration、results、logs、predictions 與 ONNX parity report。授權確認前不公開權重。
+每個正式 run 包含 config hash、official source revision、manifest hash、Git SHA、seed、environment/device versions、checkpoint hash、`best_model.safetensors`、`last_model.safetensors`、trainer state、calibration、results、logs、predictions 與 ONNX parity report。Training source 為 `c7ec6060f1bd0a813a890b95b50c2855d3c2640c`；safe-handoff repair implementation 為 `8345176593e3fe5a3c95e2f053306229e5a09455`。下載的 privacy-safe result ZIP SHA-256 為 `6ff4d1f14f4242c72fa2ef3382bcbfadc15df93dd4aeb739ae1864f7de24f221`，含 52 個 aggregate/config/provenance/chart artifacts，不含 weights、ONNX binaries、來源影像或 private gallery。授權確認前不公開權重。

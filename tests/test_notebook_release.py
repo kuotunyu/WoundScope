@@ -266,4 +266,3 @@ def test_release_files_and_result_markers_exist() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
     assert readme.count("<!-- RESULTS_TABLE_START -->") == 1
     assert readme.count("<!-- RESULTS_TABLE_END -->") == 1
-    assert "待填" in readme
