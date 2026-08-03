@@ -172,11 +172,12 @@ def test_space_bundle_requires_clean_tracked_worktree(tmp_path: Path) -> None:
         )
 
 
-def test_space_bundle_allows_absolute_path_detector_source_literal(tmp_path: Path) -> None:
+def test_space_bundle_allows_trusted_absolute_path_detector_definition(tmp_path: Path) -> None:
     repository = _space_repository(tmp_path)
-    detector = repository / "src" / "woundscope" / "path_detector.py"
+    detector = repository / "src" / "woundscope" / "bundles.py"
     detector.write_text(
-        'import re\nABSOLUTE_PATH_PATTERN = re.compile(r"/content/drive/")\n',
+        "import re\n"
+        f"ABSOLUTE_PATH_PATTERN = re.compile({bundles.ABSOLUTE_PATH_PATTERN.pattern!r})\n",
         encoding="utf-8",
     )
     _commit_all(repository, "add path detector")
@@ -185,7 +186,7 @@ def test_space_bundle_allows_absolute_path_detector_source_literal(tmp_path: Pat
         repository, tmp_path / "candidate", tmp_path / "candidate.zip"
     )
 
-    assert "src/woundscope/path_detector.py" in {record["path"] for record in manifest["files"]}
+    assert "src/woundscope/bundles.py" in {record["path"] for record in manifest["files"]}
 
 
 def test_space_bundle_rejects_private_path_in_unrelated_compiled_pattern(tmp_path: Path) -> None:
@@ -196,6 +197,23 @@ def test_space_bundle_rejects_private_path_in_unrelated_compiled_pattern(tmp_pat
         encoding="utf-8",
     )
     _commit_all(repository, "add private pattern")
+
+    with pytest.raises(ValueError, match="absolute path"):
+        bundles.build_huggingface_space_bundle(
+            repository, tmp_path / "candidate", tmp_path / "candidate.zip"
+        )
+
+
+def test_space_bundle_rejects_private_path_in_untrusted_detector_identifier(
+    tmp_path: Path,
+) -> None:
+    repository = _space_repository(tmp_path)
+    private_pattern = repository / "src" / "woundscope" / "private_pattern.py"
+    private_pattern.write_text(
+        'import re\nABSOLUTE_PATH_PATTERN = re.compile(r"C:\\\\Users\\\\owner\\\\private")\n',
+        encoding="utf-8",
+    )
+    _commit_all(repository, "reuse detector identifier")
 
     with pytest.raises(ValueError, match="absolute path"):
         bundles.build_huggingface_space_bundle(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import re
@@ -65,9 +66,6 @@ SECRET_PATTERN = re.compile(
 )
 ABSOLUTE_PATH_PATTERN = re.compile(
     r"(?i)(?<![a-z0-9_])(?:[a-z]:[\\/]|/content/drive/|\\\\(?:\?\\UNC\\)?[^\\/\s]+[\\/])"
-)
-ABSOLUTE_PATH_PATTERN_DEFINITION = re.compile(
-    r"(?ms)^[ \t]*ABSOLUTE_PATH_PATTERN\s*=\s*re\.compile\((?:[^\n]*\)|.*?^\s*\))"
 )
 
 
@@ -196,11 +194,44 @@ def _validate_space_member(path: str, content: bytes) -> None:
         raise ValueError(f"Space member is not UTF-8: {path}") from exc
     if SECRET_PATTERN.search(text):
         raise ValueError(f"secret-like Space member content: {path}")
-    text_for_path_scan = text
-    if pure.suffix.casefold() == ".py":
-        text_for_path_scan = ABSOLUTE_PATH_PATTERN_DEFINITION.sub("", text)
-    if ABSOLUTE_PATH_PATTERN.search(text_for_path_scan):
+    if ABSOLUTE_PATH_PATTERN.search(_space_text_for_path_scan(path, text)):
         raise ValueError(f"absolute path in Space member content: {path}")
+
+
+def _space_text_for_path_scan(path: str, text: str) -> str:
+    if path != "src/woundscope/bundles.py":
+        return text
+    try:
+        module = ast.parse(text)
+    except SyntaxError:
+        return text
+    for statement in module.body:
+        if not isinstance(statement, ast.Assign) or len(statement.targets) != 1:
+            continue
+        target = statement.targets[0]
+        value = statement.value
+        if not (
+            isinstance(target, ast.Name)
+            and target.id == "ABSOLUTE_PATH_PATTERN"
+            and isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Attribute)
+            and isinstance(value.func.value, ast.Name)
+            and value.func.value.id == "re"
+            and value.func.attr == "compile"
+            and len(value.args) == 1
+            and not value.keywords
+        ):
+            continue
+        try:
+            pattern = ast.literal_eval(value.args[0])
+        except ValueError:
+            continue
+        if pattern != ABSOLUTE_PATH_PATTERN.pattern:
+            continue
+        source = ast.get_source_segment(text, statement)
+        if source is not None:
+            return text.replace(source, "", 1)
+    return text
 
 
 def _space_destination(source_path: str) -> str | None:
