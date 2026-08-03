@@ -124,7 +124,7 @@
 | `data/manifests/` | Local, gitignored | `data_manifest.csv`、`data_summary.json` 與 duplicate findings |
 | M2–M5 source/tests | Created and CPU verified | data/model/loss/train/evaluate/calibration/ONNX/inference/Gradio stack |
 | `notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb` | Thin staged wrapper, structure verified | `MyDrive/WoundScope`、source checksum、CUDA hard gate、single Run-all orchestration、Drive persistence／resume |
-| `artifacts/handoff/WoundScope_colab_source.zip` | Local, gitignored; rebuild required | 2026-07-19 ZIP 已過時且不再信任；必須從新的 clean pre-Colab commit 重建／驗證 |
+| `artifacts/handoff/WoundScope_colab_source.zip` | Local, gitignored; verified recovery bundle | Source `22b80a3c4399`、82 files、SHA-256 `D14D29BC12A513D0EAD002443AABCDD7F0D02D956E9B7621AAC7D2B8E2DF09D2`；clean-extract suite 101 passed |
 | Release files | Created and verified | README/cards/CFF/CI/Docker/.env.example/artifact handoff |
 | Model/training artifacts | None | 無 checkpoint、ONNX performance artifact 或 full-training result |
 
@@ -144,10 +144,9 @@
 
 ## Next actions
 
-1. 從修復 commit 建立並驗證新的 `WoundScope_colab_source.zip`。
-2. 將新 source ZIP 與 `WoundScope_FUSeg_c7ec606_Postprocess_Resume_Colab.ipynb` 放入 Drive `MyDrive/WoundScope/`。
-3. 用 A100 對既有 `WoundScopeArtifacts/c7ec6060f1bd/` 只執行 data restore、ONNX/benchmark/gallery 與 safe handoff；不得重新訓練。
-4. 回收並驗證單一 safe results ZIP；只有 schema-valid completed full-run artifacts 才可更新 README。
+1. 將已驗證的 source ZIP 與 `WoundScope_FUSeg_c7ec606_Postprocess_Resume_Colab.ipynb` 放入 Drive `MyDrive/WoundScope/`。
+2. 用 A100 對既有 `WoundScopeArtifacts/c7ec6060f1bd/` 只執行 data restore、ONNX/benchmark/gallery 與 safe handoff；不得重新訓練。
+3. 回收並驗證單一 safe results ZIP；只有 schema-valid completed full-run artifacts 才可更新 README。
 
 ## Session log
 
@@ -176,13 +175,14 @@
 - Notebook pinning／CLI manifest binding／相關 ONNX、pipeline、release suite → 31 passed，2 個既有 legacy ONNX exporter deprecation warnings。
 - `.venv\Scripts\python.exe -m ruff check .`、`ruff format --check .`、`pytest -q`、`git diff --check` → PASS；101 tests passed，2 個既有 legacy ONNX exporter deprecation warnings。
 - 獨立 code review 的 mask-drift ceiling、CLI manifest binding、stale retry diagnostics 三項 findings 均已修正並 re-review；最終 no findings。
-- Clean-source bundle gate：待修復 commit 後重建與解壓驗證。
+- 修復 commit `22b80a3c43990d0efad02dcee4e0ef5cbe61932e` 建立 source ZIP：82 files、246,096 bytes、SHA-256 `D14D29BC12A513D0EAD002443AABCDD7F0D02D956E9B7621AAC7D2B8E2DF09D2`。
+- Source ZIP manifest／inventory／size／SHA-256 驗證與 clean extraction → PASS；在 clean extracted source 重跑完整 suite → 101 passed、2 個既有 legacy ONNX exporter deprecation warnings。
 
 **Artifacts**
 
 - `notebooks/WoundScope_FUSeg_c7ec606_Postprocess_Resume_Colab.ipynb`
 - `scripts/resume_colab_postprocessing.py`
-- `artifacts/handoff/WoundScope_colab_source.zip`（需從本次 clean fix commit 重建）
+- `artifacts/handoff/WoundScope_colab_source.zip`（source `22b80a3c4399`，已 clean-extract 驗證）
 
 ### 2026-08-03 — SegFormer-B0 checkpoint evaluation architecture 修正
 
