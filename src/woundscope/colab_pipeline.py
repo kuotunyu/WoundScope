@@ -278,11 +278,13 @@ def resume_postprocessing(
     stage_handlers: Mapping[str, StageHandler],
     cuda_probe: CudaProbe = probe_cuda,
 ) -> PipelineState:
-    """Resume only data restoration, ONNX/benchmark, and safe handoff.
+    """Resume only unfinished data/ONNX dependencies and safe handoff.
 
     Every completed training/evaluation artifact is hash-verified first. Any
     missing or changed upstream artifact aborts instead of falling back to
-    training under a different implementation commit.
+    training under a different implementation commit. Hash-valid completed
+    ONNX outputs are reusable across repair commits, so a handoff-only repair
+    does not repeat export, benchmark, gallery generation, or data restoration.
     """
 
     _validate_source_commit(source_commit, "source_commit")
@@ -312,10 +314,19 @@ def resume_postprocessing(
     cuda_info = cuda_probe()
     if cuda_info.get("available") is not True:
         raise RuntimeError("CUDA is required for Colab postprocessing recovery")
-    for stage in ("data_integrity", "onnx_and_benchmark", "safe_result_handoff"):
+    onnx_record = state.stages.get("onnx_and_benchmark", {})
+    onnx_reusable = onnx_record.get("status") == "completed" and _artifacts_valid(
+        paths, onnx_record
+    )
+    stages = (
+        ("safe_result_handoff",)
+        if onnx_reusable
+        else ("data_integrity", "onnx_and_benchmark", "safe_result_handoff")
+    )
+    for stage in stages:
         record = state.stages.get(stage, {})
         if (
-            stage != "data_integrity"
+            stage == "safe_result_handoff"
             and record.get("status") == "completed"
             and record.get("implementation_source_commit") == implementation_source_commit
             and _artifacts_valid(paths, record)

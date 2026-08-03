@@ -38,7 +38,7 @@ PRIVATE_TOKENS = {
 SECRET_PATTERN = re.compile(
     r"(?i)(authorization|client_secret|refresh_token|access_token|hf_token)\s*[:=]"
 )
-ABSOLUTE_PATH_PATTERN = re.compile(r"(?i)(?:[a-z]:[\\/]|/content/drive/)")
+ABSOLUTE_PATH_PATTERN = re.compile(r"(?i)(?<![a-z0-9_])(?:[a-z]:[\\/]|/content/drive/)")
 
 
 def _sha256_bytes(content: bytes) -> str:
