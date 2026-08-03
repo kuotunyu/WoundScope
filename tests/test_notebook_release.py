@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -72,6 +73,55 @@ def test_colab_notebook_resolves_inputs_inside_woundscope_drive_folder(
 
     assert namespace["source_zip"] == source_zip
     assert namespace["artifact_base_dir"] == source_zip.parent / "WoundScopeArtifacts"
+
+
+def test_colab_notebook_uses_public_v0_1_0_source_when_drive_zip_is_absent(
+    tmp_path: Path, monkeypatch
+) -> None:
+    notebook = json.loads(
+        Path("notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb").read_text(encoding="utf-8")
+    )
+    drive_mount = tmp_path / "drive"
+    drive_project_dir = drive_mount / "MyDrive" / "WoundScope"
+    drive_project_dir.mkdir(parents=True)
+    resolved_commit = "b" * 40
+
+    fake_drive = SimpleNamespace(mount=lambda _path: None)
+    google_module = ModuleType("google")
+    colab_module = ModuleType("google.colab")
+    colab_module.drive = fake_drive
+    google_module.colab = colab_module
+    monkeypatch.setitem(sys.modules, "google", google_module)
+    monkeypatch.setitem(sys.modules, "google.colab", colab_module)
+    monkeypatch.setenv("WOUNDSCOPE_RUNTIME_ROOT", str(tmp_path))
+    monkeypatch.setenv("WOUNDSCOPE_DRIVE_MOUNT", str(drive_mount))
+    monkeypatch.delenv("WOUNDSCOPE_GIT_URL", raising=False)
+    monkeypatch.delenv("WOUNDSCOPE_GIT_REF", raising=False)
+
+    def fake_run(command: list[str], **_kwargs: object) -> SimpleNamespace:
+        if command[:2] == ["git", "clone"]:
+            assert "https://github.com/kuotunyu/WoundScope.git" in command
+            assert command[command.index("--branch") + 1] == "v0.1.0"
+            Path(command[-1]).mkdir(parents=True)
+            return SimpleNamespace(returncode=0, stdout="")
+        if command[-2:] == ["rev-parse", "HEAD"]:
+            return SimpleNamespace(returncode=0, stdout=f"{resolved_commit}\n")
+        if command[-2:] == ["status", "--porcelain"]:
+            return SimpleNamespace(returncode=0, stdout="")
+        raise AssertionError(f"Unexpected command: {command}")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.chdir(Path.cwd())
+    namespace: dict[str, object] = {}
+
+    exec("".join(notebook["cells"][1]["source"]), namespace)
+    exec("".join(notebook["cells"][2]["source"]), namespace)
+
+    assert namespace["source_commit"] == resolved_commit
+    assert namespace["project_dir"] == tmp_path / "WoundScope_public_source"
+    assert namespace["artifact_dir"] == (
+        drive_project_dir / "WoundScopeArtifacts" / resolved_commit[:12]
+    )
 
 
 def test_colab_notebook_surfaces_failed_stage_diagnostic(tmp_path: Path, monkeypatch) -> None:
