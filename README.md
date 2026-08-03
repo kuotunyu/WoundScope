@@ -1,7 +1,7 @@
 # WoundScope
 
 [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kuotunyu/WoundScope/blob/main/notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb)
-[![Hugging Face Space](https://img.shields.io/badge/Hugging%20Face-Space%20待發布-yellow)](#gradio-demo)
+[![Hugging Face Space](https://img.shields.io/badge/Hugging%20Face-Space%20授權確認中-yellow)](#gradio-demo)
 [![CI](https://github.com/kuotunyu/WoundScope/actions/workflows/ci.yml/badge.svg)](https://github.com/kuotunyu/WoundScope/actions/workflows/ci.yml)
 
 WoundScope 是一套可重現的足部潰瘍區域 segmentation 研究與部署 pipeline。它從官方 FUSeg 像素標註資料開始，涵蓋 integrity validation、U-Net／SegFormer 訓練、calibration、bootstrap evaluation、ONNX export 與 Gradio demo。輸出只描述模型預測的像素區域，不提供疾病診斷、嚴重度或治療建議。
@@ -125,6 +125,8 @@ export WOUNDSCOPE_DATA_DIR=data
 
 ## Gradio demo
 
+> Hugging Face Space 狀態：`PERMISSION_PENDING`。目前僅有 code-only candidate；不會建立 live Space、model repository 或上傳權重／ONNX。安全部署與授權 gate 請見 [docs/huggingface-space-deployment.md](docs/huggingface-space-deployment.md)。
+
 ```bash
 $env:WOUNDSCOPE_MODEL_PATH = "artifacts\runs\RUN\model.onnx"
 $env:WOUNDSCOPE_CALIBRATION_PATH = "artifacts\runs\RUN\calibration.json"
@@ -132,6 +134,14 @@ $env:WOUNDSCOPE_CALIBRATION_PATH = "artifacts\runs\RUN\calibration.json"
 ```
 
 HF Space 採 CPU ONNX。若 repo 不含權重，可設定 `HF_MODEL_ID`、固定的 `HF_MODEL_REVISION`、`HF_MODEL_FILENAME` 與 `HF_CALIBRATION_FILENAME`；權重仍不得在授權未確認前公開。UI 顯示原圖、overlay、原始尺寸 wound-pixel ratio、模型分割信心、推論時間與人工複核警示。
+
+可在乾淨、已提交的 repository 本機建立並驗證 code-only candidate：
+
+```powershell
+.venv\Scripts\python.exe scripts\build_huggingface_space_bundle.py
+```
+
+此指令不會連線、建立 Space 或處理模型檔案；預設輸出與 manifest／ZIP SHA-256 的審閱方式見 [docs/huggingface-space-deployment.md](docs/huggingface-space-deployment.md)。
 
 ## 結果
 

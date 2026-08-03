@@ -30,3 +30,34 @@ def test_space_builder_cli_exposes_safe_output_options() -> None:
 
     assert "--output-dir" in completed.stdout
     assert "--output-zip" in completed.stdout
+
+
+def test_deployment_docs_keep_external_actions_permission_gated() -> None:
+    guide = Path("docs/huggingface-space-deployment.md").read_text(encoding="utf-8")
+    request = Path("docs/permissions/fuseg-model-artifact-permission-request.md").read_text(
+        encoding="utf-8"
+    )
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    for required in (
+        "PERMISSION_PENDING",
+        "Public Space",
+        "Protected Space",
+        "Private Space",
+        "HF_MODEL_REVISION",
+        "40-character",
+        "rollback",
+        "teardown",
+    ):
+        assert required in guide
+    for question in (
+        "CC BY-NC",
+        "derived model weights",
+        "public non-commercial inference",
+        "ONNX",
+        "attribution",
+    ):
+        assert question in request
+    assert "尚未發送" in request
+    assert "Space%20授權確認中" in readme
+    assert "docs/huggingface-space-deployment.md" in readme
