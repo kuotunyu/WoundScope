@@ -114,7 +114,12 @@ def test_result_bundle_accepts_https_source_url_without_treating_it_as_windows_p
 
 @pytest.mark.parametrize(
     "private_path",
-    [r"C:\Users\owner\private\artifact.json", "/content/drive/MyDrive/private/artifact.json"],
+    [
+        r"C:\Users\owner\private\artifact.json",
+        r"\\server\share\private\artifact.json",
+        r"\\?\UNC\server\share\private\artifact.json",
+        "/content/drive/MyDrive/private/artifact.json",
+    ],
 )
 def test_result_bundle_still_rejects_real_absolute_private_paths(
     tmp_path: Path, private_path: str
@@ -125,7 +130,7 @@ def test_result_bundle_still_rejects_real_absolute_private_paths(
     config.parent.mkdir(parents=True)
     config.write_text(f"artifact: {private_path}\n", encoding="utf-8")
 
-    with pytest.raises(ValueError, match="absolute Drive path"):
+    with pytest.raises(ValueError, match="absolute path"):
         bundles.build_result_bundle(staging, tmp_path / "results.zip", source_commit="a" * 40)
 
 
