@@ -34,6 +34,7 @@ def main() -> int:
     load_model_safetensors(model, args.checkpoint)
     export_onnx(model, args.output, image_size=args.image_size)
     threshold = 0.5
+    temperature = 1.0
     if args.calibration is not None:
         calibration = CalibrationArtifact.load(args.calibration)
         if calibration.checkpoint_sha256 != file_sha256(args.checkpoint):
@@ -41,21 +42,29 @@ def main() -> int:
         if calibration.config_hash != config_hash(config):
             raise SystemExit("Calibration config hash does not match ONNX export config")
         threshold = calibration.threshold
+        temperature = calibration.temperature
     generator = torch.Generator().manual_seed(42)
     inputs = torch.rand((1, 3, args.image_size, args.image_size), generator=generator)
-    parity = onnx_parity(model, args.output, inputs, threshold=threshold)
+    parity = onnx_parity(
+        model,
+        args.output,
+        inputs,
+        threshold=threshold,
+        temperature=temperature,
+    )
     report = {
-        "status": "completed" if parity["allclose"] and parity["masks_equal"] else "failed",
+        "status": "completed" if parity["parity_passed"] else "failed",
         "checkpoint_sha256": file_sha256(args.checkpoint),
         "onnx_sha256": file_sha256(args.output),
         "config_sha256": config_hash(config),
         "threshold": threshold,
+        "temperature": temperature,
         "parity": parity,
     }
     if args.report is not None:
         write_json_atomic(report, args.report)
     print(json.dumps(report, indent=2))
-    return 0 if parity["allclose"] and parity["masks_equal"] else 2
+    return 0 if parity["parity_passed"] else 2
 
 
 if __name__ == "__main__":

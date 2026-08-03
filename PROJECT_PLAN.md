@@ -282,7 +282,7 @@ scripts/update_readme_results.py
 
 共同要求：`--config`、`--device {auto,cpu,cuda}`、明確 input/output path、非零失敗 exit code、machine-readable JSON summary。
 
-ONNX 使用 batch 1、固定 512×512 spatial input；preprocessor 負責 pad/resize 與 restore 到 original size。Parity gate 預設 `rtol=1e-3`、`atol=1e-4`，並比較 thresholded masks。
+ONNX 使用 batch 1、固定 512×512 spatial input；preprocessor 負責 pad/resize 與 restore 到 original size。Parity gate 對 raw model sigmoid probabilities 採 `rtol=1e-3`、`atol=1e-4`；calibrated temperature/threshold 先轉成代數上等價的 raw-probability decision threshold，因此 mask 判定與部署結果一致但不會被小 temperature 放大 backend rounding。Thresholded masks 保留 exact-equality diagnostic；只有當兩個 backend 的 threshold-crossing pixels 都位於該 frozen decision threshold 的 `atol` band 內，且 mismatch 同時不超過 32 pixels 與全部輸出的 `1e-4` fraction，才視為 operationally equivalent。任何 band 外或超過 count/fraction 上限的 mask disagreement 仍使 gate 失敗。Logit allclose 與最大 logit/probability error 必須同時記錄，但 logit rounding 本身不取代部署輸出的 probability/mask gate。
 
 Gradio demo 回傳：
 
@@ -406,6 +406,7 @@ Data integration、Colab GPU quick mode、CUDA benchmark 與 Docker app smoke �
 | 2026-07-19 | Pre-implementation 先完成兩份文件並停在 review gate | Locked |
 | 2026-08-03 | Pinned revision 的 7 組 train–validation exact duplicates 固定採 `exclude_train`：只排除 train copies、保留 official validation 200 張；validation 不參與任何 selection/calibration，pHash 只作警告 | Locked |
 | 2026-07-19 | HF Space Docker 明確安裝 PyTorch CPU wheel，僅包含 app/export dependencies | Locked |
+| 2026-08-03 | ONNX parity 對 raw model sigmoid probability 維持 `rtol=1e-3`／`atol=1e-4`；temperature-calibrated decision 轉為等價 raw threshold，mask disagreement 僅可發生在兩端都位於 `atol` decision band且同時不超過 32 pixels／`1e-4` fraction，exact mask equality 與 logit error 保留為 diagnostics | Locked |
 
 ## 17. Review gate
 

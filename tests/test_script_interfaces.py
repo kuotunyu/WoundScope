@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -26,6 +28,7 @@ def test_train_cli_exposes_forced_resume_gate() -> None:
         ("scripts/export_onnx.py", "--report"),
         ("scripts/verify_results_bundle.py", "--expected-source-commit"),
         ("scripts/run_colab_pipeline.py", "--source-commit"),
+        ("scripts/resume_colab_postprocessing.py", "--implementation-source-commit"),
     ],
 )
 def test_staged_pipeline_scripts_expose_locked_interfaces(
@@ -41,3 +44,36 @@ def test_staged_pipeline_scripts_expose_locked_interfaces(
     )
 
     assert required_option in completed.stdout
+
+
+def test_postprocessing_cli_rejects_implementation_commit_not_bound_to_manifest(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "bundle_manifest.json").write_text(
+        json.dumps({"kind": "source", "schema_version": 1, "source_commit": "c" * 40}),
+        encoding="utf-8",
+    )
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/resume_colab_postprocessing.py",
+            "--project-root",
+            str(tmp_path),
+            "--data-dir",
+            str(tmp_path / "data"),
+            "--artifact-dir",
+            str(tmp_path / "artifacts"),
+            "--source-commit",
+            "a" * 40,
+            "--implementation-source-commit",
+            "b" * 40,
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+    assert completed.returncode != 0
+    assert "does not match" in completed.stderr
