@@ -7,13 +7,13 @@
 
 | 欄位 | 內容 |
 |---|---|
-| Project state | `RELEASED / M6_COMPLETED` |
-| Current milestone | M6 — Release engineering 與完整驗收已完成；M0–M6 gates 全部通過 |
+| Project state | `V0.1.0_RELEASE_CANDIDATE / M6_COMPLETED` |
+| Current milestone | v0.1.0 收尾 — 本機、privacy、作者與 clean-checkout gates 已通過；等待 hosted CI、tag 與 GitHub Release |
 | Last updated | 2026-08-04（Asia/Taipei） |
-| Last verified state | Public repository、GitHub hosted CI、c7 full results、official-validation/ONNX/handoff、Ruff/format/107 tests/privacy、96-file clean-checkout 與單一 `kuotunyu` Contributors audit 全部 PASS |
-| Active blocker | 無；private Drive data／weights／image-level artifacts 仍維持不公開，屬發布政策而非 blocker |
-| Next action | 維護 hosted CI 與 dependency updates；只有新增實質功能或實驗時才開啟下一個 milestone |
-| External actions | Public `https://github.com/kuotunyu/WoundScope` 已建立；`main` 與 provenance tag 已 push，Description/About/topics 以 `zh-TW` 為主，private artifacts 未上傳 |
+| Last verified state | v0.1.0 candidate：Ruff／format／113 tests／privacy／links／metadata／唯一 `kuotunyu` Git identity／clean-checkout reproduction／safe result ZIP hash 全部 PASS |
+| Active blocker | 無；只剩需在 GitHub 執行的 hosted CI、tag、Release 與 `main` protection gates |
+| Next action | Fast-forward `main`、push、等待 hosted CI 成功，再建立 `v0.1.0` tag／Release 並完成線上稽核 |
+| External actions | Public `https://github.com/kuotunyu/WoundScope` 已存在；本輪 v0.1.0 candidate 尚未 push／tag／release，private artifacts 未上傳 |
 
 ## Resume checklist
 
@@ -59,6 +59,22 @@
 重大調整必須先更新 `PROJECT_PLAN.md` Decision Log；本區只同步摘要，不取代完整規格。
 
 ## Test and verification evidence
+
+### 2026-08-04 — v0.1.0 closeout candidate
+
+- Public Colab source fallback 已以 TDD 完成：Drive 中存在 `WoundScope_colab_source.zip` 時保留 immutable ZIP／manifest／checksum 流程；缺少 ZIP 時改從 `https://github.com/kuotunyu/WoundScope.git` checkout 預設 tag `v0.1.0`，解析 40-character commit SHA、確認 clean checkout，並維持相同 `project_dir`／`source_commit`／artifact interface。
+- Release metadata 已完成：`CITATION.cff`、`pyproject.toml`、README、`PROJECT_PLAN.md` 與 `docs/releases/v0.1.0.md` 皆使用 `kuotunyu` 身分與 `zh-TW`-first 敘述；Colab badge 使用可直接開啟的 GitHub notebook URL。
+- Privacy-safe aggregate 視覺 `reports/public/model_comparison.svg` 只包含 locked official-validation aggregate Dice／IoU、`n=3 seeds` 與非 official-test／非臨床聲明，不含影像、mask、image-level metrics 或可識別資料；瀏覽器 render visual inspection PASS。
+- CI/security hardening：workflow 支援 manual dispatch、read-only permissions、concurrency cancellation，third-party actions 維持 immutable SHA pin；新增 `zh-TW` bug report form 與 `SECURITY.md`，明確禁止公開 medical images／masks／weights／ONNX／`.env`／token／private artifacts。
+- GitHub Private Vulnerability Reporting preflight 原為 disabled；依 `SECURITY.md` 的唯一私密通報 contract 啟用後由 API 讀回 `enabled=true`，外部 security-intake blocker 已解除。
+- TDD／release commits：`5e32d12`（Colab fallback）、`29aa179`（metadata/docs）、`9d11594`（aggregate SVG）、`4462000`（CI/security）。
+- Final local gate：`uv run ruff check --no-cache .` PASS；`uv run ruff format --check .` → `64 files already formatted`；`uv run pytest -q` → `113 passed`，只有 2 個既知 legacy ONNX exporter deprecation warnings；`git diff --check` PASS。
+- Tracked privacy audit：103 tracked files，forbidden data／manifest／`.env`／generated galleries／checkpoints／ONNX artifacts 為 0；17 份 Markdown local-link audit PASS；notebook JSON、CFF／workflow／issue YAML 與 `pyproject.toml` parse PASS。
+- Git identity audit：全部 author／committer 唯一為 `kuotunyu <61350295+kuotunyu@users.noreply.github.com>`；`Co-authored-by`／`Signed-off-by` trailers 為 0。
+- Clean-checkout reproduction：以 `git archive` 從 candidate `4462000ec846` 匯出全新 source snapshot，使用 UTF-8-capable Python 3.12.13 與 `uv sync --all-extras --frozen` 安裝 96 packages；Ruff／format／113 tests 全部 PASS。
+- Safe result bundle 再驗證：`woundscope_colab_results_c7ec6060f1bd.zip` 為 344,656 bytes；SHA-256 `6FF4D1F14F4242C72FA2EF3382BCBFADC15DF93DD4AEB739AE1864F7DE24F221`，與既有 verified c7 evidence 完全一致。
+- GPU／training：本輪未使用 GPU、未重跑 training；所有 v0.1.0 closeout gates 都是 CPU／metadata／Git／privacy checks。
+- External pending gates：candidate 尚未 push；必須先由 GitHub hosted CI 驗證最終 commit，成功後才可建立 annotated `v0.1.0` tag、GitHub Release、safe result ZIP asset 與 `main` branch protection。
 
 ### 2026-08-04 — GitHub Public release preflight
 
@@ -165,17 +181,17 @@
 | `data/raw/fuseg/` | Local, gitignored | Pinned official sparse checkout；不可 commit／重傳 |
 | `data/manifests/` | Local, gitignored | `data_manifest.csv`、`data_summary.json` 與 duplicate findings |
 | M2–M5 source/tests | Created and CPU verified | data/model/loss/train/evaluate/calibration/ONNX/inference/Gradio stack |
-| `notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb` | Thin staged wrapper, structure verified | `MyDrive/WoundScope`、source checksum、CUDA hard gate、single Run-all orchestration、Drive persistence／resume |
+| `notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb` | Thin staged wrapper, structure verified | 優先使用 private Drive immutable source ZIP；缺少 ZIP 時 checkout public `v0.1.0`；CUDA hard gate、single Run-all orchestration、Drive persistence／resume |
 | `artifacts/handoff/WoundScope_colab_source.zip` | Local, gitignored; verified recovery bundle | Source `8345176593e3`、82 files、SHA-256 `773E0274487F54D040F68943A610BF53C97393157A49A5B50BA05A2B76537A8E`；clean-extract suite 107 passed |
 | `artifacts/handoff/WoundScope_colab_source_792d296.zip` | Local, gitignored; final clean-source audit | Source `792d29602a39`、82 files、248,166 bytes、SHA-256 `13B7611172551171D6504D96477B4500E3F9526C4409332D2525077AA0F18B91`；clean-extract suite 107 passed |
-| Release files | Created and verified | README/cards/CFF/CI/Docker/.env.example/artifact handoff |
+| Release files | Created and verified | README/cards/CFF/CI/Docker/.env.example、`SECURITY.md`、issue form、aggregate SVG、v0.1.0 notes 與 artifact handoff |
 | Model/training artifacts | Private Drive + verified safe local summary | 完整 checkpoints/ONNX/gallery 留在 private Drive；gitignored safe result evidence 52 members，不含 weights/images |
 
 ## Blockers and risks
 
 ### Active blocker
 
-- 無未決科學決策或實驗 blocker；M6 只剩 release documentation、full gate 與 clean-reproduction audit。
+- 無未決科學決策、實驗或本機 gate blocker；v0.1.0 只剩 hosted CI、tag、GitHub Release 與 branch protection 等外部發布步驟。
 
 ### Known risks
 

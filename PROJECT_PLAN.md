@@ -2,7 +2,7 @@
 
 > 文件語言：正體中文（zh-TW）；medical computer vision、MLOps、程式符號與 CLI 名稱保留原文。  
 > 文件角色：本文件是 WoundScope 的穩定規格與 implementation contract。即時進度、測試證據與下一步請見 `PROGRESS.md`。  
-> 目前狀態：M0–M6 已完成；M1 cross-split mitigation 鎖定為 `exclude_train`，Colab 正式實驗、safe handoff、Public GitHub release 與 hosted CI 均已完成。Private data／weights／image-level artifacts 未公開。
+> 目前狀態：M0–M6 已完成；M1 cross-split mitigation 鎖定為 `exclude_train`，Colab 正式實驗、safe handoff、Public GitHub repository 與既有 hosted CI 均已完成；v0.1.0 tag／Release gate 的即時狀態請見 `PROGRESS.md`。Private data／weights／image-level artifacts 未公開。
 
 ## 1. 專案目標
 

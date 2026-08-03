@@ -56,8 +56,9 @@ def test_release_notes_bind_the_verified_safe_result_bundle() -> None:
 def test_public_model_comparison_is_aggregate_only_and_matches_results() -> None:
     svg = Path("reports/public/model_comparison.svg").read_text(encoding="utf-8")
 
-    assert "<title>" in svg
-    assert "<desc>" in svg
+    assert 'aria-labelledby="title desc"' in svg
+    assert '<title id="title">' in svg
+    assert '<desc id="desc">' in svg
     for value in ("0.8508", "0.7772", "0.8270", "0.7437"):
         assert value in svg
     assert "n=3 seeds" in svg

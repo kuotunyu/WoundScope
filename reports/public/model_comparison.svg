@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
-  <title>WoundScope locked official-validation aggregate comparison</title>
-  <desc>EfficientNet-B0 U-Net and SegFormer-B0 aggregate Dice and IoU across three training seeds on locked official validation.</desc>
+  <title id="title">WoundScope locked official-validation aggregate comparison</title>
+  <desc id="desc">EfficientNet-B0 U-Net and SegFormer-B0 aggregate Dice and IoU across three training seeds on locked official validation.</desc>
   <rect width="1200" height="520" fill="#f8fafc"/>
   <text x="60" y="58" fill="#0f172a" font-family="Arial, sans-serif" font-size="30" font-weight="700">Locked official-validation aggregate</text>
   <text x="60" y="91" fill="#475569" font-family="Arial, sans-serif" font-size="18">EfficientNet-B0 U-Net vs SegFormer-B0 · BCE+Dice · n=3 seeds</text>
