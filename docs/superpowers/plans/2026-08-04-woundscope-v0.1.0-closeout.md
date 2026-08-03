@@ -362,8 +362,14 @@ git commit -m "docs(progress): record v0.1.0 closeout gate"
 - No new repository files; use verified commits and the local safe result ZIP.
 
 **Interfaces:**
-- Consumes: clean closeout branch, `C:\Users\3Hml\Downloads\woundscope_colab_results_c7ec6060f1bd.zip`, GitHub repository admin access.
+- Consumes: clean closeout branch, caller-supplied `$releaseBundle` pointing to the verified safe result ZIP, GitHub repository admin access.
 - Produces: updated `main`, annotated `v0.1.0`, Public GitHub Release asset, branch protection, hosted CI success, and a single GitHub contributor.
+
+Set the portable bundle variable once before running the release steps, replacing the placeholder with the verified local ZIP path:
+
+```powershell
+$releaseBundle = Resolve-Path '<PATH-TO-VERIFIED-SAFE-RESULT-ZIP>'
+```
 
 - [ ] **Step 1: Review branch history and fast-forward `main`**
 
@@ -393,7 +399,7 @@ Verify the bundle into a new empty gitignored directory:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\verify_results_bundle.py `
-  --bundle C:\Users\3Hml\Downloads\woundscope_colab_results_c7ec6060f1bd.zip `
+  --bundle $releaseBundle `
   --expected-source-commit c7ec6060f1bd0a813a890b95b50c2855d3c2640c `
   --output artifacts\v0.1.0-release-verification
 ```

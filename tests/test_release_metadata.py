@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -43,11 +44,29 @@ def test_python_support_contract_matches_locked_runtime_wheels() -> None:
     assert "Python 支援 3.11–3.12。" in readme
 
 
-def test_public_progress_does_not_expose_local_home_paths() -> None:
-    progress = Path("PROGRESS.md").read_text(encoding="utf-8")
-    home_path = re.compile(r"(?i)(?:[a-z]:[\\/]+users[\\/]+[^\\/\s`]+|/home/[^/\s`]+)")
+def test_tracked_markdown_does_not_expose_local_home_paths() -> None:
+    tracked = (
+        subprocess.run(
+            ["git", "ls-files", "-z"],
+            check=True,
+            capture_output=True,
+        )
+        .stdout.decode("utf-8")
+        .split("\0")
+    )
+    markdown_files = [Path(name) for name in tracked if Path(name).suffix.casefold() == ".md"]
+    home_path = re.compile(
+        r"(?i)(?:[a-z]:(?:\\users\\|/users/)[^\\/\s`\"'<>]+|"
+        r"(?<![a-z0-9:])/(?:home|users)/[^/\s`\"'<>]+)"
+    )
+    violations = [
+        (path.as_posix(), line_number)
+        for path in markdown_files
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if home_path.search(line)
+    ]
 
-    assert home_path.search(progress) is None
+    assert violations == []
 
 
 def test_readme_exposes_public_colab_and_reproducible_commands() -> None:
