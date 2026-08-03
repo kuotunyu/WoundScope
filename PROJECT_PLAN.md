@@ -409,6 +409,7 @@ Data integration、Colab GPU quick mode、CUDA benchmark 與 Docker app smoke �
 | 2026-08-03 | ONNX parity 對 raw model sigmoid probability 維持 `rtol=1e-3`／`atol=1e-4`；temperature-calibrated decision 轉為等價 raw threshold，mask disagreement 僅可發生在兩端都位於 `atol` decision band且同時不超過 32 pixels／`1e-4` fraction，exact mask equality 與 logit error 保留為 diagnostics | Locked |
 | 2026-08-04 | 授權公開 `kuotunyu/WoundScope`；README、GitHub Description 與 About 以正體中文（`zh-TW`）為主，專有名詞保留原文；GitHub Contributors 只允許 `kuotunyu`，不使用 co-author 或 bot commit；結果 provenance 的舊 SHA 另以 tag 保留 | Locked |
 | 2026-08-04 | Hugging Face Space 僅可先建立 deterministic code-only candidate；在 FUSeg 權利人以可保存的書面回覆明確確認 derived model weights、ONNX、attribution、可見性與 public non-commercial inference 前，固定為 `PERMISSION_PENDING`，不得建立 model-backed live Space、model repository 或上傳任何 model artifact | Locked |
+| 2026-08-04 | HF Space code-only inventory 以 case-insensitive 路徑元件、副檔名與內容分類稽核；`src/` / `app/` 內合法 `.py` 模組名稱可包含 `checkpoint`（例如 `checkpointing.py`），但 `.env` / `.env.*`、model/weight/raster 副檔名、明確 artifact directory components、secret-like 內容與 absolute paths 仍必須拒絕 | Locked |
 
 ## 17. Review gate
 

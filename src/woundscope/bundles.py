@@ -54,6 +54,20 @@ SPACE_PROHIBITED_SUFFIXES = {
     ".tiff",
     ".webp",
 }
+SPACE_PROHIBITED_DIRECTORIES = {
+    "artifact",
+    "artifacts",
+    "checkpoint",
+    "checkpoints",
+    "data_manifest",
+    "data_manifests",
+    "error_gallery",
+    "galleries",
+    "gallery",
+    "sample_prediction",
+    "sample_predictions",
+    "tensorboard",
+}
 PRIVATE_TOKENS = {
     "checkpoint",
     "data_manifest",
@@ -188,7 +202,14 @@ def _validate_result_member(path: str, content: bytes) -> None:
 
 def _validate_space_member(path: str, content: bytes) -> None:
     pure = _safe_archive_path(path)
-    if pure.name.casefold() == ".env" or pure.suffix.casefold() in SPACE_PROHIBITED_SUFFIXES:
+    normalized_parts = tuple(part.casefold() for part in pure.parts)
+    name = normalized_parts[-1]
+    if (
+        name == ".env"
+        or name.startswith(".env.")
+        or any(part in SPACE_PROHIBITED_DIRECTORIES for part in normalized_parts[:-1])
+        or pure.suffix.casefold() in SPACE_PROHIBITED_SUFFIXES
+    ):
         raise ValueError(f"prohibited Space member: {path}")
     try:
         text = content.decode("utf-8")

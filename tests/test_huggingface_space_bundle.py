@@ -89,12 +89,31 @@ def test_space_bundle_uses_committed_allowlist_and_is_deterministic(tmp_path: Pa
     )
 
 
+def test_space_bundle_allows_checkpoint_named_python_modules(tmp_path: Path) -> None:
+    repository = _space_repository(tmp_path)
+    module = repository / "src" / "woundscope" / "checkpointing.py"
+    module.write_text("def file_sha256():\n    return 'source helper'\n", encoding="utf-8")
+    _commit_all(repository, "add checkpoint helper")
+
+    manifest = bundles.build_huggingface_space_bundle(
+        repository, tmp_path / "candidate", tmp_path / "candidate.zip"
+    )
+
+    assert "src/woundscope/checkpointing.py" in {record["path"] for record in manifest["files"]}
+
+
 @pytest.mark.parametrize(
     ("relative_path", "content", "message"),
     [
         ("app/model.onnx", b"weights", "prohibited"),
         ("src/woundscope/patient.png", b"image", "prohibited"),
         ("app/.env", b"HF_TOKEN=secret", "prohibited"),
+        ("app/.env.private.py", b"VALUE = 1\n", "prohibited"),
+        ("src/woundscope/checkpoints/loader.py", b"VALUE = 1\n", "prohibited"),
+        ("app/GALLERY/viewer.py", b"VALUE = 1\n", "prohibited"),
+        ("app/sample_predictions/render.py", b"VALUE = 1\n", "prohibited"),
+        ("src/woundscope/tensorboard/plugin.py", b"VALUE = 1\n", "prohibited"),
+        ("app/artifacts/build.py", b"VALUE = 1\n", "prohibited"),
         ("app/private.py", b"HF_TOKEN = 'secret'\n", "secret-like"),
         ("app/path.py", b"ROOT = 'C:\\\\Users\\\\owner\\\\private'\n", "absolute path"),
         ("app/unexpected.txt", b"unexpected", "unexpected"),
