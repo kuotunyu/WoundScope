@@ -10,9 +10,9 @@
 | Project state | `IMPLEMENTING / M3_IN_PROGRESS` |
 | Current milestone | M3 — Resumable staged Colab pipeline；M1 scientific gate 已通過 |
 | Last updated | 2026-08-03（Asia/Taipei） |
-| Last verified state | M1 `exclude_train` PASS；Ruff/format PASS；88 CPU tests PASS；Colab Drive/resume/diagnostic 與 temperature calibration inference-tensor regressions PASS |
-| Active blocker | 無科學決策 blocker；Colab A100 quick gate 在 temperature calibration 發現 PyTorch inference-tensor/autograd 相容性 bug；修正版 bundle 待重跑 |
-| Next action | 建立並上傳 calibration 修正版 immutable source ZIP，沿用現有 notebook 重新執行 Run all |
+| Last verified state | M1 `exclude_train` PASS；Ruff/format PASS；90 CPU tests PASS；SegFormer-B0 train/evaluation checkpoint architecture compatibility PASS |
+| Active blocker | 無科學決策 blocker；Colab A100 quick gate 在 SegFormer checkpoint evaluation 發現正式 B0／tiny test architecture mismatch；修正版 bundle 待重跑 |
+| Next action | 建立並上傳 SegFormer architecture 修正版 immutable source ZIP，沿用現有 notebook 重新執行 Run all |
 | External actions | 使用者已在 private Drive 上傳 source ZIP/notebook 並啟動 A100；無 remote、push、公開 upload 或本機 full GPU training |
 
 ## Resume checklist
@@ -150,6 +150,40 @@
 4. 回收並驗證單一 safe results ZIP；只有 schema-valid completed full-run artifacts 才可更新 README。
 
 ## Session log
+
+### 2026-08-03 — SegFormer-B0 checkpoint evaluation architecture 修正
+
+**目標**
+
+- 修正 A100 quick gate 載入 SegFormer-B0 checkpoint 時，evaluation model 被錯建為 tiny test architecture 的 state-dict shape mismatch。
+
+**根因與變更**
+
+- Training 使用 `build_model(..., pretrained=True)`，建立正式 `nvidia/mit-b0`（hidden sizes 32/64/160/256、decoder 256）。
+- Evaluation/export 使用 `build_model(..., pretrained=False)` 以避免重載 pretrained weights；舊實作卻把所有 non-pretrained SegFormer 都建成 CI tiny variant（8/16/32/64、decoder 32），因此正式 checkpoint 無法載入。
+- Model config 現在明確鎖定 `variant: b0`；non-pretrained evaluation/export 會依明列的 B0 shape fields 建立無預訓練權重但架構相同的模型。缺少 variant 時安全預設為 B0，只有測試 fixture 明確指定 `variant: tiny` 時才使用 tiny model。
+- 不變更模型 family、loss、資料 split、訓練 protocol 或 checkpoint schema。
+
+**Colab evidence**
+
+- Source `0425c787cb1c` 已通過先前的 inference-tensor calibration 問題，並到達 `quick_segformer_b0_bce_dice_seed42` dev evaluation。
+- 失敗 checkpoint tensors 為正式 B0 shapes，evaluation tensors 為 tiny shapes；詳細 mismatch tail 已由 pipeline diagnostic 保存。尚無可宣稱的 quick/full metrics。
+
+**驗證**
+
+- 正式 checkpoint／non-pretrained evaluation architecture regression：RED 重現相同 state-dict mismatch；GREEN → 1 passed。
+- Model/config focused suite → 12 passed。
+- 實際 `nvidia/mit-b0` pretrained training model → non-pretrained B0 evaluation model strict state-dict load → `SEGFORMER_B0_CHECKPOINT_COMPATIBILITY_PASS`；兩者皆 3,714,401 parameters。
+- Missing-variant production-default regression：RED（118,225 tiny parameters）→ GREEN（3,714,401 B0 parameters）。
+- `.venv\Scripts\python.exe -m ruff check .`、`ruff format --check .`、`pytest -q`、`git diff --check` → PASS；90 tests passed，2 個既有 ONNX exporter deprecation warnings。
+- Clean-source bundle verification 待本次修正 commit 後執行。
+
+**Artifacts**
+
+- `configs/models/segformer_b0.yaml`
+- `src/woundscope/models.py`
+- `tests/test_models.py`
+- `artifacts/handoff/WoundScope_colab_source.zip`（需從本次 clean fix commit 重建）
 
 ### 2026-08-03 — Colab temperature calibration inference-tensor 修正
 

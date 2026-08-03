@@ -59,14 +59,32 @@ class _SegFormerBinaryWrapper(nn.Module):
 def _build_segformer(config: dict[str, Any], pretrained: bool) -> nn.Module:
     from transformers import SegformerConfig, SegformerForSemanticSegmentation
 
+    variant = str(config.get("variant", "b0")).casefold()
     if pretrained:
+        if variant != "b0":
+            raise ValueError("Pretrained SegFormer is only supported for the b0 variant")
         model = SegformerForSemanticSegmentation.from_pretrained(
             config.get("pretrained_name", "nvidia/mit-b0"),
             num_labels=1,
             ignore_mismatched_sizes=True,
         )
-    else:
-        tiny_config = SegformerConfig(
+    elif variant == "b0":
+        b0_config = SegformerConfig(
+            num_channels=int(config.get("in_channels", 3)),
+            num_labels=int(config.get("out_channels", 1)),
+            num_encoder_blocks=4,
+            depths=[2, 2, 2, 2],
+            hidden_sizes=[32, 64, 160, 256],
+            decoder_hidden_size=256,
+            num_attention_heads=[1, 2, 5, 8],
+            sr_ratios=[8, 4, 2, 1],
+            patch_sizes=[7, 3, 3, 3],
+            strides=[4, 2, 2, 2],
+            mlp_ratios=[4, 4, 4, 4],
+        )
+        model = SegformerForSemanticSegmentation(b0_config)
+    elif variant == "tiny":
+        test_config = SegformerConfig(
             num_channels=int(config.get("in_channels", 3)),
             num_labels=int(config.get("out_channels", 1)),
             depths=[1, 1, 1, 1],
@@ -77,7 +95,9 @@ def _build_segformer(config: dict[str, Any], pretrained: bool) -> nn.Module:
             patch_sizes=[7, 3, 3, 3],
             strides=[4, 2, 2, 2],
         )
-        model = SegformerForSemanticSegmentation(tiny_config)
+        model = SegformerForSemanticSegmentation(test_config)
+    else:
+        raise ValueError(f"Unsupported SegFormer variant: {variant}")
     return _SegFormerBinaryWrapper(model)
 
 
