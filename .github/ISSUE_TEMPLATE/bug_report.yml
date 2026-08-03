@@ -1,0 +1,68 @@
+name: Bug report
+description: 回報可重現的 WoundScope 程式、CLI、Colab 或文件問題
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感謝協助改善 WoundScope。請只提供可公開的最小重現資訊；本專案不是醫療器材，也不處理臨床個案。
+  - type: dropdown
+    id: surface
+    attributes:
+      label: 發生位置
+      options:
+        - Python／CLI
+        - Google Colab
+        - Gradio／ONNX inference
+        - Docker／GitHub Actions
+        - 文件
+        - 其他
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version／commit
+      description: 例如 v0.1.0 或 40-character Git SHA
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 執行環境
+      description: OS、Python、PyTorch、CUDA／CPU 與必要 package versions；不要貼出 token 或路徑中的私人資訊。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 最小重現步驟
+      description: 提供可用 synthetic／public-safe input 重現的指令與順序。
+      placeholder: |
+        1. 執行 ...
+        2. 設定 ...
+        3. 觀察到 ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 預期行為
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 實際行為與可公開 logs
+      description: 請先移除 secret、token、`.env` values、私人路徑與任何 medical data。
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy 確認
+      options:
+        - label: 我確認沒有附上醫療影像、mask、image-level manifest／results、模型權重、ONNX、`.env`、token、secret 或 private artifact。
+          required: true

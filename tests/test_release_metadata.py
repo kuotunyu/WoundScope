@@ -66,3 +66,19 @@ def test_public_model_comparison_is_aggregate_only_and_matches_results() -> None
 
     readme = Path("README.md").read_text(encoding="utf-8")
     assert "reports/public/model_comparison.svg" in readme
+
+
+def test_ci_and_public_bug_intake_are_least_privilege() -> None:
+    workflow_text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+    workflow = yaml.safe_load(workflow_text)
+    issue_form = yaml.safe_load(
+        Path(".github/ISSUE_TEMPLATE/bug_report.yml").read_text(encoding="utf-8")
+    )
+
+    assert workflow["permissions"] == {"contents": "read"}
+    assert workflow["concurrency"]["cancel-in-progress"] is True
+    assert "workflow_dispatch:" in workflow_text
+    issue_copy = yaml.safe_dump(issue_form, allow_unicode=True)
+    for forbidden_upload in ("醫療影像", "模型權重", "secret"):
+        assert forbidden_upload in issue_copy
+    assert Path("SECURITY.md").is_file()
