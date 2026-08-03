@@ -69,3 +69,10 @@ def test_deployment_docs_keep_external_actions_permission_gated() -> None:
     assert "可保存的書面回覆" in plan
     assert "Space%20授權確認中" in readme
     assert "docs/huggingface-space-deployment.md" in readme
+
+
+def test_deployment_guide_exact_inventory_includes_dockerignore() -> None:
+    guide = Path("docs/huggingface-space-deployment.md").read_text(encoding="utf-8")
+    inventory_line = next(line for line in guide.splitlines() if "候選的**精確 inventory**" in line)
+
+    assert "`.dockerignore`" in inventory_line

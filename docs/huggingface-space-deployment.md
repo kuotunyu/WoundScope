@@ -12,7 +12,7 @@
 
 指令輸出的 JSON 必須為 `status: "verified"`。審閱 `bundle_manifest.json` 的 `source_commit`、每個檔案的 `size` 與 SHA-256，並記錄 ZIP 的 SHA-256；未通過驗證不得進入任何外部服務。
 
-候選的**精確 inventory**以該 manifest 為準，且只能是 `README.md`（來源為 `deploy/huggingface/README.md`）、`Dockerfile`、`LICENSE`、`pyproject.toml`、`uv.lock`、已提交的 `app/**/*.py` 與 `src/**/*.py`，加上產生的 `bundle_manifest.json`。任何未列在 manifest 的成員均為拒絕條件。
+候選的**精確 inventory**以該 manifest 為準，且只能是 `README.md`（來源為 `deploy/huggingface/README.md`）、`.dockerignore`、`Dockerfile`、`LICENSE`、`pyproject.toml`、`uv.lock`、已提交的 `app/**/*.py` 與 `src/**/*.py`，加上產生的 `bundle_manifest.json`。任何未列在 manifest 的成員均為拒絕條件。
 
 禁止 inventory 包含 `.env`、FUSeg images 或 labels、image-level manifest、gallery、sample prediction、checkpoint、ONNX、`.pt`、`.pth`、`.safetensors`，以及 `.bmp`、`.gif`、`.jpeg`、`.jpg`、`.png`、`.tif`、`.tiff`、`.webp`。建置器也會拒絕 secret-like 值與絕對路徑；不可為了通過檢查而放寬這些規則。
 
