@@ -7,13 +7,13 @@
 
 | 欄位 | 內容 |
 |---|---|
-| Project state | `V0.1.0_RELEASE_CANDIDATE / M6_COMPLETED` |
-| Current milestone | v0.1.0 收尾 — 本機、privacy、作者與 clean-checkout gates 已通過；等待 hosted CI、tag 與 GitHub Release |
+| Project state | `RELEASED_V0.1.0 / M6_COMPLETED` |
+| Current milestone | v0.1.0 已正式發布；M0–M6 與本機／GitHub release gates 全部通過 |
 | Last updated | 2026-08-04（Asia/Taipei） |
-| Last verified state | v0.1.0 candidate：Ruff／format／113 tests／privacy／links／metadata／唯一 `kuotunyu` Git identity／clean-checkout reproduction／safe result ZIP hash 全部 PASS |
-| Active blocker | 無；只剩需在 GitHub 執行的 hosted CI、tag、Release 與 `main` protection gates |
-| Next action | Fast-forward `main`、push、等待 hosted CI 成功，再建立 `v0.1.0` tag／Release 並完成線上稽核 |
-| External actions | Public `https://github.com/kuotunyu/WoundScope` 已存在；本輪 v0.1.0 candidate 尚未 push／tag／release，private artifacts 未上傳 |
+| Last verified state | v0.1.0：本機／clean checkout 113 tests、兩次 hosted CI、Release asset hash、Public tag clone、privacy、PVR、branch protection 與唯一 `kuotunyu` Contributors 全部 PASS |
+| Active blocker | 無；private Drive data／weights／image-level artifacts 維持不公開，屬發布政策而非 blocker |
+| Next action | 維護 hosted CI、security 與 dependency updates；只有新增實質功能或實驗時才開啟下一個 milestone |
+| External actions | Public repository 與 `v0.1.0` Release 已發布；`main` protection 與 Private Vulnerability Reporting 已啟用；private artifacts 未上傳 |
 
 ## Resume checklist
 
@@ -38,7 +38,7 @@
 | M3 — Training/Colab | Completed | CPU mini-train、resume、notebook、Colab quick gate 通過 | A100 staged quick/full、AMP、deliberate resume、loss selection與三-seed final completed |
 | M4 — Evaluation/calibration | Completed | Metrics/bootstrap/calibration/confidence/gallery gates 通過 | Locked official validation、dev calibration、2,000 bootstrap、五類 private gallery completed |
 | M5 — Inference/demo | Completed | CPU/CUDA/ONNX/benchmark/app gates 通過 | 六組 CUDA→ONNX parity、CPU benchmark completed；PyTorch/ONNX/app tests PASS |
-| M6 — Release | Completed | CI/Docker/clean-clone/data-secret audit 通過 | 文件/CI/CPU Docker/secret/96-file clean-checkout reproduction、GitHub hosted CI 與 Contributors audit PASS |
+| M6 — Release | Completed | CI/Docker/clean-clone/data-secret audit 通過 | v0.1.0 文件／CI／security／113-test clean checkout、兩次 hosted CI、Release asset、branch protection 與 Contributors audit PASS |
 
 允許的狀態值：`Not started`、`In progress`、`Blocked`、`In review`、`Completed`。
 
@@ -59,6 +59,18 @@
 重大調整必須先更新 `PROJECT_PLAN.md` Decision Log；本區只同步摘要，不取代完整規格。
 
 ## Test and verification evidence
+
+### 2026-08-04 — v0.1.0 GitHub release final audit
+
+- Final release source：annotated tag `v0.1.0` 由 `kuotunyu` 建立，peeled commit 為 `0c32e02d12bd09972a10ea68fee551cadbe84efd`；tag 與 release-candidate commit 未被移動或改寫。
+- GitHub Release：`https://github.com/kuotunyu/WoundScope/releases/tag/v0.1.0`，狀態為 published、非 draft、非 prerelease；title `WoundScope v0.1.0`。
+- Release asset：`woundscope_colab_results_c7ec6060f1bd.zip`，GitHub metadata 與重新下載檔案皆為 344,656 bytes、SHA-256 `6FF4D1F14F4242C72FA2EF3382BCBFADC15DF93DD4AEB739AE1864F7DE24F221`。
+- Release 前 repository verifier clean extraction → `status=verified`、source `c7ec6060f1bd0a813a890b95b50c2855d3c2640c`、52 allowed members；不含 weights、ONNX、來源影像、image-level metrics 或 private galleries。
+- GitHub hosted CI：final `main` run `30836967576` 與 tag run `30837208639` 均 `success`；dependency sync、Ruff、format、113 tests 與 prohibited-artifact audit 全部 PASS；兩個 check runs annotations 合計 0。
+- Public Colab fallback online smoke：從 public `v0.1.0` tag 執行 shallow／partial clone，HEAD 正確解析為 `0c32e02d12bd09972a10ea68fee551cadbe84efd` 且 checkout clean。
+- GitHub Contributors API（`anon=1`）只回傳 `kuotunyu`，無 bot、placeholder 或共同作者；default history 的 author／committer 與 trailers audit 持續 PASS。
+- Repository security：Private Vulnerability Reporting `enabled=true`；`main` protection 要求 strict `synthetic-gates` 與 linear history，禁止 force push 與 branch deletion。
+- Repository metadata：visibility=`PUBLIC`、default branch=`main`；Description 與 topics 維持 `zh-TW`-first；private data／weights／image-level artifacts 未上傳。
 
 ### 2026-08-04 — v0.1.0 closeout candidate
 
@@ -191,7 +203,7 @@
 
 ### Active blocker
 
-- 無未決科學決策、實驗或本機 gate blocker；v0.1.0 只剩 hosted CI、tag、GitHub Release 與 branch protection 等外部發布步驟。
+- 無未決科學決策、實驗、本機或 GitHub release blocker；v0.1.0 已正式發布並完成線上稽核。
 
 ### Known risks
 
