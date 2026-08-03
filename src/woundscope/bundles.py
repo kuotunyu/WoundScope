@@ -66,8 +66,8 @@ SECRET_PATTERN = re.compile(
 ABSOLUTE_PATH_PATTERN = re.compile(
     r"(?i)(?<![a-z0-9_])(?:[a-z]:[\\/]|/content/drive/|\\\\(?:\?\\UNC\\)?[^\\/\s]+[\\/])"
 )
-COMPILED_PATTERN_DEFINITION = re.compile(
-    r"(?ms)^[ \t]*[A-Z][A-Z0-9_]*_PATTERN\s*=\s*re\.compile\((?:[^\n]*\)|.*?^\s*\))"
+ABSOLUTE_PATH_PATTERN_DEFINITION = re.compile(
+    r"(?ms)^[ \t]*ABSOLUTE_PATH_PATTERN\s*=\s*re\.compile\((?:[^\n]*\)|.*?^\s*\))"
 )
 
 
@@ -198,7 +198,7 @@ def _validate_space_member(path: str, content: bytes) -> None:
         raise ValueError(f"secret-like Space member content: {path}")
     text_for_path_scan = text
     if pure.suffix.casefold() == ".py":
-        text_for_path_scan = COMPILED_PATTERN_DEFINITION.sub("", text)
+        text_for_path_scan = ABSOLUTE_PATH_PATTERN_DEFINITION.sub("", text)
     if ABSOLUTE_PATH_PATTERN.search(text_for_path_scan):
         raise ValueError(f"absolute path in Space member content: {path}")
 

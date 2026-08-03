@@ -188,6 +188,21 @@ def test_space_bundle_allows_absolute_path_detector_source_literal(tmp_path: Pat
     assert "src/woundscope/path_detector.py" in {record["path"] for record in manifest["files"]}
 
 
+def test_space_bundle_rejects_private_path_in_unrelated_compiled_pattern(tmp_path: Path) -> None:
+    repository = _space_repository(tmp_path)
+    private_pattern = repository / "src" / "woundscope" / "private_pattern.py"
+    private_pattern.write_text(
+        'import re\nPRIVATE_PATH_PATTERN = re.compile(r"C:\\\\Users\\\\owner\\\\private")\n',
+        encoding="utf-8",
+    )
+    _commit_all(repository, "add private pattern")
+
+    with pytest.raises(ValueError, match="absolute path"):
+        bundles.build_huggingface_space_bundle(
+            repository, tmp_path / "candidate", tmp_path / "candidate.zip"
+        )
+
+
 def test_space_bundle_reads_tree_and_blobs_from_resolved_commit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
