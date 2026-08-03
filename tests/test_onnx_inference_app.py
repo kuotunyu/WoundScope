@@ -3,10 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 import torch
 from PIL import Image
 from torch import nn
 
+import woundscope.exporting as exporting
 from woundscope.benchmarking import benchmark_onnx
 from woundscope.calibration import CalibrationArtifact
 from woundscope.demo import process_for_demo
@@ -80,6 +82,127 @@ def test_onnx_export_parity_and_predictor(tmp_path: Path) -> None:
     assert benchmark["backend"] == "onnxruntime"
     assert benchmark["requested_device"] == "cpu"
     assert benchmark["latency_ms"]["p95"] >= 0
+
+
+def test_onnx_parity_accepts_only_negligible_threshold_crossing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    torch_logits = torch.full((1, 1, 512, 512), 0.09)
+    torch_logits[0, 0, 0, 0] = 0.08
+    onnx_logits = np.full((1, 1, 512, 512), 0.09, dtype=np.float32)
+    onnx_logits[0, 0, 0, 0] = 0.080387
+
+    class FixedModel(nn.Module):
+        def forward(self, _inputs: torch.Tensor) -> torch.Tensor:
+            return torch_logits
+
+    class FixedSession:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def run(self, *_args, **_kwargs):
+            return [onnx_logits]
+
+    monkeypatch.setattr(exporting.ort, "InferenceSession", FixedSession)
+    threshold = float(torch.sigmoid(torch.tensor(0.0802)))
+    parity = onnx_parity(
+        FixedModel(), "synthetic.onnx", torch.zeros((1, 3, 512, 512)), threshold=threshold
+    )
+
+    assert parity["logits_allclose"] is False
+    assert parity["probabilities_allclose"] is True
+    assert parity["masks_equal"] is False
+    assert parity["masks_equivalent"] is True
+    assert parity["material_mask_mismatch_count"] == 0
+    assert parity["parity_passed"] is True
+    assert parity["max_abs_probability_error"] < 1e-4
+
+
+def test_onnx_parity_rejects_excessive_near_threshold_mask_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    torch_logits = torch.full((1, 1, 16, 16), 0.08)
+    onnx_logits = np.full((1, 1, 16, 16), 0.080387, dtype=np.float32)
+
+    class FixedModel(nn.Module):
+        def forward(self, _inputs: torch.Tensor) -> torch.Tensor:
+            return torch_logits
+
+    class FixedSession:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def run(self, *_args, **_kwargs):
+            return [onnx_logits]
+
+    monkeypatch.setattr(exporting.ort, "InferenceSession", FixedSession)
+    threshold = float(torch.sigmoid(torch.tensor(0.0802)))
+    parity = onnx_parity(
+        FixedModel(), "synthetic.onnx", torch.zeros((1, 3, 16, 16)), threshold=threshold
+    )
+
+    assert parity["material_mask_mismatch_count"] == 0
+    assert parity["mask_mismatch_fraction"] == 1.0
+    assert parity["masks_equivalent"] is False
+    assert parity["parity_passed"] is False
+
+
+def test_onnx_parity_converts_calibrated_threshold_to_equivalent_raw_probability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    torch_logits = torch.full((1, 1, 1, 1), 0.2)
+    onnx_logits = np.full((1, 1, 1, 1), 0.2, dtype=np.float32)
+
+    class FixedModel(nn.Module):
+        def forward(self, _inputs: torch.Tensor) -> torch.Tensor:
+            return torch_logits
+
+    class FixedSession:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def run(self, *_args, **_kwargs):
+            return [onnx_logits]
+
+    monkeypatch.setattr(exporting.ort, "InferenceSession", FixedSession)
+    parity = onnx_parity(
+        FixedModel(),
+        "synthetic.onnx",
+        torch.zeros((1, 3, 1, 1)),
+        threshold=0.6,
+        temperature=0.5,
+    )
+
+    expected = float(torch.sigmoid(torch.tensor(0.5 * np.log(0.6 / 0.4))))
+    assert parity["raw_probability_threshold"] == pytest.approx(expected)
+    assert parity["temperature"] == 0.5
+    assert parity["parity_passed"] is True
+
+
+def test_onnx_parity_rejects_material_probability_and_mask_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    torch_logits = torch.full((1, 1, 1, 1), -0.02)
+    onnx_logits = np.full((1, 1, 1, 1), 0.02, dtype=np.float32)
+
+    class FixedModel(nn.Module):
+        def forward(self, _inputs: torch.Tensor) -> torch.Tensor:
+            return torch_logits
+
+    class FixedSession:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def run(self, *_args, **_kwargs):
+            return [onnx_logits]
+
+    monkeypatch.setattr(exporting.ort, "InferenceSession", FixedSession)
+    parity = onnx_parity(FixedModel(), "synthetic.onnx", torch.zeros((1, 3, 1, 1)))
+
+    assert parity["probabilities_allclose"] is False
+    assert parity["masks_equivalent"] is False
+    assert parity["material_mask_mismatch_count"] == 1
+    assert parity["parity_passed"] is False
 
 
 def test_gradio_demo_builds_without_loading_model() -> None:

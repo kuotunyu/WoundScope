@@ -170,3 +170,88 @@ def test_stage_command_failure_preserves_subprocess_output(tmp_path: Path) -> No
     assert "exit code 7" in message
     assert "diagnostic stdout" in message
     assert "diagnostic stderr" in message
+
+
+def test_postprocessing_resume_reuses_completed_training_without_calling_training_handlers(
+    tmp_path: Path,
+) -> None:
+    pipeline = _module()
+    paths = pipeline.PipelinePaths(
+        project_root=tmp_path / "project",
+        data_root=tmp_path / "data",
+        artifact_root=tmp_path / "artifacts",
+    )
+    paths.project_root.mkdir()
+    first_calls: list[str] = []
+
+    def first_handler(context):
+        first_calls.append(context.stage)
+        if context.stage == "onnx_and_benchmark":
+            raise RuntimeError("synthetic ONNX parity failure")
+        marker = paths.artifact_root / "stage_markers" / f"{context.stage}.json"
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(f'{{"stage": "{context.stage}"}}', encoding="utf-8")
+        return pipeline.StageOutcome(artifacts=[marker], evidence={"stage": context.stage})
+
+    with pytest.raises(RuntimeError, match="ONNX parity"):
+        pipeline.run_pipeline(
+            paths,
+            source_commit="a" * 40,
+            stage_handlers={stage: first_handler for stage in STAGE_ORDER},
+            cuda_probe=lambda: {"available": True},
+        )
+    assert first_calls == list(STAGE_ORDER[:7])
+
+    resume_calls: list[str] = []
+
+    def resume_handler(context):
+        resume_calls.append(context.stage)
+        assert context.implementation_source_commit == "b" * 40
+        if context.stage not in {"data_integrity", "onnx_and_benchmark", "safe_result_handoff"}:
+            raise AssertionError("training handler must not run during postprocessing recovery")
+        marker = paths.artifact_root / "repair_markers" / f"{context.stage}.json"
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(f'{{"stage": "{context.stage}"}}', encoding="utf-8")
+        return pipeline.StageOutcome(artifacts=[marker], evidence={"stage": context.stage})
+
+    resumed = pipeline.resume_postprocessing(
+        paths,
+        source_commit="a" * 40,
+        implementation_source_commit="b" * 40,
+        stage_handlers={stage: resume_handler for stage in STAGE_ORDER},
+        cuda_probe=lambda: {"available": True},
+    )
+
+    assert resume_calls == ["data_integrity", "onnx_and_benchmark", "safe_result_handoff"]
+    for stage in resume_calls:
+        assert resumed.stages[stage]["implementation_source_commit"] == "b" * 40
+
+
+def test_postprocessing_resume_aborts_when_upstream_training_artifact_is_invalid(
+    tmp_path: Path,
+) -> None:
+    pipeline = _module()
+    paths = pipeline.PipelinePaths(tmp_path / "project", tmp_path / "data", tmp_path / "artifacts")
+    paths.project_root.mkdir()
+    state_path = paths.artifact_root / "pipeline_state.json"
+    state_path.parent.mkdir(parents=True)
+    state_path.write_text(
+        '{"source_commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","stages":{}}',
+        encoding="utf-8",
+    )
+    called = False
+
+    def handler(_context):
+        nonlocal called
+        called = True
+        raise AssertionError("no stage should execute")
+
+    with pytest.raises(RuntimeError, match="quick_gpu_gate"):
+        pipeline.resume_postprocessing(
+            paths,
+            source_commit="a" * 40,
+            implementation_source_commit="b" * 40,
+            stage_handlers={stage: handler for stage in STAGE_ORDER},
+            cuda_probe=lambda: {"available": True},
+        )
+    assert called is False

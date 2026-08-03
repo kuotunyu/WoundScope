@@ -144,12 +144,45 @@
 
 ## Next actions
 
-1. 完成單一 staged Colab orchestrator、forced quick resume、locked loss selection、seed-42 reuse 與 safe handoff tests。
-2. 完成 local CPU preflight、privacy／ignore／clean-export gates與 pre-Colab commit；重建而非信任既有 source ZIP。
-3. 將新 source ZIP 上傳為 Google Drive `MyDrive/WoundScope/WoundScope_colab_source.zip`，用 GPU runtime 只按一次 Run all。
+1. 從修復 commit 建立並驗證新的 `WoundScope_colab_source.zip`。
+2. 將新 source ZIP 與 `WoundScope_FUSeg_c7ec606_Postprocess_Resume_Colab.ipynb` 放入 Drive `MyDrive/WoundScope/`。
+3. 用 A100 對既有 `WoundScopeArtifacts/c7ec6060f1bd/` 只執行 data restore、ONNX/benchmark/gallery 與 safe handoff；不得重新訓練。
 4. 回收並驗證單一 safe results ZIP；只有 schema-valid completed full-run artifacts 才可更新 README。
 
 ## Session log
+
+### 2026-08-03 — c7ec606 ONNX parity 與 postprocessing-only recovery
+
+**目標**
+
+- 修正已完成長時間 training／official validation 後，第一個 ONNX export 因浮點層級差異才在倒數第二 stage 失敗的問題。
+- 保留 Drive 的 `WoundScopeArtifacts/c7ec6060f1bd/`，只恢復資料並重跑 ONNX／benchmark／gallery／safe handoff，禁止自動退回訓練。
+
+**Colab evidence 與根因**
+
+- `c7ec6060f1bd` pipeline 已進入 `onnx_and_benchmark`；依固定 stage order，quick、full comparison、locked loss selection、multi-seed final 與 official validation 已完成並持久化。尚未回收 safe result bundle，因此不在文件中抄錄或宣稱任何模型 metrics。
+- 第一個 U-Net seed-42 export 產生有效 ONNX，但 legacy gate 回報 logit `max_abs_error=0.0003871918`、`rtol=0.001`、`atol=0.0001`、exact masks unequal。Sigmoid 的 Lipschitz bound 使相應最大 probability drift 不超過約 `0.0000968`；舊 gate 直接以 logit allclose + exact threshold equality 判斷，會把 threshold 附近的 backend rounding 視為 material failure。
+
+**決策與變更**
+
+- `PROJECT_PLAN.md` 已鎖定部署層 parity：raw model probabilities 維持 `rtol=1e-3`／`atol=1e-4`；temperature-calibrated threshold 轉成代數等價的 raw decision threshold，mask disagreement 只有在兩端皆位於該 threshold 的 `atol` band、且同時不超過 32 pixels／`1e-4` fraction 才可通過。Exact masks、logit allclose、最大 logit/probability error、mismatch count/fraction 均保留為 machine-readable diagnostics。
+- 新增 postprocessing-only resume entry point。啟動前逐一驗證 quick 至 official validation 的 completed status、size 與 SHA-256；任一 upstream artifact 不完整即停止，絕不呼叫 training handler。
+- 新增綁定原始 training source `c7ec6060f1bd0a813a890b95b50c2855d3c2640c` 的 recovery notebook；result bundle primary provenance 維持原 training source，另記錄執行修復的 `implementation_source_commit`。
+
+**目前驗證**
+
+- Probability／threshold-band parity 正例與 material-drift 反例 regression：PASS。
+- Postprocessing-only resume 與 upstream artifact tamper/absence refusal regression：PASS。
+- Notebook pinning／CLI manifest binding／相關 ONNX、pipeline、release suite → 31 passed，2 個既有 legacy ONNX exporter deprecation warnings。
+- `.venv\Scripts\python.exe -m ruff check .`、`ruff format --check .`、`pytest -q`、`git diff --check` → PASS；101 tests passed，2 個既有 legacy ONNX exporter deprecation warnings。
+- 獨立 code review 的 mask-drift ceiling、CLI manifest binding、stale retry diagnostics 三項 findings 均已修正並 re-review；最終 no findings。
+- Clean-source bundle gate：待修復 commit 後重建與解壓驗證。
+
+**Artifacts**
+
+- `notebooks/WoundScope_FUSeg_c7ec606_Postprocess_Resume_Colab.ipynb`
+- `scripts/resume_colab_postprocessing.py`
+- `artifacts/handoff/WoundScope_colab_source.zip`（需從本次 clean fix commit 重建）
 
 ### 2026-08-03 — SegFormer-B0 checkpoint evaluation architecture 修正
 

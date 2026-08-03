@@ -51,6 +51,7 @@ class StageContext:
     paths: PipelinePaths
     source_commit: str
     cuda_info: dict[str, Any]
+    implementation_source_commit: str
 
 
 @dataclass(frozen=True)
@@ -169,11 +170,13 @@ def run_pipeline(
     source_commit: str,
     stage_handlers: Mapping[str, StageHandler],
     cuda_probe: CudaProbe = probe_cuda,
+    implementation_source_commit: str | None = None,
 ) -> PipelineState:
     """Run all fixed stages, resuming only hash-valid completed stage outputs."""
 
-    if re.fullmatch(r"[0-9a-f]{40}", source_commit) is None:
-        raise ValueError("source_commit must be a lowercase 40-character Git SHA")
+    implementation_source_commit = implementation_source_commit or source_commit
+    _validate_source_commit(source_commit, "source_commit")
+    _validate_source_commit(implementation_source_commit, "implementation_source_commit")
     cuda_info = cuda_probe()
     if cuda_info.get("available") is not True:
         raise RuntimeError("CUDA is required for the Colab pipeline; CPU fallback is forbidden")
@@ -193,26 +196,121 @@ def run_pipeline(
             and stage != "data_integrity"
         ):
             continue
-        state.record(state_path, stage, "running", cuda=cuda_info)
-        context = StageContext(stage, paths, source_commit, cuda_info)
-        try:
-            outcome = stage_handlers[stage](context)
-            records = _artifact_records(paths, outcome.artifacts)
-        except Exception as exc:
-            state.record(
-                state_path,
-                stage,
-                "failed",
-                error_type=type(exc).__name__,
-                error=str(exc),
-            )
-            raise
+        _execute_stage(
+            state,
+            state_path,
+            stage,
+            paths,
+            source_commit,
+            implementation_source_commit,
+            cuda_info,
+            stage_handlers[stage],
+        )
+    return state
+
+
+def _validate_source_commit(value: str, label: str) -> None:
+    if re.fullmatch(r"[0-9a-f]{40}", value) is None:
+        raise ValueError(f"{label} must be a lowercase 40-character Git SHA")
+
+
+def _execute_stage(
+    state: PipelineState,
+    state_path: Path,
+    stage: str,
+    paths: PipelinePaths,
+    source_commit: str,
+    implementation_source_commit: str,
+    cuda_info: dict[str, Any],
+    handler: StageHandler,
+) -> None:
+    state.record(
+        state_path,
+        stage,
+        "running",
+        cuda=cuda_info,
+        implementation_source_commit=implementation_source_commit,
+    )
+    context = StageContext(
+        stage,
+        paths,
+        source_commit,
+        cuda_info,
+        implementation_source_commit,
+    )
+    try:
+        outcome = handler(context)
+        records = _artifact_records(paths, outcome.artifacts)
+    except Exception as exc:
         state.record(
             state_path,
             stage,
-            "completed",
-            artifacts=records,
-            evidence=outcome.evidence,
+            "failed",
+            error_type=type(exc).__name__,
+            error=str(exc),
+            implementation_source_commit=implementation_source_commit,
+        )
+        raise
+    state.record(
+        state_path,
+        stage,
+        "completed",
+        artifacts=records,
+        evidence=outcome.evidence,
+        implementation_source_commit=implementation_source_commit,
+    )
+
+
+def resume_postprocessing(
+    paths: PipelinePaths,
+    *,
+    source_commit: str,
+    implementation_source_commit: str,
+    stage_handlers: Mapping[str, StageHandler],
+    cuda_probe: CudaProbe = probe_cuda,
+) -> PipelineState:
+    """Resume only data restoration, ONNX/benchmark, and safe handoff.
+
+    Every completed training/evaluation artifact is hash-verified first. Any
+    missing or changed upstream artifact aborts instead of falling back to
+    training under a different implementation commit.
+    """
+
+    _validate_source_commit(source_commit, "source_commit")
+    _validate_source_commit(implementation_source_commit, "implementation_source_commit")
+    if set(stage_handlers) != set(STAGE_ORDER):
+        raise ValueError("Stage handlers must exactly match the locked pipeline stage set")
+    state_path = paths.artifact_root / "pipeline_state.json"
+    state = PipelineState.load_or_create(state_path, source_commit)
+    upstream_stages = STAGE_ORDER[1:6]
+    for stage in upstream_stages:
+        record = state.stages.get(stage, {})
+        if record.get("status") != "completed" or not _artifacts_valid(paths, record):
+            raise RuntimeError(
+                f"Postprocessing recovery refused: upstream stage {stage} is not hash-valid and completed"
+            )
+
+    cuda_info = cuda_probe()
+    if cuda_info.get("available") is not True:
+        raise RuntimeError("CUDA is required for Colab postprocessing recovery")
+    for stage in ("data_integrity", "onnx_and_benchmark", "safe_result_handoff"):
+        record = state.stages.get(stage, {})
+        if (
+            stage != "data_integrity"
+            and record.get("status") == "completed"
+            and record.get("implementation_source_commit") == implementation_source_commit
+            and _artifacts_valid(paths, record)
+        ):
+            continue
+        _execute_stage(
+            state,
+            state_path,
+            stage,
+            paths,
+            source_commit,
+            implementation_source_commit,
+            cuda_info,
+            stage_handlers[stage],
         )
     return state
 
@@ -510,6 +608,7 @@ class _DefaultStageExecutor:
             {
                 "status": "completed",
                 "source_commit": context.source_commit,
+                "implementation_source_commit": context.implementation_source_commit,
                 "data_revision": load_config(self.paths.project_root / "configs/base.yaml")["data"][
                     "source_revision"
                 ],
@@ -790,7 +889,7 @@ class _DefaultStageExecutor:
             evidence={"models": 2, "seeds_per_model": 3, "bootstrap_samples": 2000},
         )
 
-    def onnx_and_benchmark(self, _context: StageContext) -> StageOutcome:
+    def onnx_and_benchmark(self, context: StageContext) -> StageOutcome:
         artifacts: list[Path] = []
         runs = []
         for spec, run_dir in self._final_index_specs():
@@ -815,7 +914,15 @@ class _DefaultStageExecutor:
                 }
             )
         summary_path = self.paths.artifact_root / "aggregate" / "onnx_benchmark.json"
-        write_json_atomic({"status": "completed", "runs": runs}, summary_path)
+        write_json_atomic(
+            {
+                "status": "completed",
+                "source_commit": context.source_commit,
+                "implementation_source_commit": context.implementation_source_commit,
+                "runs": runs,
+            },
+            summary_path,
+        )
         artifacts.append(summary_path)
         return StageOutcome(artifacts=artifacts, evidence={"completed_runs": 6})
 
@@ -847,6 +954,7 @@ class _DefaultStageExecutor:
             write_json_atomic(
                 {
                     "source_commit": context.source_commit,
+                    "implementation_source_commit": context.implementation_source_commit,
                     "cuda": context.cuda_info,
                     "cross_split_policy": "exclude_train",
                     "excluded_train_copies": 7,
