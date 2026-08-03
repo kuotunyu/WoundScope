@@ -22,7 +22,7 @@
 ### Task 1: Verify and stage the immutable results evidence
 
 **Files:**
-- Consume: `C:/Users/3Hml/Downloads/woundscope_colab_results_c7ec6060f1bd.zip`
+- Consume: user-selected local `woundscope_colab_results_c7ec6060f1bd.zip`
 - Generate, gitignored: `artifacts/verified_downloaded_c7/`
 - Inspect: `artifacts/verified_downloaded_c7/aggregate/verified_results.json`
 - Inspect: `artifacts/verified_downloaded_c7/selection/loss_selection.json`
@@ -37,7 +37,8 @@
 Run:
 
 ```powershell
-Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Users\3Hml\Downloads\woundscope_colab_results_c7ec6060f1bd.zip'
+$resultsZip = Get-Item -LiteralPath '<local downloaded ZIP path>'
+Get-FileHash -Algorithm SHA256 -LiteralPath $resultsZip.FullName
 ```
 
 Expected: `6FF4D1F14F4242C72FA2EF3382BCBFADC15DF93DD4AEB739AE1864F7DE24F221`.
@@ -48,7 +49,7 @@ Run:
 
 ```powershell
 .venv\Scripts\python.exe scripts\verify_results_bundle.py `
-  --bundle 'C:\Users\3Hml\Downloads\woundscope_colab_results_c7ec6060f1bd.zip' `
+  --bundle $resultsZip.FullName `
   --expected-source-commit c7ec6060f1bd0a813a890b95b50c2855d3c2640c `
   --output artifacts\verified_downloaded_c7
 ```

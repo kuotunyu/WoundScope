@@ -10,9 +10,9 @@
 | Project state | `IMPLEMENTING / M6_IN_REVIEW` |
 | Current milestone | M6 — Release engineering 與完整驗收；M0–M5 gates 已通過 |
 | Last updated | 2026-08-03（Asia/Taipei） |
-| Last verified state | c7 safe result ZIP SHA/schema/privacy PASS；full official-validation aggregates、六組 ONNX parity/benchmark 與 safe handoff completed；Ruff/format/107 tests/tracked-privacy audit PASS |
-| Active blocker | 無；M6 仍待 clean-commit reproduction 與 hosted CI，本次本機 milestone commit 尚未建立 |
-| Next action | 完成獨立 review 與 local milestone commit，然後從 clean committed source 重建並驗證 release bundle；不設定 remote、不 push |
+| Last verified state | c7 safe result ZIP SHA/schema/privacy PASS；full official-validation/ONNX/handoff completed；Ruff/format/107 tests/privacy 與 96-file clean-checkout reproduction PASS |
+| Active blocker | 無本機 blocker；hosted CI 需設定 remote 與 push，本次未獲授權，因此 M6 維持 `In review` |
+| Next action | 完成獨立 review 與本機 evidence commit；若日後要完成 hosted CI，由使用者明確授權 remote/push |
 | External actions | 使用者已停止 Colab；private Drive 保存完整 training/weights/ONNX，下載的 safe ZIP 不含 weights/images；無 remote、push 或公開 upload |
 
 ## Resume checklist
@@ -38,7 +38,7 @@
 | M3 — Training/Colab | Completed | CPU mini-train、resume、notebook、Colab quick gate 通過 | A100 staged quick/full、AMP、deliberate resume、loss selection與三-seed final completed |
 | M4 — Evaluation/calibration | Completed | Metrics/bootstrap/calibration/confidence/gallery gates 通過 | Locked official validation、dev calibration、2,000 bootstrap、五類 private gallery completed |
 | M5 — Inference/demo | Completed | CPU/CUDA/ONNX/benchmark/app gates 通過 | 六組 CUDA→ONNX parity、CPU benchmark completed；PyTorch/ONNX/app tests PASS |
-| M6 — Release | In review | CI/Docker/clean-clone/data-secret audit 通過 | 文件/CI/CPU Docker/secret audit PASS；clean-commit reproduction 與 hosted CI 待後續 |
+| M6 — Release | In review | CI/Docker/clean-clone/data-secret audit 通過 | 文件/CI/CPU Docker/secret/96-file clean-checkout reproduction PASS；hosted CI 待明確 remote/push 授權 |
 
 允許的狀態值：`Not started`、`In progress`、`Blocked`、`In review`、`Completed`。
 
@@ -62,7 +62,7 @@
 
 ### 2026-08-03 — Verified c7 full-run results ingestion
 
-- Downloaded safe ZIP：`C:\Users\3Hml\Downloads\woundscope_colab_results_c7ec6060f1bd.zip`；344,656 bytes；SHA-256 `6FF4D1F14F4242C72FA2EF3382BCBFADC15DF93DD4AEB739AE1864F7DE24F221`，與 Colab stage record 完全一致。
+- Downloaded safe ZIP：`woundscope_colab_results_c7ec6060f1bd.zip`；344,656 bytes；SHA-256 `6FF4D1F14F4242C72FA2EF3382BCBFADC15DF93DD4AEB739AE1864F7DE24F221`，與 Colab stage record 完全一致。
 - `scripts/verify_results_bundle.py` clean extraction → `status=verified`；training source `c7ec6060f1bd0a813a890b95b50c2855d3c2640c`；52 manifest members，另含 bundle manifest；prohibited artifacts 0。
 - Provenance：training source 維持 c7；handoff implementation `8345176593e3fe5a3c95e2f053306229e5a09455`；safe bundle 不含 weights、ONNX binaries、來源影像、image-level metrics 或 private galleries。
 - Experiment lock：兩個架構皆由 internal dev 選出 `bce_dice`；final seeds 固定 42/43/44；official validation 200 張未參與 selection、checkpoint、threshold 或 temperature fitting。
@@ -72,7 +72,10 @@
 - 第一次本機 re-extract 到非空 evidence directory 被安全拒絕（expected）；改用新的空白 gitignored directory後完整驗證 PASS，沒有覆蓋既有證據。
 - Final repository gate：Ruff check PASS；Ruff format check `63 files already formatted`；pytest `107 passed`（僅 2 個既知 legacy ONNX exporter deprecation warnings）；`git diff --check` PASS。
 - Release test 原先硬性要求 README 一定包含「待填」，與 verified completed-result 狀態矛盾；已移除該過時文字假設，保留兩個 results markers 各一次的 release contract，完整 suite 重跑 PASS。
-- Privacy/publication audit：95 tracked files；forbidden tracked artifacts 0；Git remotes 0；`.env`、manifest 與兩個 verified extraction directories 均由 `.gitignore` 排除。M6 維持 `In review`，直到 clean committed source reproduction 與 hosted CI 完成。
+- Privacy/publication audit：96 tracked files；forbidden tracked artifacts 0；Git remotes 0；`.env`、manifest 與兩個 verified extraction directories 均由 `.gitignore` 排除。
+- Committed source-bundle clean extraction：從 commit `792d29602a39ad96925edea8d208e2c4ccb7642d` 建立 82-file source ZIP，clean extraction 內 package/notebook import 與 pytest 全部 PASS，`107 passed`；ZIP 248,166 bytes，SHA-256 `13B7611172551171D6504D96477B4500E3F9526C4409332D2525077AA0F18B91`，位於 gitignored `artifacts/handoff/`。
+- Full clean-checkout reproduction：以 `git archive` 從同一 commit 匯出全部 96 tracked files，確認 import 來自全新 extraction，Ruff check PASS、Ruff format check `63 files already formatted`、pytest `107 passed`（僅 2 個既知 legacy ONNX exporter deprecation warnings）。
+- Hosted CI 未執行：本 repository 仍無 Git remote，且本次沒有 remote/push 授權；不為了關閉 M6 而擅自擴大外部發佈範圍。
 
 ### 2026-08-03 — c7 handoff-only recovery 修復
 
@@ -127,7 +130,7 @@
 
 ### 2026-07-19 — Pre-implementation inspection
 
-- Working directory：`C:\Users\3Hml\Desktop\CC_github部隊\長照\2_WoundScope`
+- Working directory：repository root。
 - Read-only workspace inspection：通過。
 - Git metadata：不存在。
 - Existing files before documentation：只有 `.env`。
@@ -142,7 +145,7 @@
 
 | Artifact | 狀態 | 說明 |
 |---|---|---|
-| `PROJECT_PLAN.md` | Active contract | Review gate 已解除；exact-duplicate mitigation 是 open decision |
+| `PROJECT_PLAN.md` | Active contract | Review gate 已解除；exact-duplicate mitigation 已鎖定為 `exclude_train` |
 | `PROGRESS.md` | Active | 即時進度、證據與續作入口 |
 | `.env` | Preserved and ignored | 內容未讀出、未修改、未追蹤 |
 | M0 source/config/tests | Created and verified | Package、YAML config、CLI、AGENTS、skill、license 與 ignore rules |
@@ -151,6 +154,7 @@
 | M2–M5 source/tests | Created and CPU verified | data/model/loss/train/evaluate/calibration/ONNX/inference/Gradio stack |
 | `notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb` | Thin staged wrapper, structure verified | `MyDrive/WoundScope`、source checksum、CUDA hard gate、single Run-all orchestration、Drive persistence／resume |
 | `artifacts/handoff/WoundScope_colab_source.zip` | Local, gitignored; verified recovery bundle | Source `8345176593e3`、82 files、SHA-256 `773E0274487F54D040F68943A610BF53C97393157A49A5B50BA05A2B76537A8E`；clean-extract suite 107 passed |
+| `artifacts/handoff/WoundScope_colab_source_792d296.zip` | Local, gitignored; final clean-source audit | Source `792d29602a39`、82 files、248,166 bytes、SHA-256 `13B7611172551171D6504D96477B4500E3F9526C4409332D2525077AA0F18B91`；clean-extract suite 107 passed |
 | Release files | Created and verified | README/cards/CFF/CI/Docker/.env.example/artifact handoff |
 | Model/training artifacts | Private Drive + verified safe local summary | 完整 checkpoints/ONNX/gallery 留在 private Drive；gitignored safe result evidence 52 members，不含 weights/images |
 
@@ -170,8 +174,8 @@
 
 ## Next actions
 
-1. 完成 verified metrics 文件差異的獨立 review，處理所有有效意見。
-2. 建立 local milestone commit，再執行 M6 clean-source reproduction audit；不設定 remote、不 push。
+1. 完成 verified metrics 文件與 clean-source evidence 的獨立 review，處理所有有效意見後建立 local evidence commit。
+2. 若要將 M6 從 `In review` 改為 `Completed`，需使用者另行明確授權設定 remote/push 以觸發 hosted CI。
 3. 保留 private Drive 的 checkpoints／ONNX 作為未公開備份；授權確認前不得公開 weights 或 FUSeg 衍生影像。
 
 ## Session log
