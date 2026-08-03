@@ -7,13 +7,13 @@
 
 | 欄位 | 內容 |
 |---|---|
-| Project state | `RELEASED_V0.1.0 / M6_COMPLETED` |
-| Current milestone | v0.1.0 已正式發布；M0–M6 與本機／GitHub release gates 全部通過 |
+| Project state | `RELEASED_V0.1.0 / M7_HF_SPACE_CODE_ONLY_READY` |
+| Current milestone | M7 HF Space code-only candidate gates 全部通過；model-backed live deployment 維持 `PERMISSION_PENDING` |
 | Last updated | 2026-08-04（Asia/Taipei） |
-| Last verified state | v0.1.0：本機／clean checkout 113 tests、兩次 hosted CI、Release asset hash、Public tag clone、privacy、PVR、branch protection 與唯一 `kuotunyu` Contributors 全部 PASS |
-| Active blocker | 無；private Drive data／weights／image-level artifacts 維持不公開，屬發布政策而非 blocker |
-| Next action | 維護 hosted CI、security 與 dependency updates；只有新增實質功能或實驗時才開啟下一個 milestone |
-| External actions | Public repository 與 `v0.1.0` Release 已發布；`main` protection 與 Private Vulnerability Reporting 已啟用；private artifacts 未上傳 |
+| Last verified state | M7 source `d271f794550994be67b18578f7910afa14dbb588`：36-file candidate、155,485-byte ZIP、SHA-256 `76E0AB57339A00102E3BD30A9BD61E1D946EBC5A0D987D692D0849DBA4DE50D7`；59 focused／152 full tests、privacy audit、import、CPU Docker 與 unpinned clean-clone reproduction 全部 PASS |
+| Active blocker | `FUSeg derived-weight permission pending`；這是 model-backed live deployment blocker，不是 code-only candidate blocker |
+| Next action | 使用者審閱尚未寄出的權限請求；未獲明確指示前不執行任何 Hugging Face 或其他外部動作 |
+| External actions | 既有 Public repository 與 `v0.1.0` Release 維持不變；本輪未建立 Space／model repo，未使用 token，未寄出訊息，未 push／upload／deploy |
 
 ## Resume checklist
 
@@ -39,6 +39,7 @@
 | M4 — Evaluation/calibration | Completed | Metrics/bootstrap/calibration/confidence/gallery gates 通過 | Locked official validation、dev calibration、2,000 bootstrap、五類 private gallery completed |
 | M5 — Inference/demo | Completed | CPU/CUDA/ONNX/benchmark/app gates 通過 | 六組 CUDA→ONNX parity、CPU benchmark completed；PyTorch/ONNX/app tests PASS |
 | M6 — Release | Completed | CI/Docker/clean-clone/data-secret audit 通過 | v0.1.0 文件／CI／security／113-test clean checkout、兩次 hosted CI、Release asset、branch protection 與 Contributors audit PASS |
+| M7 — HF Space code-only readiness | Completed | Committed candidate、privacy inventory、tests、import、CPU Docker 與 real-clone reproduction 通過 | Source `d271f7945509`；36 files／155,485 bytes／SHA-256 `76E0AB57339A00102E3BD30A9BD61E1D946EBC5A0D987D692D0849DBA4DE50D7`；59 focused／152 full tests PASS；live deployment `PERMISSION_PENDING` |
 
 允許的狀態值：`Not started`、`In progress`、`Blocked`、`In review`、`Completed`。
 
@@ -55,10 +56,23 @@
 - Language：人讀文件與 UI 以正體中文為主，專有名詞與程式介面維持英文。
 - Publication：已授權公開 `kuotunyu/WoundScope` 的程式碼與 privacy-safe aggregate results；不上傳 data、weights、private galleries 或 image-level artifacts；GitHub Contributors 只允許 `kuotunyu`。
 - Cross-split policy：`exclude_train`；只排除 7 張 exact train copies，official validation 200 張完整保留。
+- Hugging Face：code-only candidate 已完成 M7；derived weights／ONNX 未獲可保存的書面權限回覆前，model-backed live Space 固定為 `PERMISSION_PENDING`。
 
 重大調整必須先更新 `PROJECT_PLAN.md` Decision Log；本區只同步摘要，不取代完整規格。
 
 ## Test and verification evidence
+
+### 2026-08-04 — M7 HF Space code-only readiness gate
+
+- Clean committed source：`d271f794550994be67b18578f7910afa14dbb588`；build 前 worktree clean；author／committer 均為 `kuotunyu <61350295+kuotunyu@users.noreply.github.com>`；candidate 與 ZIP 均命中 `.gitignore` 的 `artifacts/` 規則。
+- Candidate builder：`status=verified`；manifest files `36`；staging 含 manifest 為 37 files；ZIP 37 members／155,485 bytes／SHA-256 `76E0AB57339A00102E3BD30A9BD61E1D946EBC5A0D987D692D0849DBA4DE50D7`；輸出路徑為本 repository 內的 gitignored `artifacts/huggingface-space/`。
+- Exact inventory audit：manifest `kind=huggingface_space`、source commit 與 ZIP members 完全一致；case-insensitive staging／ZIP path audit → `HF_SPACE_FORBIDDEN_ARTIFACT_AUDIT_PASS staging_files=37 zip_members=37 forbidden=0`。
+- Filename gate 的初次 broad-regex audit 曾把合法 Python source `src/woundscope/checkpointing.py` 誤判為 artifact；TDD 先得到 6 個 `DID NOT RAISE` RED cases（`.env.*`、checkpoints／gallery／sample_predictions／tensorboard／artifacts directories），再改為 path-component／suffix／content contract；positive `checkpointing.py` 與拒絕案例 GREEN，bundle focused suite 27 passed。
+- Task 5 focused suite：59 passed；Ruff check PASS；format check `67 files already formatted`；full suite 152 passed，只有 2 個既有 legacy ONNX exporter deprecation warnings；`git diff --check` PASS。
+- Candidate import：`HF_SPACE_IMPORT_SMOKE_PASS`；Gradio analytics disabled、cache deletion interval `(600, 600)`。CPU Docker：`docker build -t woundscope:hf-space-code-only artifacts/huggingface-space/candidate` exit 0；沒有 container launch、model load／model download 或 GPU 使用。
+- Clean-clone 初次 unpinned pre-test 在 `uv sync` exit 2；`uv` 選到 Anaconda CPython 3.10.9，locked `onnxruntime==1.24.3` 沒有 cp310 wheel。Root fix 將 package contract 從 `>=3.10,<3.13` 改為 `>=3.11,<3.13`，移除 Python 3.10 classifier，並重建 `uv.lock`；metadata regression RED 後 GREEN。
+- Final clean-clone reproduction：全新 local clone `C:\Users\3Hml\AppData\Local\Temp\woundscope-hf-verify-e5ddca59981c42a9b1dcd7be0bfdd824\source` 含真實 `.git` metadata；未設 `UV_PYTHON`，`uv sync --all-extras --frozen` 自動選擇 Python 3.12.13 並安裝 96 packages；Ruff PASS、format 67 files、152 passed，candidate source／file count／ZIP SHA-256 與主 worktree 完全一致，privacy audit 0 forbidden，generated outputs 維持 ignored，clone status clean。
+- GPU／full training：未使用／未執行。External mutation：未建立 Hugging Face Space 或 model repository，未讀取／使用 token，未寄出權限訊息，未 push、upload 或 deploy。
 
 ### 2026-08-04 — v0.1.0 GitHub release final audit
 
@@ -196,6 +210,7 @@
 | `notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb` | Thin staged wrapper, structure verified | 優先使用 private Drive immutable source ZIP；缺少 ZIP 時 checkout public `v0.1.0`；CUDA hard gate、single Run-all orchestration、Drive persistence／resume |
 | `artifacts/handoff/WoundScope_colab_source.zip` | Local, gitignored; verified recovery bundle | Source `8345176593e3`、82 files、SHA-256 `773E0274487F54D040F68943A610BF53C97393157A49A5B50BA05A2B76537A8E`；clean-extract suite 107 passed |
 | `artifacts/handoff/WoundScope_colab_source_792d296.zip` | Local, gitignored; final clean-source audit | Source `792d29602a39`、82 files、248,166 bytes、SHA-256 `13B7611172551171D6504D96477B4500E3F9526C4409332D2525077AA0F18B91`；clean-extract suite 107 passed |
+| `artifacts/huggingface-space/` | Local, gitignored; M7 code-only candidate verified | Source `d271f7945509`；36 manifest files／155,485-byte ZIP／SHA-256 `76E0AB57339A00102E3BD30A9BD61E1D946EBC5A0D987D692D0849DBA4DE50D7`；privacy、import、CPU Docker 與 unpinned clean-clone gates PASS |
 | Release files | Created and verified | README/cards/CFF/CI/Docker/.env.example、`SECURITY.md`、issue form、aggregate SVG、v0.1.0 notes 與 artifact handoff |
 | Model/training artifacts | Private Drive + verified safe local summary | 完整 checkpoints/ONNX/gallery 留在 private Drive；gitignored safe result evidence 52 members，不含 weights/images |
 
@@ -203,7 +218,7 @@
 
 ### Active blocker
 
-- 無未決科學決策、實驗、本機或 GitHub release blocker；v0.1.0 已正式發布並完成線上稽核。
+- `FUSeg derived-weight permission pending`；這只阻擋 model-backed live Space，不阻擋已驗證的 code-only candidate。尚未寄出權限請求，不得在未獲明確指示前進行外部動作。
 
 ### Known risks
 
@@ -215,12 +230,41 @@
 
 ## Next actions
 
-1. 維護 GitHub hosted CI、dependency pin 與 security updates；任何變更都需保留 Ruff／format／pytest／privacy audit gates。
-2. Contributors policy 維持只有 `kuotunyu`；未來 commits 不得加入 bot、placeholder 或共同作者 trailer。
-3. 保留 private Drive 的 checkpoints／ONNX 作為未公開備份；不得公開 weights、FUSeg 衍生影像或 image-level artifacts。
-4. 只有新增實質功能、資料 protocol 或正式實驗時才建立下一個 milestone，並先更新 `PROJECT_PLAN.md`。
+1. 使用者審閱尚未寄出的 FUSeg derived-weight 權限請求；未獲明確指示前，不建立 Space／model repo、不使用 token、不寄信或訊息、不 push／upload／deploy。
+2. 維護 GitHub hosted CI、dependency pin 與 security updates；任何變更都需保留 Ruff／format／pytest／privacy audit gates。
+3. Contributors policy 維持只有 `kuotunyu`；未來 commits 不得加入 bot、placeholder 或共同作者 trailer。
+4. 保留 private Drive 的 checkpoints／ONNX 作為未公開備份；不得公開 weights、FUSeg 衍生影像或 image-level artifacts。
 
 ## Session log
+
+### 2026-08-04 — M7 HF Space code-only readiness
+
+**目標**
+
+- 從 clean committed HEAD 建立 deterministic code-only candidate，並完成 privacy、tests、import、CPU Docker 與 real-clone reproduction gates。
+
+**變更**
+
+- 將錯誤的 `checkpoint` substring audit 改為 case-insensitive path-component／suffix／content contract；合法 `checkpointing.py` 保留，`.env.*`、artifact directories、model/weight/raster 副檔名、secret-like 與 absolute-path 內容仍拒絕。
+- 將 Python support 從 3.10–3.12 修正為 3.11–3.12，重建 `uv.lock`；使 clean clone 的 unpinned frozen sync 會自動排除不相容的 Anaconda 3.10。
+
+**驗證**
+
+- Source `d271f794550994be67b18578f7910afa14dbb588`；36 manifest files；ZIP 155,485 bytes；SHA-256 `76E0AB57339A00102E3BD30A9BD61E1D946EBC5A0D987D692D0849DBA4DE50D7`；staging／ZIP 37 entries，forbidden 0。
+- Task 5 focused 59 passed；Ruff PASS；format 67 files；full 152 passed，只有 2 個既有 ONNX deprecation warnings；import smoke、CPU Docker 與 Python 3.12.13 unpinned clean clone 全部 PASS。
+- 本輪未使用 GPU、未執行 training，未建立 Space／model repo，未使用 token，未寄出訊息，未 push／upload／deploy。
+
+**Artifacts**
+
+- `artifacts/huggingface-space/candidate/`、`artifacts/huggingface-space/WoundScope_hf_space_code_only.zip`（均 gitignored）。
+
+**決策／偏差**
+
+- 無 scientific protocol 偏差；code-only M7 完成不等於 derived weights 可以公開。Model-backed live deployment 維持 `PERMISSION_PENDING`。
+
+**未完成與下一步**
+
+- 使用者審閱尚未寄出的 FUSeg derived-weight 權限請求；等待明確外部動作指示。
 
 ### 2026-08-03 — Recovery dependency closure 與 preflight diagnostics
 
