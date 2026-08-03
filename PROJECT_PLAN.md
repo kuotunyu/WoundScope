@@ -80,7 +80,7 @@ Challenge design PDF 的 Data usage agreement 寫作「CC BY NC」，但未提�
 │   ├── models/
 │   └── modes/
 ├── data/                       # gitignored raw/manifest content
-├── notebooks/01_train_colab.ipynb
+├── notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb
 ├── reports/                    # tracked templates; generated/ is ignored
 ├── scripts/
 ├── src/woundscope/
@@ -254,7 +254,7 @@ Local／Drive gallery 必須以 deterministic rules 選出：最佳、最差、�
 
 ## 10. Colab notebook
 
-`notebooks/01_train_colab.ipynb` 必須：
+`notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb` 必須：
 
 - 一鍵安裝 project dependencies、檢查 GPU／CUDA／Drive；
 - 可從 mounted Drive project 或未來的 repository URL 讀取 WoundScope；

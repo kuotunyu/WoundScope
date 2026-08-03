@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import sys
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,7 @@ def _module():
     return importlib.import_module("woundscope.colab_pipeline")
 
 
-def test_pipeline_runs_stages_in_order_and_skips_hash_valid_completed_stages(
+def test_pipeline_runs_stages_in_order_revalidates_data_and_skips_other_completed_stages(
     tmp_path: Path,
 ) -> None:
     pipeline = _module()
@@ -29,6 +30,12 @@ def test_pipeline_runs_stages_in_order_and_skips_hash_valid_completed_stages(
         marker = paths.artifact_root / "stage_markers" / f"{context.stage}.json"
         marker.parent.mkdir(parents=True, exist_ok=True)
         marker.write_text(f'{{"stage": "{context.stage}"}}', encoding="utf-8")
+        if context.stage == "data_integrity":
+            manifest_dir = paths.data_root / "manifests"
+            manifest_dir.mkdir(parents=True, exist_ok=True)
+            (manifest_dir / "data_manifest.csv").write_text("sample_id\n", encoding="utf-8")
+            (manifest_dir / "data_summary.json").write_text("{}", encoding="utf-8")
+            (paths.data_root / "raw" / "fuseg").mkdir(parents=True, exist_ok=True)
         return pipeline.StageOutcome(artifacts=[marker], evidence={"stage": context.stage})
 
     handlers = {stage: handler for stage in STAGE_ORDER}
@@ -50,7 +57,7 @@ def test_pipeline_runs_stages_in_order_and_skips_hash_valid_completed_stages(
         stage_handlers=handlers,
         cuda_probe=lambda: {"available": True, "device_name": "Synthetic CUDA"},
     )
-    assert calls == []
+    assert calls == ["data_integrity"]
     assert resumed.stages == state.stages
 
 
@@ -100,3 +107,66 @@ def test_full_run_completion_rejects_disabled_amp() -> None:
 
     with pytest.raises(RuntimeError, match="AMP"):
         pipeline.validate_run_completion(spec, result, provenance, "a" * 40)
+
+
+def test_pipeline_revalidates_volatile_data_on_every_invocation(tmp_path: Path) -> None:
+    pipeline = _module()
+    paths = pipeline.PipelinePaths(
+        project_root=tmp_path / "project",
+        data_root=tmp_path / "data",
+        artifact_root=tmp_path / "artifacts",
+    )
+    paths.project_root.mkdir()
+    calls: list[str] = []
+
+    def handler(context):
+        calls.append(context.stage)
+        marker = paths.artifact_root / "stage_markers" / f"{context.stage}.json"
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(f'{{"stage": "{context.stage}"}}', encoding="utf-8")
+        if context.stage == "data_integrity":
+            manifest_dir = paths.data_root / "manifests"
+            manifest_dir.mkdir(parents=True, exist_ok=True)
+            (manifest_dir / "data_manifest.csv").write_text("sample_id\n", encoding="utf-8")
+            (manifest_dir / "data_summary.json").write_text("{}", encoding="utf-8")
+            challenge_dir = paths.data_root / "raw" / "fuseg" / "challenge"
+            challenge_dir.mkdir(parents=True, exist_ok=True)
+        return pipeline.StageOutcome(artifacts=[marker], evidence={"stage": context.stage})
+
+    handlers = {stage: handler for stage in STAGE_ORDER}
+    pipeline.run_pipeline(
+        paths,
+        source_commit="a" * 40,
+        stage_handlers=handlers,
+        cuda_probe=lambda: {"available": True},
+    )
+    calls.clear()
+
+    pipeline.run_pipeline(
+        paths,
+        source_commit="a" * 40,
+        stage_handlers=handlers,
+        cuda_probe=lambda: {"available": True},
+    )
+
+    assert calls == ["data_integrity"]
+
+
+def test_stage_command_failure_preserves_subprocess_output(tmp_path: Path) -> None:
+    pipeline = _module()
+    paths = pipeline.PipelinePaths(tmp_path, tmp_path / "data", tmp_path / "artifacts")
+    executor = pipeline._DefaultStageExecutor(paths)
+    command = [
+        sys.executable,
+        "-c",
+        "import sys; print('diagnostic stdout'); print('diagnostic stderr', file=sys.stderr); "
+        "raise SystemExit(7)",
+    ]
+
+    with pytest.raises(RuntimeError) as error:
+        executor._run(command)
+
+    message = str(error.value)
+    assert "exit code 7" in message
+    assert "diagnostic stdout" in message
+    assert "diagnostic stderr" in message

@@ -265,7 +265,7 @@ Expected: PASS.
 ### Task 7: Convert the notebook to a single thin launch wrapper
 
 **Files:**
-- Modify: `notebooks/01_train_colab.ipynb`
+- Modify: `notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb`
 - Modify: `scripts/download_artifacts.md`
 - Test: `tests/test_notebook_release.py`
 
@@ -290,8 +290,8 @@ Expected: FAIL because manual quick/comparison/final controls remain.
 
 - [ ] **Step 3: Rewrite notebook cells as mount/load/install/verify/run/monitor only**
 
-Set Drive targets to `MyDrive/WoundScope_colab_source.zip` and
-`MyDrive/WoundScopeArtifacts`, forbid CPU fallback, propagate the bundle source commit through an
+Set Drive targets to `MyDrive/WoundScope/WoundScope_colab_source.zip` and
+`MyDrive/WoundScope/WoundScopeArtifacts/<source-commit-prefix>`, forbid CPU fallback, propagate the bundle source commit through an
 environment variable, and invoke one staged command with no user-selected loss.
 
 - [ ] **Step 4: Run notebook structure and JSON parse tests**
@@ -341,8 +341,8 @@ checksums, path safety, and reports the current HEAD as source commit.
 ### Task 9: Execute Colab and recover verified results
 
 **Files:**
-- Private Drive: `MyDrive/WoundScope_colab_source.zip`
-- Private Drive: `MyDrive/WoundScopeArtifacts/`
+- Private Drive: `MyDrive/WoundScope/WoundScope_colab_source.zip`
+- Private Drive: `MyDrive/WoundScope/WoundScopeArtifacts/<source-commit-prefix>/`
 - Local ignored: `artifacts/incoming/woundscope_colab_results_<run-id>.zip`
 
 **Interfaces:**
@@ -366,7 +366,7 @@ directories are not overwritten.
 
 - [ ] **Step 4: Download only the safe result ZIP**
 
-Expected Drive path: `MyDrive/WoundScopeArtifacts/handoff/woundscope_colab_results_<run-id>.zip`.
+Expected Drive path: `MyDrive/WoundScope/WoundScopeArtifacts/<source-commit-prefix>/handoff/woundscope_colab_results_<source-commit-prefix>.zip`.
 
 ### Task 10: Verify results and create the release candidate
 
