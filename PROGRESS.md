@@ -11,8 +11,8 @@
 | Current milestone | M3 — Resumable staged Colab pipeline；M1 scientific gate 已通過 |
 | Last updated | 2026-08-03（Asia/Taipei） |
 | Last verified state | M1 `exclude_train` PASS；Ruff/format PASS；101 CPU tests PASS；c7 training/official artifacts 已進入 postprocessing recovery |
-| Active blocker | Recovery `22b80a3` 過度要求整個 `full_comparison` stage hash-valid；實際 Colab 在 postprocessing 前安全停止，未重訓 |
-| Next action | 驗證 dependency-scoped recovery、建立新 immutable source ZIP，接續 `c7ec6060f1bd` artifacts |
+| Active blocker | 無本機 blocker；dependency-scoped recovery bundle 已驗證，待 A100 接續 `c7ec6060f1bd` artifacts |
+| Next action | 上傳 source `7d69e7714a52` ZIP 與更新的 recovery notebook，只執行 postprocessing recovery |
 | External actions | 使用者已在 private Drive 上傳 source ZIP/notebook 並啟動 A100；無 remote、push、公開 upload 或本機 full GPU training |
 
 ## Resume checklist
@@ -124,7 +124,7 @@
 | `data/manifests/` | Local, gitignored | `data_manifest.csv`、`data_summary.json` 與 duplicate findings |
 | M2–M5 source/tests | Created and CPU verified | data/model/loss/train/evaluate/calibration/ONNX/inference/Gradio stack |
 | `notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb` | Thin staged wrapper, structure verified | `MyDrive/WoundScope`、source checksum、CUDA hard gate、single Run-all orchestration、Drive persistence／resume |
-| `artifacts/handoff/WoundScope_colab_source.zip` | Local, gitignored; verified recovery bundle | Source `22b80a3c4399`、82 files、SHA-256 `D14D29BC12A513D0EAD002443AABCDD7F0D02D956E9B7621AAC7D2B8E2DF09D2`；clean-extract suite 101 passed |
+| `artifacts/handoff/WoundScope_colab_source.zip` | Local, gitignored; verified recovery bundle | Source `7d69e7714a52`、82 files、SHA-256 `D8B906256FBF146DC328671E7967EE280F5916BB89521C6A4EDF0804AA0F6296`；clean-extract suite 101 passed |
 | Release files | Created and verified | README/cards/CFF/CI/Docker/.env.example/artifact handoff |
 | Model/training artifacts | None | 無 checkpoint、ONNX performance artifact 或 full-training result |
 
@@ -169,7 +169,8 @@
 - GREEN：同一情境只執行 `data_integrity`、`onnx_and_benchmark`、`safe_result_handoff`；training handlers 呼叫數為 0。
 - Pipeline + recovery notebook focused suite → 16 passed；獨立 review 確認 dependency closure 仍涵蓋六個 final runs 與 official artifacts、沒有 training fallback，最終 no findings。
 - `.venv\Scripts\python.exe -m ruff check .`、`ruff format --check .`、`pytest -q`、`git diff --check` → PASS；101 tests passed，2 個既有 legacy ONNX exporter deprecation warnings。
-- Clean-source bundle gate 待本次 commit 後執行。
+- Fix commit `7d69e7714a52dd44466ad729cd9338032bf66cc0` source ZIP：82 files、246,833 bytes、SHA-256 `D8B906256FBF146DC328671E7967EE280F5916BB89521C6A4EDF0804AA0F6296`。
+- Source manifest／inventory／size／SHA-256／clean extraction → PASS；clean extracted source 完整 suite → 101 passed、2 個既有 legacy ONNX exporter deprecation warnings。
 
 ### 2026-08-03 — c7ec606 ONNX parity 與 postprocessing-only recovery
 
