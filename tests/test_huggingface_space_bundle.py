@@ -210,6 +210,30 @@ def test_space_bundle_rejects_private_path_comment_in_trusted_detector_assignmen
         )
 
 
+def test_space_bundle_rejects_private_path_comment_between_adjacent_trusted_literals(
+    tmp_path: Path,
+) -> None:
+    repository = _space_repository(tmp_path)
+    detector = repository / "src" / "woundscope" / "bundles.py"
+    pattern = bundles.ABSOLUTE_PATH_PATTERN.pattern
+    split = len(pattern) // 2
+    detector.write_text(
+        "import re\n"
+        "ABSOLUTE_PATH_PATTERN = re.compile(\n"
+        f"    {pattern[:split]!r}\n"
+        "    # C:\\Users\\owner\\private\n"
+        f"    {pattern[split:]!r}\n"
+        ")\n",
+        encoding="utf-8",
+    )
+    _commit_all(repository, "split detector around private path comment")
+
+    with pytest.raises(ValueError, match="absolute path"):
+        bundles.build_huggingface_space_bundle(
+            repository, tmp_path / "candidate", tmp_path / "candidate.zip"
+        )
+
+
 def test_space_bundle_rejects_private_path_in_unrelated_compiled_pattern(tmp_path: Path) -> None:
     repository = _space_repository(tmp_path)
     private_pattern = repository / "src" / "woundscope" / "private_pattern.py"

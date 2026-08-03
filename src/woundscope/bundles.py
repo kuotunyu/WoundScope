@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import io
 import json
 import re
 import shutil
 import subprocess
 import tempfile
+import tokenize
 import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -230,6 +232,23 @@ def _space_text_for_path_scan(path: str, text: str) -> str:
         if pattern != ABSOLUTE_PATH_PATTERN.pattern:
             continue
         if argument.end_lineno is None or argument.end_col_offset is None:
+            continue
+        argument_source = ast.get_source_segment(text, argument)
+        if argument_source is None:
+            continue
+        try:
+            argument_tokens = [
+                token
+                for token in tokenize.generate_tokens(io.StringIO(argument_source).readline)
+                if token.type not in {tokenize.ENDMARKER, tokenize.NEWLINE}
+            ]
+        except (IndentationError, tokenize.TokenError):
+            continue
+        if not (
+            len(argument_tokens) == 1
+            and argument_tokens[0].type == tokenize.STRING
+            and argument_tokens[0].string == argument_source
+        ):
             continue
         encoded = text.encode("utf-8")
         lines = encoded.splitlines(keepends=True)
