@@ -37,14 +37,17 @@ def _resolve_model_artifacts() -> tuple[Path, Path]:
 
     revision = _require_immutable_hf_revision()
     token = os.environ.get("HF_TOKEN") or None
-    model_path = Path(
-        hf_hub_download(
-            model_id,
-            filename=os.environ.get("HF_MODEL_FILENAME", "model.onnx"),
-            revision=revision,
-            token=token,
+    try:
+        model_path = Path(
+            hf_hub_download(
+                model_id,
+                filename=os.environ.get("HF_MODEL_FILENAME", "model.onnx"),
+                revision=revision,
+                token=token,
+            )
         )
-    )
+    except Exception:
+        raise RuntimeError("Pinned Hugging Face model download failed.") from None
     try:
         calibration_path = Path(
             hf_hub_download(

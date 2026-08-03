@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import subprocess
+import sys
 import zipfile
 from pathlib import Path
 
@@ -38,6 +40,7 @@ def _sha256(path: Path) -> str:
 def _space_repository(tmp_path: Path) -> Path:
     repository = tmp_path / "repository"
     files = {
+        ".dockerignore": "__pycache__\n",
         "deploy/huggingface/README.md": "---\nsdk: docker\napp_port: 7860\n---\nPERMISSION_PENDING\n",
         "Dockerfile": "FROM python:3.11-slim\n",
         "LICENSE": "Apache License 2.0\n",
@@ -73,6 +76,7 @@ def test_space_bundle_uses_committed_allowlist_and_is_deterministic(tmp_path: Pa
     assert (first_dir / "README.md").read_text(encoding="utf-8").startswith("---\n")
     assert not (first_dir / "deploy").exists()
     assert {record["path"] for record in first["files"]} == {
+        ".dockerignore",
         "Dockerfile",
         "LICENSE",
         "README.md",
@@ -87,6 +91,101 @@ def test_space_bundle_uses_committed_allowlist_and_is_deterministic(tmp_path: Pa
         )
         == first
     )
+
+
+def test_task_5_import_smoke_preserves_verified_candidate_inventory(tmp_path: Path) -> None:
+    repository = _space_repository(tmp_path)
+    module = repository / "src" / "woundscope" / "gradio_app.py"
+    module.write_text(
+        "class Demo:\n"
+        "    analytics_enabled = False\n"
+        "    delete_cache = (600, 600)\n\n"
+        "def build_demo():\n"
+        "    return Demo()\n",
+        encoding="utf-8",
+    )
+    _commit_all(repository, "add import smoke fixture")
+
+    def run_import(candidate: Path, *, no_bytecode: bool) -> subprocess.CompletedProcess[str]:
+        environment = os.environ.copy()
+        environment.pop("PYTHONDONTWRITEBYTECODE", None)
+        environment.pop("PYTHONPYCACHEPREFIX", None)
+        environment["PYTHONPATH"] = str(candidate / "src")
+        command = [sys.executable]
+        if no_bytecode:
+            command.append("-B")
+        command.extend(
+            [
+                "-c",
+                "from woundscope.gradio_app import build_demo; "
+                "demo=build_demo(); "
+                "assert demo.analytics_enabled is False; "
+                "assert demo.delete_cache==(600,600); "
+                "print('HF_SPACE_IMPORT_SMOKE_PASS')",
+            ]
+        )
+        return subprocess.run(
+            command,
+            cwd=candidate,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env=environment,
+        )
+
+    unsafe_candidate = tmp_path / "unsafe-candidate"
+    unsafe_bundle = tmp_path / "unsafe-candidate.zip"
+    unsafe_manifest = bundles.build_huggingface_space_bundle(
+        repository, unsafe_candidate, unsafe_bundle
+    )
+    assert (
+        bundles.verify_huggingface_space_candidate(
+            unsafe_candidate,
+            unsafe_bundle,
+            expected_source_commit=unsafe_manifest["source_commit"],
+        )
+        == unsafe_manifest
+    )
+
+    unsafe_result = run_import(unsafe_candidate, no_bytecode=False)
+
+    assert "HF_SPACE_IMPORT_SMOKE_PASS" in unsafe_result.stdout
+    with pytest.raises(ValueError, match="inventory does not match bundle"):
+        bundles.verify_huggingface_space_candidate(
+            unsafe_candidate,
+            unsafe_bundle,
+            expected_source_commit=unsafe_manifest["source_commit"],
+        )
+
+    plan = Path(
+        "docs/superpowers/plans/2026-08-04-woundscope-hugging-face-space-safe-deployment.md"
+    ).read_text(encoding="utf-8")
+    task_five = plan.split("### Task 5:", maxsplit=1)[1]
+    smoke_command = next(
+        line for line in task_five.splitlines() if "HF_SPACE_IMPORT_SMOKE_PASS" in line
+    )
+    prescribed_no_bytecode = ".venv\\Scripts\\python.exe -B -c" in smoke_command
+    safe_candidate = tmp_path / "safe-candidate"
+    safe_bundle = tmp_path / "safe-candidate.zip"
+    safe_manifest = bundles.build_huggingface_space_bundle(repository, safe_candidate, safe_bundle)
+
+    safe_result = run_import(safe_candidate, no_bytecode=prescribed_no_bytecode)
+
+    assert "HF_SPACE_IMPORT_SMOKE_PASS" in safe_result.stdout
+    assert (
+        bundles.verify_huggingface_space_candidate(
+            safe_candidate,
+            safe_bundle,
+            expected_source_commit=safe_manifest["source_commit"],
+        )
+        == safe_manifest
+    )
+    smoke_position = task_five.index("HF_SPACE_IMPORT_SMOKE_PASS")
+    docker_position = task_five.index("docker build", smoke_position)
+    verify_after_import = task_five.index("verify_huggingface_space_candidate", smoke_position)
+    verify_after_docker = task_five.index("verify_huggingface_space_candidate", docker_position)
+    assert smoke_position < verify_after_import < docker_position < verify_after_docker
 
 
 def test_space_bundle_allows_checkpoint_named_python_modules(tmp_path: Path) -> None:

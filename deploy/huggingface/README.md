@@ -16,12 +16,14 @@ short_description: 足部潰瘍影像 segmentation 的研究與部署介面，�
 
 本 Space 候選版僅含程式碼；目前沒有模型權重、ONNX 檔案、FUSeg 資料或任何病患相關資料。模型發布與下載設定必須先完成授權確認；未完成時，應維持 fail-closed 行為，不提供推論結果。
 
+目前的 `PERMISSION_PENDING` code-only 階段不使用任何 token。只有未來另行核准的 Protected／Private model flow，才可依部署指南設定最小權限 read-only runtime secret；此 Space runtime 永遠不得使用 write token、私密 URL 或未固定的 revision。
+
 ## 資料、權重與授權
 
 - 不得上傳 FUSeg 原始影像、標註或病患相關資料。
 - 不得將 checkpoint、ONNX、sample predictions、error gallery 或其他可辨識個案的產物加入此 Space。
 - Apache-2.0 僅適用於 WoundScope 自有程式碼；FUSeg 的使用與歸屬應依官方資料使用條款辦理。
-- 只有在權利與發布範圍經人工確認後，才能設定 `HF_MODEL_ID`、固定 `HF_MODEL_REVISION` 與模型檔名；不得使用 token、私密網址或未固定 revision 的模型來源。
+- 只有在權利與發布範圍另案核准後，才能設定 `HF_MODEL_ID`、40-character immutable `HF_MODEL_REVISION` 與模型檔名；Protected／Private model access 只允許透過 Hugging Face runtime secret 提供最小權限 read-only token，不得寫入程式碼、URL、檔案或 log。
 
 ## 使用範圍
 

@@ -32,6 +32,7 @@ SOURCE_SUFFIXES = {".cff", ".ipynb", ".lock", ".md", ".py", ".toml", ".txt", ".y
 RESULT_SUFFIXES = {".csv", ".json", ".md", ".png", ".yaml", ".yml"}
 PRIVATE_SUFFIXES = {".onnx", ".pt", ".pth", ".safetensors"}
 SPACE_FILE_MAP = {
+    ".dockerignore": ".dockerignore",
     "deploy/huggingface/README.md": "README.md",
     "Dockerfile": "Dockerfile",
     "LICENSE": "LICENSE",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import traceback
 from pathlib import Path
 
 import numpy as np
@@ -278,4 +279,42 @@ def test_remote_model_uses_one_immutable_revision_without_printing_token(
 
     assert resolved == (model, calibration)
     assert [call["revision"] for call in calls] == ["a" * 40, "a" * 40]
-    assert "test-private-token" not in capsys.readouterr().out
+    captured = capsys.readouterr()
+    assert "test-private-token" not in captured.out
+    assert "test-private-token" not in captured.err
+
+
+def test_remote_model_download_error_suppresses_token_bearing_exception(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    token = "synthetic-private-token-sentinel"
+
+    def failing_download(
+        _model_id: str,
+        *,
+        filename: str,
+        revision: str,
+        token: str | None,
+    ) -> str:
+        raise RuntimeError(f"download failed for {filename} at {revision} with credential {token}")
+
+    monkeypatch.delenv("WOUNDSCOPE_MODEL_PATH", raising=False)
+    monkeypatch.setenv("HF_MODEL_ID", "owner/private-model")
+    monkeypatch.setenv("HF_MODEL_REVISION", "a" * 40)
+    monkeypatch.setenv("HF_TOKEN", token)
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", failing_download)
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"^Pinned Hugging Face model download failed\.$",
+    ) as error:
+        gradio_app._resolve_model_artifacts()
+
+    rendered = "".join(traceback.format_exception(error.type, error.value, error.tb))
+    captured = capsys.readouterr()
+    assert token not in rendered
+    assert token not in captured.out
+    assert token not in captured.err
+    assert error.value.__cause__ is None
+    assert error.value.__suppress_context__ is True

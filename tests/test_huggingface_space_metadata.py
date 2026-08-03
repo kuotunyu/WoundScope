@@ -17,6 +17,10 @@ def test_space_readme_declares_code_only_permission_pending_contract() -> None:
     assert "PERMISSION_PENDING" in text
     assert "僅含程式碼" in text
     assert "不得上傳 FUSeg 原始影像、標註或病患相關資料" in text
+    assert "目前的 `PERMISSION_PENDING` code-only 階段不使用任何 token" in text
+    assert "未來另行核准的 Protected／Private model flow" in text
+    assert "最小權限 read-only runtime secret" in text
+    assert "runtime 永遠不得使用 write token、私密 URL 或未固定的 revision" in text
 
 
 def test_space_builder_cli_exposes_safe_output_options() -> None:

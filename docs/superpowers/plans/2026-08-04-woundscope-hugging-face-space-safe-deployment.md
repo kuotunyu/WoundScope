@@ -55,7 +55,7 @@
 - Consumes: existing `_git(repository: Path, *arguments: str, text: bool = True)`, `_safe_archive_path(value: str)`, `_sha256_bytes(content: bytes)`, `_write_zip(output: Path, files: dict[str, bytes], manifest: dict[str, Any])` and `verify_bundle(bundle, expected_kind, expected_source_commit)`.
 - Produces: `build_huggingface_space_bundle(repository: str | Path, output_directory: str | Path, output_zip: str | Path) -> dict[str, Any]` and `verify_huggingface_space_candidate(directory: str | Path, bundle: str | Path, *, expected_source_commit: str | None = None) -> dict[str, Any]`.
 - Manifest contract: `schema_version=1`、`kind="huggingface_space"`、40-character lowercase `source_commit`，`files` 依 destination path 排序並包含 `path`、`source_path`、`size`、`sha256`。
-- Source mapping: `deploy/huggingface/README.md -> README.md`；`Dockerfile`、`LICENSE`、`pyproject.toml`、`uv.lock` 保持檔名；`app/**/*.py` 與 `src/**/*.py` 保持 relative path。
+- Source mapping: `deploy/huggingface/README.md -> README.md`；`.dockerignore`、`Dockerfile`、`LICENSE`、`pyproject.toml`、`uv.lock` 保持檔名；`app/**/*.py` 與 `src/**/*.py` 保持 relative path。
 
 - [ ] **Step 1: Write the failing happy-path and determinism tests**
 
@@ -99,6 +99,7 @@ def _sha256(path: Path) -> str:
 def _space_repository(tmp_path: Path) -> Path:
     repository = tmp_path / "repository"
     files = {
+        ".dockerignore": "__pycache__\n",
         "deploy/huggingface/README.md": "---\nsdk: docker\napp_port: 7860\n---\nPERMISSION_PENDING\n",
         "Dockerfile": "FROM python:3.11-slim\n",
         "LICENSE": "Apache License 2.0\n",
@@ -138,6 +139,7 @@ def test_space_bundle_uses_committed_allowlist_and_is_deterministic(tmp_path: Pa
     assert (first_dir / "README.md").read_text(encoding="utf-8").startswith("---\n")
     assert not (first_dir / "deploy").exists()
     assert {record["path"] for record in first["files"]} == {
+        ".dockerignore",
         "Dockerfile",
         "LICENSE",
         "README.md",
@@ -212,6 +214,7 @@ Expected: FAIL on missing builder/verifier; fixture setup itself passes.
 
 ```python
 SPACE_FILE_MAP = {
+    ".dockerignore": ".dockerignore",
     "deploy/huggingface/README.md": "README.md",
     "Dockerfile": "Dockerfile",
     "LICENSE": "LICENSE",
@@ -238,6 +241,7 @@ Implementation requirements:
 - 驗證 tracked worktree clean 與 immutable 40-character source commit。
 - 解析整個 `git ls-tree -r HEAD`；mapping exact files 必須存在，`app/`／`src/` 內只允許 regular `.py`，allowlisted symlink 立即失敗。
 - Candidate member 全部 UTF-8 decode；套用既有 `SECRET_PATTERN`／`ABSOLUTE_PATH_PATTERN`，並拒絕 prohibited suffix、`.env` basename 與 unsafe archive path。
+- Candidate 必須攜帶 committed `.dockerignore`，且該檔明確排除 `__pycache__`，作為 verified inventory 之外的 Docker context defense-in-depth。
 - Staging directory 不存在或為空才可使用；ZIP 不可位於 staging tree。
 - 先把所有 bytes 保存在記憶體並完整驗證，再建立 directory／ZIP；例外時只清理由本次呼叫建立的不完整 output。
 - 使用既有 fixed ZIP timestamp／stable ordering；`bundle_manifest.json` 同時存在 staging 與 ZIP，directory／ZIP inventory 必須一致。
@@ -467,8 +471,12 @@ def test_remote_model_uses_one_immutable_revision_without_printing_token(
 
     assert resolved == (model, calibration)
     assert [call["revision"] for call in calls] == ["a" * 40, "a" * 40]
-    assert "test-private-token" not in capsys.readouterr().out
+    captured = capsys.readouterr()
+    assert "test-private-token" not in captured.out
+    assert "test-private-token" not in captured.err
 ```
+
+另加 exception-path regression：讓 model download double 拋出包含 synthetic token sentinel 的例外；對外只可得到固定的 `Pinned Hugging Face model download failed.`，formatted exception chain、stdout 與 stderr 都不得包含 sentinel，且 secret-bearing context 必須以 `raise ... from None` 抑制。
 
 - [ ] **Step 3: Run focused tests to verify RED**
 
@@ -495,6 +503,8 @@ def _require_immutable_hf_revision() -> str:
 在 `_resolve_model_artifacts` 的 local-file 與 empty-`HF_MODEL_ID` early returns 後呼叫
 `revision = _require_immutable_hf_revision()`，再把同一個 `revision` 傳給 model 與 calibration
 兩次 `hf_hub_download`。不得保留 `"main"` fallback。
+
+第一個 model download 失敗時捕捉上游例外，改拋固定且不含 model ID、filename、revision 或 token 的 `RuntimeError("Pinned Hugging Face model download failed.") from None`。Calibration 的既有 optional fallback 不變；immutable 40-character revision 驗證仍必須在任何 download 前完成。
 
 `build_demo` 使用以下 exact values：
 
@@ -613,6 +623,7 @@ Guide 必須依序包含：
 
 - Badge text 改成 `Hugging Face-Space 授權確認中`，仍連到 `#gradio-demo`，不使用不存在的 live URL。
 - Gradio section 加入 deployment guide 與 code-only builder command；重申本階段不含 weights/ONNX。
+- Space template 必須明示目前 `PERMISSION_PENDING` code-only 階段不使用 token；只有未來另案核准的 Protected／Private model flow 可使用最小權限 read-only runtime secret。Runtime 永遠拒絕 write token、私密 URL 與未固定 revision。
 - `PROJECT_PLAN.md` Decision Log 新增 2026-08-04 Locked row：只建立 deterministic code-only Space candidate；未取得書面授權前，不上傳 derived weights／ONNX、不建立 model-backed live Space。
 - 不修改 verified metrics、scientific protocol、`v0.1.0` tag/release text。
 
@@ -693,13 +704,17 @@ Expected: every command PASS. Existing legacy ONNX exporter deprecation warnings
 - [ ] **Step 5: Run candidate import and CPU Docker smoke**
 
 ```powershell
-$env:PYTHONPATH = (Resolve-Path 'artifacts/huggingface-space/candidate/src').Path
-.venv\Scripts\python.exe -c "from woundscope.gradio_app import build_demo; d=build_demo(); assert d.analytics_enabled is False; assert d.delete_cache==(600,600); print('HF_SPACE_IMPORT_SMOKE_PASS')"
+$candidate = Resolve-Path 'artifacts/huggingface-space/candidate'
+$bundle = Resolve-Path 'artifacts/huggingface-space/WoundScope_hf_space_code_only.zip'
+$env:PYTHONPATH = (Resolve-Path (Join-Path $candidate 'src')).Path
+.venv\Scripts\python.exe -B -c "from woundscope.gradio_app import build_demo; d=build_demo(); assert d.analytics_enabled is False; assert d.delete_cache==(600,600); print('HF_SPACE_IMPORT_SMOKE_PASS')"
 Remove-Item Env:PYTHONPATH
-docker build -t woundscope:hf-space-code-only artifacts/huggingface-space/candidate
+.venv\Scripts\python.exe -B -c "import json; from pathlib import Path; from woundscope.bundles import verify_huggingface_space_candidate; d=Path(r'$candidate'); z=Path(r'$bundle'); m=json.loads((d/'bundle_manifest.json').read_text(encoding='utf-8')); verify_huggingface_space_candidate(d,z,expected_source_commit=m['source_commit']); print('HF_SPACE_POST_IMPORT_VERIFY_PASS')"
+docker build -t woundscope:hf-space-code-only $candidate
+.venv\Scripts\python.exe -B -c "import json; from pathlib import Path; from woundscope.bundles import verify_huggingface_space_candidate; d=Path(r'$candidate'); z=Path(r'$bundle'); m=json.loads((d/'bundle_manifest.json').read_text(encoding='utf-8')); verify_huggingface_space_candidate(d,z,expected_source_commit=m['source_commit']); print('HF_SPACE_POST_DOCKER_VERIFY_PASS')"
 ```
 
-Expected: import smoke PASS and Docker build exit 0; no model load、network model download、GPU or container launch occurs. If Docker daemon is unavailable, mark M7 Blocked rather than claiming Docker PASS.
+Expected: import smoke PASS；import 後、Docker 前的 exact candidate verifier PASS；Docker build exit 0；Docker 後同一 verifier 再次 PASS。`python -B` 與 candidate 內的 `.dockerignore` 共同防止 bytecode 進入 context，但兩者都不取代 exact inventory/content verifier。沒有 model load、network model download、GPU 或 container launch。若 Docker daemon unavailable，M7 必須標記 Blocked，不得宣稱 Docker PASS。
 
 - [ ] **Step 6: Run clean committed-source reproduction**
 
