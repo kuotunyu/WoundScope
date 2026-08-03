@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 import subprocess
+import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -26,6 +28,29 @@ SOURCE_FILES = {
 SOURCE_SUFFIXES = {".cff", ".ipynb", ".lock", ".md", ".py", ".toml", ".txt", ".yaml", ".yml"}
 RESULT_SUFFIXES = {".csv", ".json", ".md", ".png", ".yaml", ".yml"}
 PRIVATE_SUFFIXES = {".onnx", ".pt", ".pth", ".safetensors"}
+SPACE_FILE_MAP = {
+    "deploy/huggingface/README.md": "README.md",
+    "Dockerfile": "Dockerfile",
+    "LICENSE": "LICENSE",
+    "pyproject.toml": "pyproject.toml",
+    "uv.lock": "uv.lock",
+}
+SPACE_SOURCE_ROOTS = ("app/", "src/")
+SPACE_SOURCE_SUFFIXES = {".py"}
+SPACE_PROHIBITED_SUFFIXES = {
+    ".bmp",
+    ".gif",
+    ".jpeg",
+    ".jpg",
+    ".onnx",
+    ".png",
+    ".pt",
+    ".pth",
+    ".safetensors",
+    ".tif",
+    ".tiff",
+    ".webp",
+}
 PRIVATE_TOKENS = {
     "checkpoint",
     "data_manifest",
@@ -156,6 +181,218 @@ def _validate_result_member(path: str, content: bytes) -> None:
             raise ValueError(f"private or prohibited secret-like content: {path}")
         if ABSOLUTE_PATH_PATTERN.search(text):
             raise ValueError(f"private or prohibited absolute path: {path}")
+
+
+def _validate_space_member(path: str, content: bytes) -> None:
+    pure = _safe_archive_path(path)
+    if pure.name.casefold() == ".env" or pure.suffix.casefold() in SPACE_PROHIBITED_SUFFIXES:
+        raise ValueError(f"prohibited Space member: {path}")
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"Space member is not UTF-8: {path}") from exc
+    if SECRET_PATTERN.search(text):
+        raise ValueError(f"secret-like Space member content: {path}")
+    if ABSOLUTE_PATH_PATTERN.search(text):
+        raise ValueError(f"absolute path in Space member content: {path}")
+
+
+def _space_destination(source_path: str) -> str | None:
+    mapped = SPACE_FILE_MAP.get(source_path)
+    if mapped is not None:
+        return mapped
+    if source_path.startswith(SPACE_SOURCE_ROOTS):
+        return source_path
+    return None
+
+
+def _validate_space_manifest(manifest: dict[str, Any]) -> None:
+    records = manifest.get("files")
+    if not isinstance(records, list):
+        raise ValueError("Space bundle file inventory is invalid")
+    source_paths: set[str] = set()
+    destination_paths: set[str] = set()
+    for record in records:
+        if not isinstance(record, dict):
+            raise ValueError("Space bundle file inventory is invalid")
+        path = str(record.get("path", ""))
+        source_path = str(record.get("source_path", ""))
+        _safe_archive_path(path)
+        _safe_archive_path(source_path)
+        if _space_destination(source_path) != path:
+            raise ValueError(f"Space bundle source mapping is invalid: {source_path}")
+        if source_path.startswith(SPACE_SOURCE_ROOTS) and (
+            PurePosixPath(source_path).suffix.casefold() not in SPACE_SOURCE_SUFFIXES
+        ):
+            raise ValueError(f"Space bundle source mapping is invalid: {source_path}")
+        if source_path in source_paths or path in destination_paths:
+            raise ValueError("Space bundle file inventory contains duplicate paths")
+        source_paths.add(source_path)
+        destination_paths.add(path)
+    if set(SPACE_FILE_MAP).difference(source_paths):
+        raise ValueError("Space bundle is missing required mapped files")
+
+
+def _read_head_space_files(repository: Path) -> tuple[str, dict[str, bytes], dict[str, str]]:
+    dirty = str(_git(repository, "status", "--porcelain", "--untracked-files=no")).strip()
+    if dirty:
+        raise RuntimeError("Tracked worktree must be clean before building a Space bundle")
+    source_commit = str(_git(repository, "rev-parse", "HEAD")).strip()
+    if re.fullmatch(r"[0-9a-f]{40}", source_commit) is None:
+        raise RuntimeError("Unable to resolve immutable source commit")
+
+    listing = str(_git(repository, "ls-tree", "-r", "-z", "HEAD"))
+    selected: list[str] = []
+    for line in listing.split("\0"):
+        if not line:
+            continue
+        metadata, source_path = line.split("\t", 1)
+        mode, object_type, _object_sha = metadata.split(" ", 2)
+        _safe_archive_path(source_path)
+        destination = _space_destination(source_path)
+        if destination is None:
+            continue
+        if object_type != "blob" or mode == "120000":
+            raise ValueError(f"Space bundle does not permit non-regular files: {source_path}")
+        if source_path.startswith(SPACE_SOURCE_ROOTS):
+            pure = PurePosixPath(source_path)
+            if (
+                pure.name.casefold() == ".env"
+                or pure.suffix.casefold() in SPACE_PROHIBITED_SUFFIXES
+            ):
+                raise ValueError(f"prohibited Space member: {source_path}")
+            if pure.suffix.casefold() not in SPACE_SOURCE_SUFFIXES:
+                raise ValueError(f"unexpected Space member: {source_path}")
+        selected.append(source_path)
+
+    missing = set(SPACE_FILE_MAP).difference(selected)
+    if missing:
+        raise ValueError(f"Space bundle is missing required mapped files: {sorted(missing)!r}")
+    files: dict[str, bytes] = {}
+    source_paths: dict[str, str] = {}
+    for source_path in sorted(selected):
+        destination = _space_destination(source_path)
+        if destination is None:
+            raise RuntimeError("Space source mapping was unexpectedly absent")
+        content = bytes(_git(repository, "show", f"HEAD:{source_path}", text=False))
+        _validate_space_member(destination, content)
+        if destination in files:
+            raise ValueError(f"Space bundle destination collision: {destination}")
+        files[destination] = content
+        source_paths[destination] = source_path
+    return source_commit, files, source_paths
+
+
+def build_huggingface_space_bundle(
+    repository: str | Path,
+    output_directory: str | Path,
+    output_zip: str | Path,
+) -> dict[str, Any]:
+    """Build and verify a code-only Space candidate from committed HEAD."""
+
+    repository = Path(repository).resolve()
+    output_directory = Path(output_directory).resolve()
+    output_zip = Path(output_zip).resolve()
+    if output_zip.is_relative_to(output_directory):
+        raise ValueError("Space bundle ZIP cannot be inside the candidate directory")
+    if output_directory.exists() and (
+        not output_directory.is_dir() or any(output_directory.iterdir())
+    ):
+        raise ValueError("Space candidate output directory must be empty")
+    if output_zip.exists():
+        raise ValueError("Space bundle output ZIP must not already exist")
+
+    source_commit, files, source_paths = _read_head_space_files(repository)
+    manifest = {
+        "schema_version": 1,
+        "kind": "huggingface_space",
+        "source_commit": source_commit,
+        "files": [
+            {
+                "path": path,
+                "source_path": source_paths[path],
+                "size": len(content),
+                "sha256": _sha256_bytes(content),
+            }
+            for path, content in sorted(files.items())
+        ],
+    }
+    _validate_space_manifest(manifest)
+    manifest_content = json.dumps(manifest, indent=2, ensure_ascii=False, sort_keys=True).encode(
+        "utf-8"
+    )
+
+    output_directory.parent.mkdir(parents=True, exist_ok=True)
+    output_zip.parent.mkdir(parents=True, exist_ok=True)
+    with (
+        tempfile.TemporaryDirectory(
+            prefix=".woundscope-space-", dir=output_directory.parent
+        ) as directory_temp,
+        tempfile.TemporaryDirectory(prefix=".woundscope-space-", dir=output_zip.parent) as zip_temp,
+    ):
+        staged_directory = Path(directory_temp) / "candidate"
+        staged_directory.mkdir()
+        for path, content in files.items():
+            destination = staged_directory / Path(*PurePosixPath(path).parts)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(content)
+        (staged_directory / "bundle_manifest.json").write_bytes(manifest_content)
+        staged_zip = Path(zip_temp) / output_zip.name
+        _write_zip(staged_zip, files, manifest)
+        verify_huggingface_space_candidate(
+            staged_directory,
+            staged_zip,
+            expected_source_commit=source_commit,
+        )
+
+        if output_directory.exists():
+            output_directory.rmdir()
+        staged_directory.replace(output_directory)
+        try:
+            staged_zip.replace(output_zip)
+        except OSError:
+            shutil.rmtree(output_directory)
+            raise
+    return manifest
+
+
+def verify_huggingface_space_candidate(
+    directory: str | Path,
+    bundle: str | Path,
+    *,
+    expected_source_commit: str | None = None,
+) -> dict[str, Any]:
+    """Verify a Space candidate tree exactly matches its verified bundle."""
+
+    manifest = verify_bundle(
+        bundle,
+        expected_kind="huggingface_space",
+        expected_source_commit=expected_source_commit,
+    )
+    _validate_space_manifest(manifest)
+    directory = Path(directory).resolve()
+    if not directory.is_dir():
+        raise ValueError("Space candidate directory is missing")
+    expected_names = {"bundle_manifest.json", *[record["path"] for record in manifest["files"]]}
+    actual_names: set[str] = set()
+    for member in directory.rglob("*"):
+        if member.is_symlink():
+            raise ValueError(f"Space candidate does not permit symlinks: {member}")
+        if member.is_file():
+            relative = member.relative_to(directory).as_posix()
+            _safe_archive_path(relative)
+            actual_names.add(relative)
+    if actual_names != expected_names:
+        raise ValueError("Space candidate inventory does not match bundle")
+    with zipfile.ZipFile(bundle) as archive:
+        for name in sorted(expected_names):
+            candidate_content = (directory / Path(*PurePosixPath(name).parts)).read_bytes()
+            bundle_content = archive.read(name)
+            if candidate_content != bundle_content:
+                raise ValueError(f"Space candidate checksum mismatch: {name}")
+        for record in manifest["files"]:
+            _validate_space_member(str(record["path"]), archive.read(record["path"]))
+    return manifest
 
 
 def build_result_bundle(
