@@ -3,10 +3,12 @@ message: "If you use WoundScope, cite this software and the FUSeg source paper."
 title: "WoundScope"
 type: software
 version: 0.1.0
-date-released: 2026-07-19
+date-released: 2026-08-04
 license: Apache-2.0
 authors:
-  - name: "WoundScope contributors"
+  - name: "kuotunyu"
+repository-code: "https://github.com/kuotunyu/WoundScope"
+url: "https://github.com/kuotunyu/WoundScope"
 references:
   - type: article
     title: "Fully automatic wound segmentation with deep convolutional neural networks"

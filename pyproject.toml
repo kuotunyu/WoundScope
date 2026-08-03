@@ -9,7 +9,7 @@ description = "Reproducible foot-ulcer image segmentation research and deploymen
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 license = { file = "LICENSE" }
-authors = [{ name = "WoundScope contributors" }]
+authors = [{ name = "kuotunyu" }]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "License :: OSI Approved :: Apache Software License",
@@ -26,6 +26,11 @@ dependencies = [
   "safetensors>=0.4,<1",
   "typer>=0.12,<1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/kuotunyu/WoundScope"
+Repository = "https://github.com/kuotunyu/WoundScope"
+Issues = "https://github.com/kuotunyu/WoundScope/issues"
 
 [project.optional-dependencies]
 train = [

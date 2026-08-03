@@ -1,6 +1,6 @@
 # WoundScope
 
-[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kuotunyu/WoundScope/blob/main/notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb)
 [![Hugging Face Space](https://img.shields.io/badge/Hugging%20Face-Space%20待發布-yellow)](#gradio-demo)
 [![CI](https://github.com/kuotunyu/WoundScope/actions/workflows/ci.yml/badge.svg)](https://github.com/kuotunyu/WoundScope/actions/workflows/ci.yml)
 
@@ -56,7 +56,7 @@ Python 支援 3.10–3.12。Windows 的含中文字徑若遇到舊版 Anaconda c
 ```powershell
 # Windows PowerShell
 uv venv --python 3.12
-uv sync --all-extras
+uv sync --all-extras --frozen
 $env:WOUNDSCOPE_DATA_DIR = "data"
 .\.venv\Scripts\python.exe scripts\download_data.py
 ```
@@ -64,7 +64,7 @@ $env:WOUNDSCOPE_DATA_DIR = "data"
 ```bash
 # WSL2 / Linux
 uv venv --python 3.12
-uv sync --all-extras
+uv sync --all-extras --frozen
 export WOUNDSCOPE_DATA_DIR=data
 .venv/bin/python scripts/download_data.py
 ```
@@ -119,21 +119,23 @@ export WOUNDSCOPE_DATA_DIR=data
 
 ## Colab
 
-[notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb](notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb) 是 thin wrapper：從 `MyDrive/WoundScope/` 掛載 private Drive、驗證 immutable source ZIP 與 CUDA，然後只呼叫一次 `scripts/run_colab_pipeline.py`。固定 stage 依序完成 data integrity、quick GPU gate、full comparison、locked loss selection、multi-seed final、official validation、ONNX/parity/benchmark 與 safe handoff；runtime 中斷後再次 Run all 會重建暫存資料、驗證 stage/output hashes並從相容 trainer state resume，不需人工切換 quick／comparison／final 或手選 loss。
+[notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb](notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb) 是 thin wrapper：掛載使用者自己的 Drive 後，優先驗證 `MyDrive/WoundScope/WoundScope_colab_source.zip`；若沒有 private source ZIP，則自動 checkout Public GitHub 的固定 `v0.1.0` tag。兩條路徑都會解析並記錄 40-character source commit、強制 CUDA，然後只呼叫一次 `scripts/run_colab_pipeline.py`。固定 stage 依序完成 data integrity、quick GPU gate、full comparison、locked loss selection、multi-seed final、official validation、ONNX/parity/benchmark 與 safe handoff；runtime 中斷後再次 Run all 會重建暫存資料、驗證 stage/output hashes並從相容 trainer state resume，不需人工切換 quick／comparison／final 或手選 loss。
 
-先以 `scripts/build_colab_bundle.py --verify` 從乾淨 committed snapshot 產生 `artifacts/handoff/WoundScope_colab_source.zip`，再上傳為 `MyDrive/WoundScope/WoundScope_colab_source.zip`。所有 checkpoint、ONNX、TensorBoard、sample prediction 與 gallery 留在 `MyDrive/WoundScope/WoundScopeArtifacts/<source-commit-prefix>/`；只下載其中的 `handoff/woundscope_colab_results_<source-commit-prefix>.zip`。取回與 checksum/schema/privacy 驗證方式見 [scripts/download_artifacts.md](scripts/download_artifacts.md)。
+直接點上方 Colab badge 並 Run all 即可使用 Public source；這會啟動完整 GPU experiment pipeline，不是短時間 demo。需要 immutable private source／既有 Drive resume 時，可先以 `scripts/build_colab_bundle.py --verify` 從乾淨 committed snapshot 產生 `artifacts/handoff/WoundScope_colab_source.zip`，再上傳為 `MyDrive/WoundScope/WoundScope_colab_source.zip`。所有 checkpoint、ONNX、TensorBoard、sample prediction 與 gallery 留在 `MyDrive/WoundScope/WoundScopeArtifacts/<source-commit-prefix>/`；只下載其中的 `handoff/woundscope_colab_results_<source-commit-prefix>.zip`。取回與 checksum/schema/privacy 驗證方式見 [scripts/download_artifacts.md](scripts/download_artifacts.md)。
 
 ## Gradio demo
 
 ```bash
-set WOUNDSCOPE_MODEL_PATH=artifacts\runs\RUN\model.onnx
-set WOUNDSCOPE_CALIBRATION_PATH=artifacts\runs\RUN\calibration.json
+$env:WOUNDSCOPE_MODEL_PATH = "artifacts\runs\RUN\model.onnx"
+$env:WOUNDSCOPE_CALIBRATION_PATH = "artifacts\runs\RUN\calibration.json"
 .venv\Scripts\python.exe app\app.py
 ```
 
 HF Space 採 CPU ONNX。若 repo 不含權重，可設定 `HF_MODEL_ID`、固定的 `HF_MODEL_REVISION`、`HF_MODEL_FILENAME` 與 `HF_CALIBRATION_FILENAME`；權重仍不得在授權未確認前公開。UI 顯示原圖、overlay、原始尺寸 wound-pixel ratio、模型分割信心、推論時間與人工複核警示。
 
 ## 結果
+
+正式 `v0.1.0` 的 privacy-safe machine-readable results、ONNX parity diagnostics、CPU benchmark 與 aggregate charts 由 [GitHub Release](https://github.com/kuotunyu/WoundScope/releases/tag/v0.1.0) 提供；不包含 data、weights、ONNX binaries、private images 或 image-level results。
 
 <!-- RESULTS_TABLE_START -->
 

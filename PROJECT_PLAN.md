@@ -389,7 +389,7 @@ Data integration、Colab GPU quick mode、CUDA benchmark 與 Docker app smoke �
 - `README.md`：問題定義、verified data scale、方法、重現指令、結果表、error-analysis policy、Mermaid architecture、Colab/HF placeholders、限制、醫療免責與 90 秒 demo script。
 - `DATA_CARD.md`：來源、revision、資料規模、annotation、split limitation、license ambiguity、禁止再散布與資料驗證摘要。
 - `MODEL_CARD.md`：intended use、out-of-scope use、training protocol、metrics、confidence、limitations、ethical/medical caveats 與 weight-release status。
-- `CITATION.cff`：不杜撰個人姓名；初版以 `WoundScope contributors` entity 表示，發布前再補正式 author／ORCID，並引用 FUSeg 論文。
+- `CITATION.cff`：software author 使用已確認的 GitHub identity `kuotunyu`；未提供的 ORCID 不填寫，並引用 FUSeg 論文。
 - `LICENSE`：Apache License 2.0，明確排除第三方 data 與 model artifacts。
 
 ## 16. Decision Log
@@ -420,4 +420,4 @@ Data integration、Colab GPU quick mode、CUDA benchmark 與 Docker app smoke �
 
 Review gate 已於 2026-07-19 由使用者明確解除；cross-split exact-duplicate mitigation 已於 2026-08-03 鎖定為 `exclude_train`。
 
-Review 通過後，以明確指示「開始正式實作」解除 gate；下一步是建立 `.gitignore`、確認 `.env` 被忽略，再初始化 local Git。
+Review gate、M0–M6、Public GitHub release 與 hosted CI 已完成；後續只在新增 material scientific decision 時重開 milestone，日常 bug fix、security update 與 release maintenance 依既有 gates 驗證。

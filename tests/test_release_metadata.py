@@ -1,0 +1,53 @@
+from __future__ import annotations
+
+import tomllib
+from pathlib import Path
+
+import yaml
+
+REPOSITORY_URL = "https://github.com/kuotunyu/WoundScope"
+RESULT_BUNDLE_SHA256 = "6FF4D1F14F4242C72FA2EF3382BCBFADC15DF93DD4AEB739AE1864F7DE24F221"
+
+
+def test_release_identity_and_repository_urls() -> None:
+    cff = yaml.safe_load(Path("CITATION.cff").read_text(encoding="utf-8"))
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+
+    assert cff["authors"] == [{"name": "kuotunyu"}]
+    assert cff["version"] == "0.1.0"
+    assert str(cff["date-released"]) == "2026-08-04"
+    assert cff["repository-code"] == REPOSITORY_URL
+    assert cff["url"] == REPOSITORY_URL
+
+    project = pyproject["project"]
+    assert project["authors"] == [{"name": "kuotunyu"}]
+    assert project["urls"] == {
+        "Homepage": REPOSITORY_URL,
+        "Repository": REPOSITORY_URL,
+        "Issues": f"{REPOSITORY_URL}/issues",
+    }
+
+
+def test_readme_exposes_public_colab_and_reproducible_commands() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert (
+        "https://colab.research.google.com/github/kuotunyu/WoundScope/blob/main/"
+        "notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb"
+    ) in readme
+    assert "uv sync --all-extras --frozen" in readme
+    assert "$env:WOUNDSCOPE_MODEL_PATH" in readme
+    assert "$env:WOUNDSCOPE_CALIBRATION_PATH" in readme
+    assert "set WOUNDSCOPE_MODEL_PATH" not in readme
+    assert "releases/tag/v0.1.0" in readme
+
+
+def test_release_notes_bind_the_verified_safe_result_bundle() -> None:
+    notes = Path("docs/releases/v0.1.0.md").read_text(encoding="utf-8")
+
+    assert "344,656 bytes" in notes
+    assert RESULT_BUNDLE_SHA256 in notes
+    assert "c7ec6060f1bd0a813a890b95b50c2855d3c2640c" in notes
+    assert "不包含" in notes
+    for forbidden_claim in ("official-test metrics", "patient-wise split", "臨床效能"):
+        assert f"不宣稱 {forbidden_claim}" in notes
