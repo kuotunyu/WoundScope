@@ -29,7 +29,7 @@ Official validation 報告 image-level/global Dice、IoU、precision、recall、
 | EfficientNet-B0 U-Net | BCE+Dice | 42/43/44 | 0.8508±0.0035 (0.8218–0.8768) | 0.7772±0.0039 | 0.8581±0.0056 | 0.9039±0.0032 | 0.9989±0.0000 |
 | SegFormer-B0 | BCE+Dice | 42/43/44 | 0.8270±0.0040 (0.7973–0.8550) | 0.7437±0.0053 | 0.8326±0.0038 | 0.8832±0.0045 | 0.9988±0.0000 |
 
-各 metric 為三個 seed 的 image-level mean 之 mean±sample SD；Dice CI 來自固定 seed 42、2,000 次 image-cluster percentile bootstrap。U-Net 在此 locked split 的 observed Dice 較高，但沒有 paired significance test，不能解讀為跨資料來源或臨床上的普遍優勢。
+各 metric 為三個 training seeds 的 image-level mean 之 mean±sample SD；Dice CI 統合三個 training seeds 的對齊 image-level values，並使用 bootstrap RNG seed=42 做 2,000 次 image-cluster percentile bootstrap。U-Net 在此 locked split 的 observed Dice 較高，但沒有 paired significance test，不能解讀為跨資料來源或臨床上的普遍優勢。
 
 ## Confidence and human review
 

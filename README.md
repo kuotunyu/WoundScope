@@ -144,7 +144,7 @@ HF Space 採 CPU ONNX。若 repo 不含權重，可設定 `HF_MODEL_ID`、固定
 
 <!-- RESULTS_TABLE_END -->
 
-表中各 metric 為 seeds 42/43/44 的 image-level mean 之 mean±sample SD；Dice 括號為固定 seed 42、2,000 次 image-cluster percentile bootstrap 95% CI。兩個架構都由 internal dev 選出 BCE+Dice；在這個 locked official-validation split 上，U-Net 的 observed Dice 較高，但未做 paired significance test，亦不代表 official test、外部資料或臨床效能。結果來源為 training commit `c7ec6060f1bd0a813a890b95b50c2855d3c2640c` 的 schema-valid safe bundle；quick／smoke 數字未納入。
+表中各 metric 為 training seeds 42/43/44 的 image-level mean 之 mean±sample SD；Dice 括號為統合三個 training seeds 的對齊 image-level values、使用 bootstrap RNG seed=42 做 2,000 次 image-cluster percentile bootstrap 所得的 95% CI。兩個架構都由 internal dev 選出 BCE+Dice；在這個 locked official-validation split 上，U-Net 的 observed Dice 較高，但未做 paired significance test，亦不代表 official test、外部資料或臨床效能。結果來源為 training commit `c7ec6060f1bd0a813a890b95b50c2855d3c2640c` 的 schema-valid safe bundle；quick／smoke 數字未納入。
 
 ## 測試與驗收
 
