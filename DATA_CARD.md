@@ -14,11 +14,11 @@ WoundScope 使用 UWM Big Data Lab 公開的 Foot Ulcer Segmentation Challenge�
 
 驗證內容包括 image-mask pairing、解碼、尺寸、mask values、SHA-256 exact duplicates、pHash near-duplicates 與 cross-split findings。`validation/labels/0233.png` 含少量位於前景邊界的灰階 anti-alias pixels；pipeline 將其記錄為 warning，並以 threshold 128 正規化，未靜默忽略。
 
-在 pinned revision 中發現 7 組 train–validation 完全相同影像。預設訓練 gate 會停止；建議經人工確認後排除 training copy，並在報告中揭露完整官方 validation 與 sensitivity analysis。Near-duplicate findings 是警告，不代表相同病人。
+在 pinned revision 中發現 7 組 train–validation 完全相同影像。正式政策已鎖定為 `exclude_train`：排除 train 端 7 張 copies，完整保留 official validation 200 張；允許 duplicate report 產生不代表允許 contaminated training。Near-duplicate findings 是警告，不代表相同病人。
 
 ## Split protocol
 
-資料沒有 patient ID，不可宣稱 patient-wise split。官方 train 依 duplicate group 與 foreground-ratio bins，以 seed 42 建立約 80/20 internal train/dev；官方 validation 不參與 checkpoint、loss、threshold、temperature 或 augmentation 選擇。官方 test 沒有公開 masks，不產生 quantitative metrics。
+資料沒有 patient ID，不可宣稱 patient-wise split。排除 7 張 exact train copies 後，官方 train 依 duplicate group 與 foreground-ratio bins，以 seed 42 建立約 80/20 internal train/dev；官方 validation 不參與 checkpoint、loss、threshold、temperature 或 augmentation 選擇。官方 test 沒有公開 masks，不產生 quantitative metrics。
 
 ## 授權與允許用途
 
