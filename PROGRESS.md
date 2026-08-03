@@ -10,10 +10,10 @@
 | Project state | `IMPLEMENTING / M3_IN_PROGRESS` |
 | Current milestone | M3 — Resumable staged Colab pipeline；M1 scientific gate 已通過 |
 | Last updated | 2026-08-03（Asia/Taipei） |
-| Last verified state | M1 `exclude_train` PASS；Ruff/format PASS；101 CPU tests PASS；c7 training/official artifacts 已進入 postprocessing recovery |
-| Active blocker | 無本機 blocker；dependency-scoped recovery bundle 已驗證，待 A100 接續 `c7ec6060f1bd` artifacts |
-| Next action | 上傳 source `7d69e7714a52` ZIP 與更新的 recovery notebook，只執行 postprocessing recovery |
-| External actions | 使用者已在 private Drive 上傳 source ZIP/notebook 並啟動 A100；無 remote、push、公開 upload 或本機 full GPU training |
+| Last verified state | M1 `exclude_train` PASS；Ruff/format PASS；107 CPU tests PASS；c7 六組 ONNX/benchmark/gallery 已完成，只差 safe handoff |
+| Active blocker | 無程式 blocker；HTTPS 路徑誤判與跨 repair commit ONNX 重跑已修復，待 A100 執行 handoff-only recovery |
+| Next action | 只替換 `WoundScope_colab_source.zip`，沿用既有 c7 recovery notebook 全部執行；不得重跑 training 或 ONNX |
+| External actions | 使用者已在 private Drive 保存 c7 training/official/ONNX artifacts；無 remote、push、公開 upload 或本機 full GPU training |
 
 ## Resume checklist
 
@@ -59,6 +59,18 @@
 重大調整必須先更新 `PROJECT_PLAN.md` Decision Log；本區只同步摘要，不取代完整規格。
 
 ## Test and verification evidence
+
+### 2026-08-03 — c7 handoff-only recovery 修復
+
+- Colab `7d69e7714a52` recovery evidence：FUSeg integrity 810／200／200 PASS；六組 final runs 的 ONNX parity、CPU benchmark 與五分類 private gallery 全部完成並寫入 private Drive。
+- 原始失敗 U-Net seed 42 parity 已完成：`max_abs_logit_error=0.0003871917724609375`、`max_abs_probability_error=0.00008478760719299316`、mask mismatch 1 pixel／`0.000003814697265625`、material mismatch 0、`parity_passed=true`。
+- 最後唯一失敗 stage：`safe_result_handoff`；root cause 是 result-bundle privacy regex 將正常 `https://github.com/...` URL 中的 `s:/` 誤判為 Windows drive path，不是 Drive 目錄、training、checkpoint 或 ONNX failure。
+- TDD regression：HTTPS URL acceptance 先 RED；hash-valid completed ONNX across repair commits handoff-only resume 先 RED；UNC／extended UNC privacy rejection 先 RED，修復後全部 GREEN。
+- Recovery contract：先 hash 驗證 `locked_loss_selection`、`multi_seed_final`、`official_validation` 與 completed `onnx_and_benchmark`；驗證通過時只執行 `safe_result_handoff`，不下載資料、不重做 ONNX/benchmark/gallery、不重跑 training。
+- `.venv\Scripts\python.exe -m ruff check .`、`ruff format --check .`、`pytest -q`、`git diff --check` → PASS；107 tests passed，只有 2 個既有 legacy ONNX exporter deprecation warnings。
+- 獨立 code review：UNC privacy gap 修復後無 Critical／Important findings；ready to merge；focused 22 tests PASS。
+- Clean-extracted source bundle gate：107 tests PASS；source ZIP inventory 82 files；training provenance 維持 `c7ec6060f1bd0a813a890b95b50c2855d3c2640c`，repair implementation 由 bundle manifest 獨立記錄。
+- GPU/full training：未在本機執行；無 remote、push、公開 upload 或 weights/data handoff。
 
 ### 2026-08-03 — M1 locked `exclude_train` gate
 
