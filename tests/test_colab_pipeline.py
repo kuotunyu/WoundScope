@@ -231,6 +231,56 @@ def test_postprocessing_resume_reuses_completed_training_without_calling_trainin
         assert resumed.stages[stage]["implementation_source_commit"] == "b" * 40
 
 
+def test_postprocessing_resume_reuses_hash_valid_onnx_from_prior_repair_commit(
+    tmp_path: Path,
+) -> None:
+    pipeline = _module()
+    paths = pipeline.PipelinePaths(
+        project_root=tmp_path / "project",
+        data_root=tmp_path / "data",
+        artifact_root=tmp_path / "artifacts",
+    )
+    paths.project_root.mkdir()
+
+    def first_handler(context):
+        if context.stage == "safe_result_handoff":
+            raise RuntimeError("synthetic handoff failure")
+        marker = paths.artifact_root / "stage_markers" / f"{context.stage}.json"
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(f'{{"stage": "{context.stage}"}}', encoding="utf-8")
+        return pipeline.StageOutcome(artifacts=[marker], evidence={"stage": context.stage})
+
+    with pytest.raises(RuntimeError, match="handoff"):
+        pipeline.run_pipeline(
+            paths,
+            source_commit="a" * 40,
+            implementation_source_commit="b" * 40,
+            stage_handlers={stage: first_handler for stage in STAGE_ORDER},
+            cuda_probe=lambda: {"available": True},
+        )
+
+    resume_calls: list[str] = []
+
+    def resume_handler(context):
+        resume_calls.append(context.stage)
+        marker = paths.artifact_root / "repair_markers" / f"{context.stage}.json"
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(f'{{"stage": "{context.stage}"}}', encoding="utf-8")
+        return pipeline.StageOutcome(artifacts=[marker], evidence={"stage": context.stage})
+
+    resumed = pipeline.resume_postprocessing(
+        paths,
+        source_commit="a" * 40,
+        implementation_source_commit="c" * 40,
+        stage_handlers={stage: resume_handler for stage in STAGE_ORDER},
+        cuda_probe=lambda: {"available": True},
+    )
+
+    assert resume_calls == ["safe_result_handoff"]
+    assert resumed.stages["onnx_and_benchmark"]["implementation_source_commit"] == "b" * 40
+    assert resumed.stages["safe_result_handoff"]["implementation_source_commit"] == "c" * 40
+
+
 def test_postprocessing_resume_aborts_when_upstream_training_artifact_is_invalid(
     tmp_path: Path,
 ) -> None:

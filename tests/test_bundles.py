@@ -93,6 +93,42 @@ def test_result_bundle_contains_only_safe_aggregate_artifacts(tmp_path: Path) ->
     }
 
 
+def test_result_bundle_accepts_https_source_url_without_treating_it_as_windows_path(
+    tmp_path: Path,
+) -> None:
+    bundles = _module()
+    staging = tmp_path / "safe"
+    config = staging / "configs" / "seed42.yaml"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        "source_repository: https://github.com/uwm-bigdata/wound-segmentation.git\n",
+        encoding="utf-8",
+    )
+
+    manifest = bundles.build_result_bundle(
+        staging, tmp_path / "results.zip", source_commit="a" * 40
+    )
+
+    assert [entry["path"] for entry in manifest["files"]] == ["configs/seed42.yaml"]
+
+
+@pytest.mark.parametrize(
+    "private_path",
+    [r"C:\Users\owner\private\artifact.json", "/content/drive/MyDrive/private/artifact.json"],
+)
+def test_result_bundle_still_rejects_real_absolute_private_paths(
+    tmp_path: Path, private_path: str
+) -> None:
+    bundles = _module()
+    staging = tmp_path / "unsafe"
+    config = staging / "configs" / "seed42.yaml"
+    config.parent.mkdir(parents=True)
+    config.write_text(f"artifact: {private_path}\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="absolute Drive path"):
+        bundles.build_result_bundle(staging, tmp_path / "results.zip", source_commit="a" * 40)
+
+
 @pytest.mark.parametrize(
     "relative_path",
     [

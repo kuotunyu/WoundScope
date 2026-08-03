@@ -1,4 +1,4 @@
-"""Resume only WoundScope data restoration, ONNX/benchmark, and safe handoff."""
+"""Resume only the unfinished WoundScope postprocessing dependencies and safe handoff."""
 
 from __future__ import annotations
 
