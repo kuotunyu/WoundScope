@@ -222,15 +222,21 @@ def _space_text_for_path_scan(path: str, text: str) -> str:
             and not value.keywords
         ):
             continue
+        argument = value.args[0]
         try:
-            pattern = ast.literal_eval(value.args[0])
+            pattern = ast.literal_eval(argument)
         except ValueError:
             continue
         if pattern != ABSOLUTE_PATH_PATTERN.pattern:
             continue
-        source = ast.get_source_segment(text, statement)
-        if source is not None:
-            return text.replace(source, "", 1)
+        if argument.end_lineno is None or argument.end_col_offset is None:
+            continue
+        encoded = text.encode("utf-8")
+        lines = encoded.splitlines(keepends=True)
+        start = sum(len(line) for line in lines[: argument.lineno - 1]) + argument.col_offset
+        end = sum(len(line) for line in lines[: argument.end_lineno - 1]) + argument.end_col_offset
+        masked = bytes(byte if byte in b"\r\n" else ord(" ") for byte in encoded[start:end])
+        return (encoded[:start] + masked + encoded[end:]).decode("utf-8")
     return text
 
 

@@ -189,6 +189,27 @@ def test_space_bundle_allows_trusted_absolute_path_detector_definition(tmp_path:
     assert "src/woundscope/bundles.py" in {record["path"] for record in manifest["files"]}
 
 
+def test_space_bundle_rejects_private_path_comment_in_trusted_detector_assignment(
+    tmp_path: Path,
+) -> None:
+    repository = _space_repository(tmp_path)
+    detector = repository / "src" / "woundscope" / "bundles.py"
+    detector.write_text(
+        "import re\n"
+        "ABSOLUTE_PATH_PATTERN = re.compile(\n"
+        f"    {bundles.ABSOLUTE_PATH_PATTERN.pattern!r}"
+        "  # C:\\Users\\owner\\private\n"
+        ")\n",
+        encoding="utf-8",
+    )
+    _commit_all(repository, "add private path beside detector literal")
+
+    with pytest.raises(ValueError, match="absolute path"):
+        bundles.build_huggingface_space_bundle(
+            repository, tmp_path / "candidate", tmp_path / "candidate.zip"
+        )
+
+
 def test_space_bundle_rejects_private_path_in_unrelated_compiled_pattern(tmp_path: Path) -> None:
     repository = _space_repository(tmp_path)
     private_pattern = repository / "src" / "woundscope" / "private_pattern.py"
