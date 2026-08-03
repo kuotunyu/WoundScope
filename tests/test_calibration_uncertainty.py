@@ -21,6 +21,19 @@ def test_temperature_is_positive_and_finite() -> None:
     assert 0.05 <= temperature <= 20.0
 
 
+def test_temperature_accepts_tensors_created_in_inference_mode() -> None:
+    with torch.inference_mode():
+        logits = torch.tensor([[[[3.0, -2.0], [1.0, -1.0]]]])
+        targets = torch.tensor([[[[1.0, 0.0], [1.0, 0.0]]]])
+    assert logits.is_inference()
+    assert targets.is_inference()
+
+    temperature = fit_temperature(logits, targets, max_iter=10)
+
+    assert np.isfinite(temperature)
+    assert 0.05 <= temperature <= 20.0
+
+
 def test_threshold_sweep_selects_best_and_tie_nearest_half() -> None:
     probabilities = np.array([[[0.9, 0.4], [0.7, 0.1]]])
     targets = np.array([[[1, 0], [1, 0]]], dtype=bool)
