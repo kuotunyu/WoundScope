@@ -22,7 +22,7 @@ WoundScope 是一套可重現、可測試、可部署的足部潰瘍影像分割
 ### 2.1 目前不做
 
 - Pre-implementation review gate 通過前，不初始化 Git、不建立程式、不安裝依賴、不下載資料。
-- 不設定 Git remote，不自動推送 GitHub、Hugging Face 或其他外部服務。
+- 未經使用者明確授權時，不設定 Git remote，不推送 GitHub、Hugging Face 或其他外部服務。2026-08-04 已授權將程式碼公開至 `kuotunyu/WoundScope`；data、weights 與 private image artifacts 仍禁止上傳。
 - 不在未取得明確授權確認前重新散布 FUSeg images、labels、含原圖的 gallery 或 trained weights。
 - 不要求使用者自行標註，也不以檔名臆測 patient identity。
 - 不在本機自動啟動 full training；訓練預設在 Colab，重型本機 GPU 工作需先確認。
@@ -357,7 +357,7 @@ README 結果表由 `scripts/update_readme_results.py` 在 marker block 內更�
 - 完成 Dockerfile、GitHub Actions、README、MODEL_CARD、DATA_CARD、CITATION.cff、`.env.example`、90 秒 demo script、Mermaid architecture、Colab badge 與 HF Space placeholder。
 - Gate：完整 lint/unit/integration suite、CPU Docker app smoke、clean-clone reproduction audit，以及 raw data／secrets／weights 未被 Git 追蹤的檢查。
 
-每個 milestone 只有在 gate 通過且 `PROGRESS.md` 留有測試證據後才能標示完成。Milestone boundary 建立本機 commit，但不 push。
+每個 milestone 只有在 gate 通過且 `PROGRESS.md` 留有測試證據後才能標示完成。Milestone boundary 先建立本機 commit；只能在使用者明確授權後 push。
 
 ## 14. Test strategy
 
@@ -407,6 +407,7 @@ Data integration、Colab GPU quick mode、CUDA benchmark 與 Docker app smoke �
 | 2026-08-03 | Pinned revision 的 7 組 train–validation exact duplicates 固定採 `exclude_train`：只排除 train copies、保留 official validation 200 張；validation 不參與任何 selection/calibration，pHash 只作警告 | Locked |
 | 2026-07-19 | HF Space Docker 明確安裝 PyTorch CPU wheel，僅包含 app/export dependencies | Locked |
 | 2026-08-03 | ONNX parity 對 raw model sigmoid probability 維持 `rtol=1e-3`／`atol=1e-4`；temperature-calibrated decision 轉為等價 raw threshold，mask disagreement 僅可發生在兩端都位於 `atol` decision band且同時不超過 32 pixels／`1e-4` fraction，exact mask equality 與 logit error 保留為 diagnostics | Locked |
+| 2026-08-04 | 授權公開 `kuotunyu/WoundScope`；README、GitHub Description 與 About 以正體中文（`zh-TW`）為主，專有名詞保留原文；GitHub Contributors 只允許 `kuotunyu`，不使用 co-author 或 bot commit；結果 provenance 的舊 SHA 另以 tag 保留 | Locked |
 
 ## 17. Review gate
 

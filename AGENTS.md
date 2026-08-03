@@ -9,3 +9,4 @@
 7. Run the current milestone gate, record exact PASS/FAIL evidence in `PROGRESS.md`, and only then mark the milestone complete.
 8. Do not configure remotes, push, publish data/weights, or start full local GPU training without explicit user direction.
 9. Use the repo-local `$woundscope-development` skill for continuation, milestone implementation, verification, and handoff work.
+10. For GitHub publication, keep `kuotunyu <61350295+kuotunyu@users.noreply.github.com>` as the only commit author/committer; do not add `Co-authored-by` trailers or bot-authored commits. Keep README, Description, and About primarily in `zh-TW`, while preserving technical proper nouns in their original form.

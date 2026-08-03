@@ -10,10 +10,10 @@
 | Project state | `IMPLEMENTING / M6_IN_REVIEW` |
 | Current milestone | M6 — Release engineering 與完整驗收；M0–M5 gates 已通過 |
 | Last updated | 2026-08-03（Asia/Taipei） |
-| Last verified state | c7 safe result ZIP SHA/schema/privacy PASS；full official-validation/ONNX/handoff completed；Ruff/format/107 tests/privacy 與 96-file clean-checkout reproduction PASS |
-| Active blocker | 無本機 blocker；hosted CI 需設定 remote 與 push，本次未獲授權，因此 M6 維持 `In review` |
-| Next action | 完成獨立 review 與本機 evidence commit；若日後要完成 hosted CI，由使用者明確授權 remote/push |
-| External actions | 使用者已停止 Colab；private Drive 保存完整 training/weights/ONNX，下載的 safe ZIP 不含 weights/images；無 remote、push 或公開 upload |
+| Last verified state | c7 results、full official-validation/ONNX/handoff、Ruff/format/107 tests/privacy 與 96-file clean-checkout PASS；default-history author 已正規化為單一 `kuotunyu`，tree 內容不變 |
+| Active blocker | 無；使用者已授權建立 Public `kuotunyu/WoundScope` 與 push 程式碼，禁止上傳 data/weights/private images |
+| Next action | 執行發布前 full gate，建立公開 repo 與 `zh-TW` About metadata，push `main`，等待 hosted CI 並驗證 Contributors 只有 `kuotunyu` |
+| External actions | GitHub CLI 已驗證為 `kuotunyu`；目標 repo 尚未建立、remote 尚未設定、尚未 push；private Drive artifacts 不公開 |
 
 ## Resume checklist
 
@@ -53,12 +53,21 @@
 - Confidence：temperature scaling + threshold sweep + 2-view horizontal-flip TTA。
 - Code license：Apache-2.0；FUSeg data／weights 不包含在內。
 - Language：人讀文件與 UI 以正體中文為主，專有名詞與程式介面維持英文。
-- Publication：目前不設定 remote、不 push、不上傳 data 或 weights。
+- Publication：已授權公開 `kuotunyu/WoundScope` 的程式碼與 privacy-safe aggregate results；不上傳 data、weights、private galleries 或 image-level artifacts；GitHub Contributors 只允許 `kuotunyu`。
 - Cross-split policy：`exclude_train`；只排除 7 張 exact train copies，official validation 200 張完整保留。
 
 重大調整必須先更新 `PROJECT_PLAN.md` Decision Log；本區只同步摘要，不取代完整規格。
 
 ## Test and verification evidence
+
+### 2026-08-04 — GitHub Public release preflight
+
+- 使用者明確授權 Public `kuotunyu/WoundScope`；README、Description、About 以正體中文（`zh-TW`）為主，技術專有名詞保留原文。
+- GitHub CLI 已登入 `kuotunyu`；目標 repository 尚不存在，無名稱衝突。
+- 原始 17-commit history 只有 root commit 使用 placeholder `WoundScope contributors <woundscope@local.invalid>`；無 `Co-authored-by`、`Signed-off-by` 或 `Reviewed-by` trailers。
+- 已建立並驗證 gitignored recovery bundle `artifacts/pre_github_publish_f3e3b9f.bundle`，306,125 bytes，SHA-256 `EA00EDF71E0C714715EF09688E35413575A74F5BDCC62E25ECF93E2723D01F7E`。
+- Default-history placeholder author 已正規化為 `kuotunyu <61350295+kuotunyu@users.noreply.github.com>`；17 commits 的 author/committer 統一，改寫前後 HEAD tree hash 完全一致。
+- 舊 commit graph 以 annotated tag `provenance-pre-publication-f3e3b9f` 保留，training source `c7ec6060f1bd0a813a890b95b50c2855d3c2640c` 仍可從該 tag reachability 驗證。
 
 ### 2026-08-03 — Verified c7 full-run results ingestion
 
@@ -174,9 +183,10 @@
 
 ## Next actions
 
-1. 完成 verified metrics 文件與 clean-source evidence 的獨立 review，處理所有有效意見後建立 local evidence commit。
-2. 若要將 M6 從 `In review` 改為 `Completed`，需使用者另行明確授權設定 remote/push 以觸發 hosted CI。
-3. 保留 private Drive 的 checkpoints／ONNX 作為未公開備份；授權確認前不得公開 weights 或 FUSeg 衍生影像。
+1. 重跑 full release gate 與 contributor/privacy audit，將正規化後的 release branch fast-forward 到 `main`。
+2. 建立 Public `kuotunyu/WoundScope`，設定 `zh-TW` Description/About/topics，明確 push `main` 與 provenance tag。
+3. 等待 hosted CI，驗證 GitHub Contributors API/graph 只列 `kuotunyu`；PASS 後才將 M6 標示 `Completed`。
+4. 保留 private Drive 的 checkpoints／ONNX 作為未公開備份；不得公開 weights 或 FUSeg 衍生影像。
 
 ## Session log
 
