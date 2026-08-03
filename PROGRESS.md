@@ -10,9 +10,9 @@
 | Project state | `IMPLEMENTING / M3_IN_PROGRESS` |
 | Current milestone | M3 — Resumable staged Colab pipeline；M1 scientific gate 已通過 |
 | Last updated | 2026-08-03（Asia/Taipei） |
-| Last verified state | M1 `exclude_train` PASS；Ruff/format PASS；90 CPU tests PASS；SegFormer-B0 train/evaluation checkpoint architecture compatibility PASS |
-| Active blocker | 無科學決策 blocker；Colab A100 quick gate 在 SegFormer checkpoint evaluation 發現正式 B0／tiny test architecture mismatch；修正版 bundle 待重跑 |
-| Next action | 建立並上傳 SegFormer architecture 修正版 immutable source ZIP，沿用現有 notebook 重新執行 Run all |
+| Last verified state | M1 `exclude_train` PASS；Ruff/format PASS；101 CPU tests PASS；c7 training/official artifacts 已進入 postprocessing recovery |
+| Active blocker | Recovery `22b80a3` 過度要求整個 `full_comparison` stage hash-valid；實際 Colab 在 postprocessing 前安全停止，未重訓 |
+| Next action | 驗證 dependency-scoped recovery、建立新 immutable source ZIP，接續 `c7ec6060f1bd` artifacts |
 | External actions | 使用者已在 private Drive 上傳 source ZIP/notebook 並啟動 A100；無 remote、push、公開 upload 或本機 full GPU training |
 
 ## Resume checklist
@@ -149,6 +149,27 @@
 3. 回收並驗證單一 safe results ZIP；只有 schema-valid completed full-run artifacts 才可更新 README。
 
 ## Session log
+
+### 2026-08-03 — Recovery dependency closure 與 preflight diagnostics
+
+**實際 Colab evidence**
+
+- Recovery source `22b80a3c4399` 在任何 data restore／ONNX command 前 exit 1；capture diagnostic 顯示：`Postprocessing recovery refused: upstream stage full_comparison is not hash-valid and completed`。
+- A100／CUDA gate 已通過。這次沒有重跑 training，也沒有產生新的模型結果。
+
+**根因與修正**
+
+- 舊 recovery 對 quick 至 official validation 的每個 stage 做全 inventory hash gate；但 final ONNX／handoff 並不依賴 quick smoke 或未入選的 full-comparison ablations，因此非必要檔案也能錯誤阻擋 recovery。
+- Required dependency closure 改為 `locked_loss_selection`、`multi_seed_final`、`official_validation`。`multi_seed_final` 仍涵蓋六個 selected final runs，包括重用的 seed-42 checkpoint／calibration／config／provenance／history；任何必要檔遺失、size 或 SHA-256 不符仍立即停止，且不呼叫 training handler。
+- Preflight error 現在列出具體 missing／size／SHA-256 mismatch path；notebook 使用 streamed combined stdout/stderr 並在外層例外保留最後 100 行，不再只顯示 exit code。
+
+**目前驗證**
+
+- RED：刪除 synthetic quick/full-comparison markers 後，舊 recovery 分別在 `quick_gpu_gate`／`full_comparison` 拒絕。
+- GREEN：同一情境只執行 `data_integrity`、`onnx_and_benchmark`、`safe_result_handoff`；training handlers 呼叫數為 0。
+- Pipeline + recovery notebook focused suite → 16 passed；獨立 review 確認 dependency closure 仍涵蓋六個 final runs 與 official artifacts、沒有 training fallback，最終 no findings。
+- `.venv\Scripts\python.exe -m ruff check .`、`ruff format --check .`、`pytest -q`、`git diff --check` → PASS；101 tests passed，2 個既有 legacy ONNX exporter deprecation warnings。
+- Clean-source bundle gate 待本次 commit 後執行。
 
 ### 2026-08-03 — c7ec606 ONNX parity 與 postprocessing-only recovery
 

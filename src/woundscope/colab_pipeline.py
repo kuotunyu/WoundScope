@@ -149,19 +149,28 @@ def _artifact_records(paths: PipelinePaths, artifacts: list[Path]) -> list[dict[
     return records
 
 
-def _artifacts_valid(paths: PipelinePaths, stage_record: dict[str, Any]) -> bool:
+def _artifact_validation_errors(paths: PipelinePaths, stage_record: dict[str, Any]) -> list[str]:
     records = stage_record.get("artifacts")
     if not isinstance(records, list) or not records:
-        return False
+        return ["artifact inventory is missing or empty"]
+    errors: list[str] = []
+    artifact_root = paths.artifact_root.resolve()
     for record in records:
-        path = paths.artifact_root / str(record.get("path", ""))
-        if (
-            not path.is_file()
-            or path.stat().st_size != record.get("size")
-            or file_sha256(path) != record.get("sha256")
-        ):
-            return False
-    return True
+        relative = str(record.get("path", ""))
+        path = (artifact_root / relative).resolve()
+        if not relative or not path.is_relative_to(artifact_root):
+            errors.append(f"unsafe artifact path: {relative!r}")
+        elif not path.is_file():
+            errors.append(f"missing artifact: {relative}")
+        elif path.stat().st_size != record.get("size"):
+            errors.append(f"artifact size mismatch: {relative}")
+        elif file_sha256(path) != record.get("sha256"):
+            errors.append(f"artifact SHA-256 mismatch: {relative}")
+    return errors
+
+
+def _artifacts_valid(paths: PipelinePaths, stage_record: dict[str, Any]) -> bool:
+    return not _artifact_validation_errors(paths, stage_record)
 
 
 def run_pipeline(
@@ -282,12 +291,22 @@ def resume_postprocessing(
         raise ValueError("Stage handlers must exactly match the locked pipeline stage set")
     state_path = paths.artifact_root / "pipeline_state.json"
     state = PipelineState.load_or_create(state_path, source_commit)
-    upstream_stages = STAGE_ORDER[1:6]
-    for stage in upstream_stages:
+    # Quick smoke artifacts and losing full-comparison ablations are not
+    # dependencies of final ONNX export or the safe handoff. Requiring their
+    # entire inventories made an irrelevant missing file force a recovery
+    # refusal even when every selected final run remained intact.
+    required_upstream_stages = (
+        "locked_loss_selection",
+        "multi_seed_final",
+        "official_validation",
+    )
+    for stage in required_upstream_stages:
         record = state.stages.get(stage, {})
-        if record.get("status") != "completed" or not _artifacts_valid(paths, record):
+        validation_errors = _artifact_validation_errors(paths, record)
+        if record.get("status") != "completed" or validation_errors:
+            detail = "; ".join(validation_errors[:5]) or "stage status is not completed"
             raise RuntimeError(
-                f"Postprocessing recovery refused: upstream stage {stage} is not hash-valid and completed"
+                f"Postprocessing recovery refused: required stage {stage} is invalid: {detail}"
             )
 
     cuda_info = cuda_probe()
