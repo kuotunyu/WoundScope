@@ -172,6 +172,73 @@ def test_space_bundle_requires_clean_tracked_worktree(tmp_path: Path) -> None:
         )
 
 
+def test_space_bundle_allows_absolute_path_detector_source_literal(tmp_path: Path) -> None:
+    repository = _space_repository(tmp_path)
+    detector = repository / "src" / "woundscope" / "path_detector.py"
+    detector.write_text(
+        'import re\nABSOLUTE_PATH_PATTERN = re.compile(r"/content/drive/")\n',
+        encoding="utf-8",
+    )
+    _commit_all(repository, "add path detector")
+
+    manifest = bundles.build_huggingface_space_bundle(
+        repository, tmp_path / "candidate", tmp_path / "candidate.zip"
+    )
+
+    assert "src/woundscope/path_detector.py" in {record["path"] for record in manifest["files"]}
+
+
+def test_space_bundle_reads_tree_and_blobs_from_resolved_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository = _space_repository(tmp_path)
+    original_app = (repository / "app" / "app.py").read_text(encoding="utf-8")
+    source_commit = _git(repository, "rev-parse", "HEAD")
+    original_git = bundles._git
+    advanced = False
+
+    def advancing_git(repository_path: Path, *arguments: str, text: bool = True) -> str | bytes:
+        nonlocal advanced
+        result = original_git(repository_path, *arguments, text=text)
+        if arguments == ("rev-parse", "HEAD") and not advanced:
+            advanced = True
+            (repository / "app" / "app.py").write_text("moved HEAD\n", encoding="utf-8")
+            _commit_all(repository, "move HEAD")
+        return result
+
+    monkeypatch.setattr(bundles, "_git", advancing_git)
+    candidate = tmp_path / "candidate"
+    manifest = bundles.build_huggingface_space_bundle(
+        repository, candidate, tmp_path / "candidate.zip"
+    )
+
+    assert manifest["source_commit"] == source_commit
+    assert (candidate / "app" / "app.py").read_text(encoding="utf-8") == original_app
+
+
+def test_space_bundle_restores_caller_empty_directory_when_zip_publish_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository = _space_repository(tmp_path)
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    bundle = tmp_path / "candidate.zip"
+    original_replace = Path.replace
+
+    def fail_zip_publish(path: Path, target: str | Path) -> Path:
+        if Path(target).resolve() == bundle.resolve():
+            raise OSError("simulated ZIP publish failure")
+        return original_replace(path, target)
+
+    monkeypatch.setattr(Path, "replace", fail_zip_publish)
+
+    with pytest.raises(OSError, match="simulated ZIP publish failure"):
+        bundles.build_huggingface_space_bundle(repository, candidate, bundle)
+
+    assert candidate.is_dir()
+    assert list(candidate.iterdir()) == []
+
+
 def test_space_candidate_verifier_rejects_tampered_candidate_member(tmp_path: Path) -> None:
     repository = _space_repository(tmp_path)
     candidate = tmp_path / "candidate"

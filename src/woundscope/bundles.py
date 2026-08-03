@@ -66,6 +66,9 @@ SECRET_PATTERN = re.compile(
 ABSOLUTE_PATH_PATTERN = re.compile(
     r"(?i)(?<![a-z0-9_])(?:[a-z]:[\\/]|/content/drive/|\\\\(?:\?\\UNC\\)?[^\\/\s]+[\\/])"
 )
+COMPILED_PATTERN_DEFINITION = re.compile(
+    r"(?ms)^[ \t]*[A-Z][A-Z0-9_]*_PATTERN\s*=\s*re\.compile\((?:[^\n]*\)|.*?^\s*\))"
+)
 
 
 def _sha256_bytes(content: bytes) -> str:
@@ -193,7 +196,10 @@ def _validate_space_member(path: str, content: bytes) -> None:
         raise ValueError(f"Space member is not UTF-8: {path}") from exc
     if SECRET_PATTERN.search(text):
         raise ValueError(f"secret-like Space member content: {path}")
-    if ABSOLUTE_PATH_PATTERN.search(text):
+    text_for_path_scan = text
+    if pure.suffix.casefold() == ".py":
+        text_for_path_scan = COMPILED_PATTERN_DEFINITION.sub("", text)
+    if ABSOLUTE_PATH_PATTERN.search(text_for_path_scan):
         raise ValueError(f"absolute path in Space member content: {path}")
 
 
@@ -241,7 +247,7 @@ def _read_head_space_files(repository: Path) -> tuple[str, dict[str, bytes], dic
     if re.fullmatch(r"[0-9a-f]{40}", source_commit) is None:
         raise RuntimeError("Unable to resolve immutable source commit")
 
-    listing = str(_git(repository, "ls-tree", "-r", "-z", "HEAD"))
+    listing = str(_git(repository, "ls-tree", "-r", "-z", source_commit))
     selected: list[str] = []
     for line in listing.split("\0"):
         if not line:
@@ -274,7 +280,7 @@ def _read_head_space_files(repository: Path) -> tuple[str, dict[str, bytes], dic
         destination = _space_destination(source_path)
         if destination is None:
             raise RuntimeError("Space source mapping was unexpectedly absent")
-        content = bytes(_git(repository, "show", f"HEAD:{source_path}", text=False))
+        content = bytes(_git(repository, "show", f"{source_commit}:{source_path}", text=False))
         _validate_space_member(destination, content)
         if destination in files:
             raise ValueError(f"Space bundle destination collision: {destination}")
@@ -345,13 +351,19 @@ def build_huggingface_space_bundle(
             expected_source_commit=source_commit,
         )
 
-        if output_directory.exists():
+        output_directory_existed = output_directory.exists()
+        candidate_published = False
+        if output_directory_existed:
             output_directory.rmdir()
-        staged_directory.replace(output_directory)
         try:
+            staged_directory.replace(output_directory)
+            candidate_published = True
             staged_zip.replace(output_zip)
         except OSError:
-            shutil.rmtree(output_directory)
+            if candidate_published:
+                shutil.rmtree(output_directory)
+            if output_directory_existed:
+                output_directory.mkdir()
             raise
     return manifest
 
