@@ -7,13 +7,13 @@
 
 | 欄位 | 內容 |
 |---|---|
-| Project state | `IMPLEMENTING / M3_IN_PROGRESS` |
-| Current milestone | M3 — Resumable staged Colab pipeline；M1 scientific gate 已通過 |
+| Project state | `IMPLEMENTING / M6_IN_REVIEW` |
+| Current milestone | M6 — Release engineering 與完整驗收；M0–M5 gates 已通過 |
 | Last updated | 2026-08-03（Asia/Taipei） |
-| Last verified state | M1 `exclude_train` PASS；Ruff/format PASS；107 CPU tests PASS；c7 六組 ONNX/benchmark/gallery 已完成，只差 safe handoff |
-| Active blocker | 無程式 blocker；HTTPS 路徑誤判與跨 repair commit ONNX 重跑已修復，待 A100 執行 handoff-only recovery |
-| Next action | 只替換 `WoundScope_colab_source.zip`，沿用既有 c7 recovery notebook 全部執行；不得重跑 training 或 ONNX |
-| External actions | 使用者已在 private Drive 保存 c7 training/official/ONNX artifacts；無 remote、push、公開 upload 或本機 full GPU training |
+| Last verified state | c7 safe result ZIP SHA/schema/privacy PASS；full official-validation aggregates、六組 ONNX parity/benchmark 與 safe handoff completed；Ruff/format/107 tests/tracked-privacy audit PASS |
+| Active blocker | 無；M6 仍待 clean-commit reproduction 與 hosted CI，本次本機 milestone commit 尚未建立 |
+| Next action | 完成獨立 review 與 local milestone commit，然後從 clean committed source 重建並驗證 release bundle；不設定 remote、不 push |
+| External actions | 使用者已停止 Colab；private Drive 保存完整 training/weights/ONNX，下載的 safe ZIP 不含 weights/images；無 remote、push 或公開 upload |
 
 ## Resume checklist
 
@@ -35,9 +35,9 @@
 | M0 — Governance/scaffold | Completed | Ignore/secret/config/import/Ruff/pytest gates 通過 | Ruff PASS；5 tests PASS；skill valid；ignore PASS |
 | M1 — Data integrity | Completed | Synthetic + official data validation 通過 | 2026-08-03 `exclude_train` gate：7 train copies excluded、validation 200 retained、group isolation PASS |
 | M2 — Vertical slice | Completed | Tiny end-to-end + ONNX parity 通過 | one epoch/save/resume、prediction、ONNX/app synthetic gates PASS |
-| M3 — Training/Colab | In review | CPU mini-train、resume、notebook、Colab quick gate 通過 | 兩正式模型 CPU optimizer step + notebook structure PASS；Colab quick 待執行 |
-| M4 — Evaluation/calibration | In review | Metrics/bootstrap/calibration/confidence/gallery gates 通過 | unit gates PASS；full weights/locked validation artifacts 尚無 |
-| M5 — Inference/demo | In review | CPU/CUDA/ONNX/benchmark/app gates 通過 | CPU PyTorch/ONNX/app/benchmark PASS；CUDA smoke 待 Colab／本機另行執行 |
+| M3 — Training/Colab | Completed | CPU mini-train、resume、notebook、Colab quick gate 通過 | A100 staged quick/full、AMP、deliberate resume、loss selection與三-seed final completed |
+| M4 — Evaluation/calibration | Completed | Metrics/bootstrap/calibration/confidence/gallery gates 通過 | Locked official validation、dev calibration、2,000 bootstrap、五類 private gallery completed |
+| M5 — Inference/demo | Completed | CPU/CUDA/ONNX/benchmark/app gates 通過 | 六組 CUDA→ONNX parity、CPU benchmark completed；PyTorch/ONNX/app tests PASS |
 | M6 — Release | In review | CI/Docker/clean-clone/data-secret audit 通過 | 文件/CI/CPU Docker/secret audit PASS；clean-commit reproduction 與 hosted CI 待後續 |
 
 允許的狀態值：`Not started`、`In progress`、`Blocked`、`In review`、`Completed`。
@@ -59,6 +59,20 @@
 重大調整必須先更新 `PROJECT_PLAN.md` Decision Log；本區只同步摘要，不取代完整規格。
 
 ## Test and verification evidence
+
+### 2026-08-03 — Verified c7 full-run results ingestion
+
+- Downloaded safe ZIP：`C:\Users\3Hml\Downloads\woundscope_colab_results_c7ec6060f1bd.zip`；344,656 bytes；SHA-256 `6FF4D1F14F4242C72FA2EF3382BCBFADC15DF93DD4AEB739AE1864F7DE24F221`，與 Colab stage record 完全一致。
+- `scripts/verify_results_bundle.py` clean extraction → `status=verified`；training source `c7ec6060f1bd0a813a890b95b50c2855d3c2640c`；52 manifest members，另含 bundle manifest；prohibited artifacts 0。
+- Provenance：training source 維持 c7；handoff implementation `8345176593e3fe5a3c95e2f053306229e5a09455`；safe bundle 不含 weights、ONNX binaries、來源影像、image-level metrics 或 private galleries。
+- Experiment lock：兩個架構皆由 internal dev 選出 `bce_dice`；final seeds 固定 42/43/44；official validation 200 張未參與 selection、checkpoint、threshold 或 temperature fitting。
+- EfficientNet-B0 U-Net official-validation aggregate：Dice `0.8508±0.0035`（image-cluster bootstrap 95% CI `0.8218–0.8768`）、IoU `0.7772±0.0039`、precision `0.8581±0.0056`、recall `0.9039±0.0032`、specificity `0.9989±0.0000`。
+- SegFormer-B0 aggregate：Dice `0.8270±0.0040`（95% CI `0.7973–0.8550`）、IoU `0.7437±0.0053`、precision `0.8326±0.0038`、recall `0.8832±0.0045`、specificity `0.9988±0.0000`。
+- 六組 final ONNX parity 與 CPU benchmark、六份 calibration/provenance/config/history/public chart 均 completed；U-Net observed Dice 較高只描述此 locked split，未做 paired significance test，不宣稱 official-test、patient-wise、外部或臨床效能。
+- 第一次本機 re-extract 到非空 evidence directory 被安全拒絕（expected）；改用新的空白 gitignored directory後完整驗證 PASS，沒有覆蓋既有證據。
+- Final repository gate：Ruff check PASS；Ruff format check `63 files already formatted`；pytest `107 passed`（僅 2 個既知 legacy ONNX exporter deprecation warnings）；`git diff --check` PASS。
+- Release test 原先硬性要求 README 一定包含「待填」，與 verified completed-result 狀態矛盾；已移除該過時文字假設，保留兩個 results markers 各一次的 release contract，完整 suite 重跑 PASS。
+- Privacy/publication audit：95 tracked files；forbidden tracked artifacts 0；Git remotes 0；`.env`、manifest 與兩個 verified extraction directories 均由 `.gitignore` 排除。M6 維持 `In review`，直到 clean committed source reproduction 與 hosted CI 完成。
 
 ### 2026-08-03 — c7 handoff-only recovery 修復
 
@@ -136,15 +150,15 @@
 | `data/manifests/` | Local, gitignored | `data_manifest.csv`、`data_summary.json` 與 duplicate findings |
 | M2–M5 source/tests | Created and CPU verified | data/model/loss/train/evaluate/calibration/ONNX/inference/Gradio stack |
 | `notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb` | Thin staged wrapper, structure verified | `MyDrive/WoundScope`、source checksum、CUDA hard gate、single Run-all orchestration、Drive persistence／resume |
-| `artifacts/handoff/WoundScope_colab_source.zip` | Local, gitignored; verified recovery bundle | Source `7d69e7714a52`、82 files、SHA-256 `D8B906256FBF146DC328671E7967EE280F5916BB89521C6A4EDF0804AA0F6296`；clean-extract suite 101 passed |
+| `artifacts/handoff/WoundScope_colab_source.zip` | Local, gitignored; verified recovery bundle | Source `8345176593e3`、82 files、SHA-256 `773E0274487F54D040F68943A610BF53C97393157A49A5B50BA05A2B76537A8E`；clean-extract suite 107 passed |
 | Release files | Created and verified | README/cards/CFF/CI/Docker/.env.example/artifact handoff |
-| Model/training artifacts | None | 無 checkpoint、ONNX performance artifact 或 full-training result |
+| Model/training artifacts | Private Drive + verified safe local summary | 完整 checkpoints/ONNX/gallery 留在 private Drive；gitignored safe result evidence 52 members，不含 weights/images |
 
 ## Blockers and risks
 
 ### Active blocker
 
-- 無未決科學決策；M3 的 Colab GPU quick/full run 尚待 staged pipeline、immutable source ZIP 與 CUDA runtime。
+- 無未決科學決策或實驗 blocker；M6 只剩 release documentation、full gate 與 clean-reproduction audit。
 
 ### Known risks
 
@@ -156,9 +170,9 @@
 
 ## Next actions
 
-1. 將已驗證的 source ZIP 與 `WoundScope_FUSeg_c7ec606_Postprocess_Resume_Colab.ipynb` 放入 Drive `MyDrive/WoundScope/`。
-2. 用 A100 對既有 `WoundScopeArtifacts/c7ec6060f1bd/` 只執行 data restore、ONNX/benchmark/gallery 與 safe handoff；不得重新訓練。
-3. 回收並驗證單一 safe results ZIP；只有 schema-valid completed full-run artifacts 才可更新 README。
+1. 完成 verified metrics 文件差異的獨立 review，處理所有有效意見。
+2. 建立 local milestone commit，再執行 M6 clean-source reproduction audit；不設定 remote、不 push。
+3. 保留 private Drive 的 checkpoints／ONNX 作為未公開備份；授權確認前不得公開 weights 或 FUSeg 衍生影像。
 
 ## Session log
 

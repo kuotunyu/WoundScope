@@ -6,7 +6,7 @@
 
 WoundScope 是一套可重現的足部潰瘍區域 segmentation 研究與部署 pipeline。它從官方 FUSeg 像素標註資料開始，涵蓋 integrity validation、U-Net／SegFormer 訓練、calibration、bootstrap evaluation、ONNX export 與 Gradio demo。輸出只描述模型預測的像素區域，不提供疾病診斷、嚴重度或治療建議。
 
-> 專案狀態：程式與 CPU synthetic vertical slice 已完成；full training、官方 validation 結果與模型權重尚未產生。請以 [PROGRESS.md](PROGRESS.md) 為準。
+> 專案狀態：Colab full training、三-seed locked official-validation evaluation、ONNX parity／benchmark 與 privacy-safe handoff 已完成；模型權重仍只保存在 private Drive，未包含於 repository。請以 [PROGRESS.md](PROGRESS.md) 為準。
 
 ## 問題定義與資料
 
@@ -137,11 +137,14 @@ HF Space 採 CPU ONNX。若 repo 不含權重，可設定 `HF_MODEL_ID`、固定
 
 <!-- RESULTS_TABLE_START -->
 
-> 待填。只有 schema-valid、含 provenance、三 seeds 彙總且標為 verified 的 completed full run，才能由 `scripts/update_readme_results.py` 更新本區塊。Quick／smoke 數字不會寫入。
+| Model | Loss | Seeds | Dice mean±SD (95% CI) | IoU | Precision | Recall | Specificity |
+|---|---|---|---:|---:|---:|---:|---:|
+| unet_efficientnet_b0 | bce_dice | 42/43/44 | 0.8508±0.0035 (0.8218–0.8768) | 0.7772±0.0039 | 0.8581±0.0056 | 0.9039±0.0032 | 0.9989±0.0000 |
+| segformer_b0 | bce_dice | 42/43/44 | 0.8270±0.0040 (0.7973–0.8550) | 0.7437±0.0053 | 0.8326±0.0038 | 0.8832±0.0045 | 0.9988±0.0000 |
 
 <!-- RESULTS_TABLE_END -->
 
-在 full runs 完成前不宣稱任何 performance。正式表格會呈現每個模型／loss 的三-seed mean±SD、95% CI，以及分布與錯誤分析摘要，而不是只選最佳 run。
+表中各 metric 為 seeds 42/43/44 的 image-level mean 之 mean±sample SD；Dice 括號為固定 seed 42、2,000 次 image-cluster percentile bootstrap 95% CI。兩個架構都由 internal dev 選出 BCE+Dice；在這個 locked official-validation split 上，U-Net 的 observed Dice 較高，但未做 paired significance test，亦不代表 official test、外部資料或臨床效能。結果來源為 training commit `c7ec6060f1bd0a813a890b95b50c2855d3c2640c` 的 schema-valid safe bundle；quick／smoke 數字未納入。
 
 ## 測試與驗收
 
