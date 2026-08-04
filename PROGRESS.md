@@ -266,6 +266,17 @@
 
 ## Session log
 
+### 2026-08-05 — README formatting cleanup
+
+**變更**
+
+- 移除 README 全部多餘的 `**` 粗體標記；未改動研究結果、數字、scope 或連結。
+
+**驗證**
+
+- `README_NO_BOLD_MARKERS_PASS`、`README_LOCAL_LINKS_PASS`、`git diff --check` → PASS。
+- Ruff check、format、privacy audit → PASS；完整測試 `174 passed`，僅既有 2 個 ONNX exporter deprecation warnings。
+
 ### 2026-08-04 — v0.2.0 non-destructive closeout candidate
 
 **目標**

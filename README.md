@@ -5,15 +5,15 @@
 [![CI](https://github.com/kuotunyu/WoundScope/actions/workflows/ci.yml/badge.svg)](https://github.com/kuotunyu/WoundScope/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/kuotunyu/WoundScope)](https://github.com/kuotunyu/WoundScope/releases/tag/v0.2.0)
 
-**從資料治理、可恢復訓練到 ONNX deployment 的可重現足部潰瘍 segmentation pipeline。**
+從資料治理、可恢復訓練到 ONNX deployment 的可重現足部潰瘍 segmentation pipeline。
 
-以固定版本 FUSeg 驗證 U-Net 與 SegFormer；最佳 U-Net 在鎖定後 official validation 達到 **Dice 0.8508 ± 0.0035**（`n=3 seeds`）。這是研究用像素分割結果，不是 official-test 或 clinical performance。
+以固定版本 FUSeg 驗證 U-Net 與 SegFormer；最佳 U-Net 在鎖定後 official validation 達到 Dice 0.8508 ± 0.0035（`n=3 seeds`）。這是研究用像素分割結果，不是 official-test 或 clinical performance。
 
 ## 專案亮點
 
-- **可信資料治理：**固定 FUSeg revision、integrity audit，排除 7 張 train exact copies，完整保留 validation 200 張。
-- **可重現實驗：**Group-aware train／dev、AMP、atomic resume、三個固定 seeds 與 dev-only calibration。
-- **部署級交付：**locked official validation、Bootstrap、ONNX parity、CPU Gradio 與 privacy-safe handoff。
+- 可信資料治理：固定 FUSeg revision、integrity audit，排除 7 張 train exact copies，完整保留 validation 200 張。
+- 可重現實驗：Group-aware train／dev、AMP、atomic resume、三個固定 seeds 與 dev-only calibration。
+- 部署級交付：locked official validation、Bootstrap、ONNX parity、CPU Gradio 與 privacy-safe handoff。
 
 ## 已驗證成果
 
@@ -73,10 +73,10 @@ Hugging Face Space 目前為 `PERMISSION_PENDING`；僅維持 code-only candidat
 
 ## 工程可信度
 
-- **資料：**固定 revision 的 pairing、decode、尺寸、mask 值、SHA-256 與 pHash integrity audit；cross-split exact copies 採 `exclude_train`。
-- **訓練：**group-aware internal split、conservative augmentation、可恢復的 atomic checkpoints 與固定 seeds。
-- **評估與部署：**僅以 internal dev 選擇 calibration／threshold，再做 locked official validation、Bootstrap 與 ONNX parity；CPU Gradio 顯示模型輸出。
-- **品質 gates：**synthetic-fixture tests、format／lint、package build 與 tracked privacy audit 持續保護公開 repository。
+- 資料：固定 revision 的 pairing、decode、尺寸、mask 值、SHA-256 與 pHash integrity audit；cross-split exact copies 採 `exclude_train`。
+- 訓練：group-aware internal split、conservative augmentation、可恢復的 atomic checkpoints 與固定 seeds。
+- 評估與部署：僅以 internal dev 選擇 calibration／threshold，再做 locked official validation、Bootstrap 與 ONNX parity；CPU Gradio 顯示模型輸出。
+- 品質 gates：synthetic-fixture tests、format／lint、package build 與 tracked privacy audit 持續保護公開 repository。
 
 ## 限制與安全界線
 
