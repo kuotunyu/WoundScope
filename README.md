@@ -3,10 +3,11 @@
 [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kuotunyu/WoundScope/blob/main/notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb)
 [![Hugging Face Space](https://img.shields.io/badge/Hugging%20Face-Space%20授權確認中-yellow)](#gradio-demo)
 [![CI](https://github.com/kuotunyu/WoundScope/actions/workflows/ci.yml/badge.svg)](https://github.com/kuotunyu/WoundScope/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/kuotunyu/WoundScope)](https://github.com/kuotunyu/WoundScope/releases/tag/v0.2.0)
 
 WoundScope 是一套可重現的足部潰瘍區域 segmentation 研究與部署 pipeline。它從官方 FUSeg 像素標註資料開始，涵蓋 integrity validation、U-Net／SegFormer 訓練、calibration、bootstrap evaluation、ONNX export 與 Gradio demo。輸出只描述模型預測的像素區域，不提供疾病診斷、嚴重度或治療建議。
 
-> 專案狀態：M0–M7 的實作已完成；`v0.2.0` release candidate 正等待最終 hosted CI、security settings readback 與 GitHub Release。候選版本說明見 [`docs/releases/v0.2.0.md`](docs/releases/v0.2.0.md)，目前最新已發布版本仍為 [`v0.1.0`](https://github.com/kuotunyu/WoundScope/releases/tag/v0.1.0)。正式實驗結果資產固定於 `v0.1.0`；模型權重只保存在 private Drive，未包含於 repository。請以 [PROGRESS.md](PROGRESS.md) 為準。
+> 專案狀態：M0–M7 與 `v0.2.0` non-destructive closeout 已完成；Python 3.11／3.12 hosted CI、Dependabot vulnerability alerts 與 Python CodeQL 均已驗證。最新軟體版本為 [`v0.2.0`](https://github.com/kuotunyu/WoundScope/releases/tag/v0.2.0)，版本說明見 [`docs/releases/v0.2.0.md`](docs/releases/v0.2.0.md)；正式實驗結果資產仍固定於 `v0.1.0`。模型權重只保存在 private Drive，未包含於 repository。請以 [PROGRESS.md](PROGRESS.md) 為準。
 
 ## 問題定義與資料
 

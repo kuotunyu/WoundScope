@@ -7,13 +7,13 @@
 
 | 欄位 | 內容 |
 |---|---|
-| Project state | `RELEASED_V0.1.0 / V0.2.0_RELEASE_CANDIDATE / M7_HF_SPACE_CODE_ONLY_READY` |
-| Current milestone | `v0.2.0` non-destructive closeout 的 reviewer findings 已修正且本機 gates 已通過；等待 independent re-review、hosted CI、security settings 與 GitHub Release，model-backed live deployment 維持 `PERMISSION_PENDING` |
+| Project state | `RELEASED_V0.2.0 / M7_HF_SPACE_CODE_ONLY_READY` |
+| Current milestone | `v0.2.0` non-destructive closeout 已完成；model-backed live deployment 維持 `PERMISSION_PENDING` |
 | Last updated | 2026-08-04（Asia/Taipei） |
-| Last verified state | `v0.2.0` candidate：共用 repository privacy audit 的 17 regressions、Git index blob／non-regular entry／secret redaction／tabular artifact contracts、required CI aggregator、Ruff、format（70 files）、174 full tests、wheel／sdist build 與 isolated wheel install smoke 全部 PASS；M7 candidate provenance 維持 source `90835981c40a` |
+| Last verified state | `v0.2.0`：174 local tests、Ruff／format、115-file staged privacy audit、wheel／sdist build 與 isolated install PASS；candidate commit `e7dde3c` 的 hosted run `30877932397` 中 Python 3.11、Python 3.12 build 與 required `synthetic-gates` 全部 success；CodeQL run `30878123120` success（Python、43 rules、0 alerts） |
 | Active blocker | `FUSeg derived-weight permission pending`；這是 model-backed live deployment blocker，不是 code-only candidate blocker |
-| Next action | 完成 independent re-review，使用 `kuotunyu` 單一作者提交並 push，確認 Python 3.11／3.12 hosted CI 後啟用 Dependabot alerts／Python CodeQL 並建立 `v0.2.0` Release |
-| External actions | 既有 Public repository 與 `v0.1.0` Release 維持不變；本輪目前尚未 push／建立 `v0.2.0` Release，也未建立 Space／model repo、使用 token、寄出訊息或上傳 model artifacts |
+| Next action | 維護 hosted CI／security alerts；FUSeg derived-weight 權限未獲書面確認前，不建立 model-backed Space 或 model repository |
+| External actions | Public `main`、`v0.2.0` Release、Dependabot vulnerability alerts 與 Python CodeQL 已完成；Dependabot security updates 維持 disabled。未建立 Space／model repo、使用 HF token、寄出訊息或上傳 model artifacts |
 
 ## Resume checklist
 
@@ -248,11 +248,10 @@
 
 ## Next actions
 
-1. 完成 `v0.2.0` independent review、final local gate、owner-authored push、Python 3.11／3.12 hosted CI 與 GitHub Release。
-2. 啟用 Dependabot vulnerability alerts 與 Python CodeQL；不啟用 bot-authored dependency commits。
-3. Contributors policy 維持只有 `kuotunyu`；未來 commits 不得加入 bot、placeholder 或共同作者 trailer。
-4. FUSeg derived-weight 權限請求仍未寄出；未獲明確指示前，不建立 model-backed Space／model repo、不使用 token、不寄信或訊息、不 upload／deploy model artifacts。
-5. 保留 private Drive 的 checkpoints／ONNX 作為未公開備份；不得公開 weights、FUSeg 衍生影像或 image-level artifacts。
+1. 維護 Python 3.11／3.12 hosted CI、Dependabot vulnerability alerts 與 Python CodeQL；dependency updates 仍由 owner 人工審查。
+2. Contributors policy 維持只有 `kuotunyu`；未來 commits 不得加入 bot、placeholder 或共同作者 trailer。
+3. FUSeg derived-weight 權限請求仍未寄出；未獲明確指示前，不建立 model-backed Space／model repo、不使用 token、不寄信或訊息、不 upload／deploy model artifacts。
+4. 保留 private Drive 的 checkpoints／ONNX 作為未公開備份；不得公開 weights、FUSeg 衍生影像或 image-level artifacts。
 
 ## Session log
 
@@ -275,6 +274,9 @@
 - Shared privacy audit 直接讀 Git index blob，拒絕 symlink／submodule 等 non-regular entries，只輸出 redacted path／rule／line；17 regressions PASS。實際 staged candidate 共 115 tracked files，violations 0。
 - `uv lock --check`、`uv pip check`、Ruff check、format（70 files）、`pytest -q` → PASS；174 passed，只有 2 個既有 legacy ONNX exporter deprecation warnings。
 - `uv build` → wheel／sdist 均成功建立於 OS temporary directory；isolated wheel import → `PACKAGE_INSTALL_SMOKE_PASS 0.2.0`。最終 bytes 由 hosted build log 留證，避免在會被納入 sdist 的本文件形成自我參照。
+- Independent re-review：Critical 0、Important 0，四項 findings 全數確認修正，verdict `SHIP`。
+- Candidate commit `e7dde3ccf3d89acc9829c61d22d68eaa00e379c1` 的 hosted CI run `30877932397`：Python 3.11 tests、Python 3.12 package build／install 與 exact required `synthetic-gates` 全部 `success`。
+- Dependabot vulnerability alerts API readback `204 enabled`；Dependabot security updates 維持 `disabled`。Python CodeQL default setup readback為 `configured`／`python`／`default`／`weekly`，initial run `30878123120` success，43 rules、0 alerts。
 
 **Artifacts**
 
@@ -284,9 +286,9 @@
 
 - 依使用者核准採 non-destructive history closeout；不移動／改寫既有 commits、training source、`v0.1.0` tag 或 results asset。無 scientific protocol、metrics、medical scope 或 model-artifact publication 變更。
 
-**未完成與下一步**
+**收尾**
 
-- Independent re-review、owner-authored commits／push、hosted CI、Dependabot alerts、Python CodeQL 與 `v0.2.0` GitHub Release 尚待執行。
+- 以 owner-only commits、annotated `v0.2.0` tag 與 GitHub Release 完成；既有 public history／`v0.1.0` provenance 未改寫。
 
 ### 2026-08-04 — M7 final review correction
 

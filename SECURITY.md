@@ -22,10 +22,10 @@ galleries、checkpoints、模型權重、ONNX binaries 或任何可識別個人�
 
 維護者會先確認可重現性與影響範圍，再於 private advisory 中協調修正與 disclosure。
 Dependency update 由 `kuotunyu` 人工審查並以 owner-authored commit 套用，避免 bot-authored
-commits 改變 repository contributor policy。`v0.2.0` release gate 要求啟用 Dependabot
-vulnerability alerts 與 Python CodeQL，但不啟用 bot 自動提交；只有 GitHub API 讀回確認後，
-才把這些 hosted controls 標示為已啟用。`scripts/audit_repository_privacy.py` 已提供本機與
-GitHub Actions 共用的 tracked artifact 掃描。
+commits 改變 repository contributor policy。Dependabot vulnerability alerts 與 Python
+CodeQL 已由 GitHub API 讀回確認啟用；Dependabot security updates 維持停用，不產生 bot
+自動提交。`scripts/audit_repository_privacy.py` 提供本機與 GitHub Actions 共用的 tracked
+artifact 掃描。
 
 ## 醫療界線
 

@@ -2,7 +2,7 @@
 
 > 文件語言：正體中文（zh-TW）；medical computer vision、MLOps、程式符號與 CLI 名稱保留原文。  
 > 文件角色：本文件是 WoundScope 的穩定規格與 implementation contract。即時進度、測試證據與下一步請見 `PROGRESS.md`。  
-> 目前狀態：M0–M7 已完成；M1 cross-split mitigation 鎖定為 `exclude_train`，Colab 正式實驗、safe handoff、Public GitHub repository、hosted CI 與 Hugging Face Space code-only readiness 均已完成。`v0.1.0` 保留正式實驗結果，`v0.2.0` release candidate 規劃收錄 M7 與 repository closeout hardening；即時狀態請見 `PROGRESS.md`。Private data／weights／image-level artifacts 未公開。
+> 目前狀態：M0–M7 已完成；M1 cross-split mitigation 鎖定為 `exclude_train`，Colab 正式實驗、safe handoff、Public GitHub repository、hosted CI 與 Hugging Face Space code-only readiness 均已完成。`v0.1.0` 保留正式實驗結果，`v0.2.0` software release 收錄 M7 與 repository closeout hardening；即時狀態請見 `PROGRESS.md`。Private data／weights／image-level artifacts 未公開。
 
 ## 1. 專案目標
 
@@ -431,4 +431,4 @@ Data integration、Colab GPU quick mode、CUDA benchmark 與 Docker app smoke �
 
 Review gate 已於 2026-07-19 由使用者明確解除；cross-split exact-duplicate mitigation 已於 2026-08-03 鎖定為 `exclude_train`。
 
-Review gate、M0–M7、既有 Public GitHub Release 與 hosted CI 已完成；`v0.2.0` release candidate 的即時狀態以 `PROGRESS.md` 為準。後續只在新增 material scientific decision 時重開 milestone，日常 bug fix、security update 與 release maintenance 依既有 gates 驗證。
+Review gate、M0–M7、Public GitHub Releases 與 hosted CI 已完成；後續只在新增 material scientific decision 時重開 milestone，日常 bug fix、security update 與 release maintenance 依既有 gates 驗證。

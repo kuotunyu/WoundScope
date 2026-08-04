@@ -67,8 +67,8 @@ def test_readme_exposes_public_colab_and_reproducible_commands() -> None:
     assert "$env:WOUNDSCOPE_CALIBRATION_PATH" in readme
     assert "set WOUNDSCOPE_MODEL_PATH" not in readme
     assert "docs/releases/v0.2.0.md" in readme
-    assert "v0.2.0` release candidate" in readme
-    assert "releases/tag/v0.2.0" not in readme
+    assert "releases/tag/v0.2.0" in readme
+    assert "v0.2.0` release candidate" not in readme
     assert "releases/tag/v0.1.0" in readme
     assert "Space%20授權確認中" in readme
     assert "docs/huggingface-space-deployment.md" in readme
