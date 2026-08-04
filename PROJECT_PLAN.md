@@ -2,7 +2,7 @@
 
 > 文件語言：正體中文（zh-TW）；medical computer vision、MLOps、程式符號與 CLI 名稱保留原文。  
 > 文件角色：本文件是 WoundScope 的穩定規格與 implementation contract。即時進度、測試證據與下一步請見 `PROGRESS.md`。  
-> 目前狀態：M0–M6 已完成；M1 cross-split mitigation 鎖定為 `exclude_train`，Colab 正式實驗、safe handoff、Public GitHub repository 與既有 hosted CI 均已完成；v0.1.0 tag／Release gate 的即時狀態請見 `PROGRESS.md`。Private data／weights／image-level artifacts 未公開。
+> 目前狀態：M0–M7 已完成；M1 cross-split mitigation 鎖定為 `exclude_train`，Colab 正式實驗、safe handoff、Public GitHub repository、hosted CI 與 Hugging Face Space code-only readiness 均已完成。`v0.1.0` 保留正式實驗結果，`v0.2.0` release candidate 規劃收錄 M7 與 repository closeout hardening；即時狀態請見 `PROGRESS.md`。Private data／weights／image-level artifacts 未公開。
 
 ## 1. 專案目標
 
@@ -357,6 +357,12 @@ README 結果表由 `scripts/update_readme_results.py` 在 marker block 內更�
 - 完成 Dockerfile、GitHub Actions、README、MODEL_CARD、DATA_CARD、CITATION.cff、`.env.example`、90 秒 demo script、Mermaid architecture、Colab badge 與 HF Space placeholder。
 - Gate：完整 lint/unit/integration suite、CPU Docker app smoke、clean-clone reproduction audit，以及 raw data／secrets／weights 未被 Git 追蹤的檢查。
 
+### M7 — Hugging Face Space code-only readiness
+
+- 建立 deterministic code-only candidate、exact manifest／ZIP inventory、non-mutating import、CPU Docker context 與 clean-clone reproduction workflow。
+- 固定 `PERMISSION_PENDING` 權限邊界：未取得可保存的書面授權前，不建立 model-backed live Space／model repository，不上傳 weights 或 ONNX。
+- Gate：tracked repository 與 candidate privacy audit、exact pre/post-Docker verifier、Python 3.11／3.12 synthetic suite、package build smoke，以及 Contributors 只有 `kuotunyu`。
+
 每個 milestone 只有在 gate 通過且 `PROGRESS.md` 留有測試證據後才能標示完成。Milestone boundary 先建立本機 commit；只能在使用者明確授權後 push。
 
 ## 14. Test strategy
@@ -374,12 +380,14 @@ Unit／integration coverage 至少包含：
 - synthetic fixture inference 與 Gradio function outputs；
 - result schema 與 README update guardrails。
 
-GitHub Actions 只使用 synthetic fixtures，不下載 medical data 或 pretrained weights，執行：
+GitHub Actions 只使用 synthetic fixtures，不下載 medical data 或 pretrained weights。Python 3.11／3.12 都執行完整 tests；Python 3.12 另執行 package build smoke。兩個 job 都必須成功，才會讓 branch protection 所要求的 `synthetic-gates` aggregator 通過。共用 repository privacy gate 直接掃描 Git index blobs，拒絕 non-regular entries、private／tabular artifacts、高可信度 secrets 與本機 home paths，並在安裝 dependencies 前執行：
 
 ```text
+python scripts/audit_repository_privacy.py --repository .
 ruff check .
 ruff format --check .
 pytest -q
+uv build --out-dir dist
 ```
 
 Data integration、Colab GPU quick mode、CUDA benchmark 與 Docker app smoke 另列為明確的 manual／integration gates，不假裝已由一般 unit CI 覆蓋。
@@ -410,6 +418,7 @@ Data integration、Colab GPU quick mode、CUDA benchmark 與 Docker app smoke �
 | 2026-08-04 | 授權公開 `kuotunyu/WoundScope`；README、GitHub Description 與 About 以正體中文（`zh-TW`）為主，專有名詞保留原文；GitHub Contributors 只允許 `kuotunyu`，不使用 co-author 或 bot commit；結果 provenance 的舊 SHA 另以 tag 保留 | Locked |
 | 2026-08-04 | Hugging Face Space 僅可先建立 deterministic code-only candidate；在 FUSeg 權利人以可保存的書面回覆明確確認 derived model weights、ONNX、attribution、可見性與 public non-commercial inference 前，固定為 `PERMISSION_PENDING`，不得建立 model-backed live Space、model repository 或上傳任何 model artifact | Locked |
 | 2026-08-04 | HF Space code-only inventory 以 case-insensitive 路徑元件、副檔名與內容分類稽核；`src/` / `app/` 內合法 `.py` 模組名稱可包含 `checkpoint`（例如 `checkpointing.py`），但 `.env` / `.env.*`、model/weight/raster 副檔名、明確 artifact directory components、secret-like 內容與 absolute paths 仍必須拒絕 | Locked |
+| 2026-08-04 | 最終 repository closeout 採 non-destructive history policy：不重寫既有 public commits／`v0.1.0` provenance；以共用 privacy audit 防止新暴露，並以 `v0.2.0` 收錄 M7、Python 3.11／3.12 CI、package build 與 security maintenance | Locked |
 
 ## 17. Review gate
 
@@ -422,4 +431,4 @@ Data integration、Colab GPU quick mode、CUDA benchmark 與 Docker app smoke �
 
 Review gate 已於 2026-07-19 由使用者明確解除；cross-split exact-duplicate mitigation 已於 2026-08-03 鎖定為 `exclude_train`。
 
-Review gate、M0–M6、Public GitHub release 與 hosted CI 已完成；後續只在新增 material scientific decision 時重開 milestone，日常 bug fix、security update 與 release maintenance 依既有 gates 驗證。
+Review gate、M0–M7、既有 Public GitHub Release 與 hosted CI 已完成；`v0.2.0` release candidate 的即時狀態以 `PROGRESS.md` 為準。後續只在新增 material scientific decision 時重開 milestone，日常 bug fix、security update 與 release maintenance 依既有 gates 驗證。

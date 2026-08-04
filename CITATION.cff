@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use WoundScope, cite this software and the FUSeg source paper."
 title: "WoundScope"
 type: software
-version: 0.1.0
+version: 0.2.0
 date-released: 2026-08-04
 license: Apache-2.0
 authors:

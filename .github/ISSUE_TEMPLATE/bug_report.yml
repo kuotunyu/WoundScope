@@ -25,7 +25,7 @@ body:
     id: version
     attributes:
       label: Version／commit
-      description: 例如 v0.1.0 或 40-character Git SHA
+      description: 例如 v0.2.0 或 40-character Git SHA
     validations:
       required: true
   - type: textarea

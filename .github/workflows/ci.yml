@@ -13,11 +13,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  synthetic-gates:
+  python-311-tests:
+    name: Python 3.11 tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Audit tracked repository privacy
+        run: python scripts/audit_repository_privacy.py --repository .
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           python-version: "3.11"
@@ -26,10 +29,42 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run pytest -q
-      - name: Audit prohibited tracked artifacts
+
+  python-312-build:
+    name: Python 3.12 + package build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --all-extras --frozen
+      - run: uv run pytest -q
+      - run: uv build --out-dir dist
+      - name: Smoke install built wheel
         shell: bash
         run: |
-          if git ls-files | grep -E '(^data/(raw|manifests)/|\.safetensors$|\.onnx$|\.pt$|^\.env$|^reports/(generated|error_gallery|sample_predictions)/)'; then
-            echo "Prohibited data, secret, or model artifact is tracked"
-            exit 1
-          fi
+          wheel="$(find dist -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          test -n "$wheel"
+          uv run --isolated --no-project --with "$wheel" python -c \
+            "import woundscope; print('PACKAGE_INSTALL_SMOKE_PASS', woundscope.__version__)"
+
+  synthetic-gates:
+    name: synthetic-gates
+    if: ${{ always() }}
+    needs:
+      - python-311-tests
+      - python-312-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every supported Python gate
+        env:
+          PYTHON_311_RESULT: ${{ needs['python-311-tests'].result }}
+          PYTHON_312_RESULT: ${{ needs['python-312-build'].result }}
+        shell: bash
+        run: |
+          test "$PYTHON_311_RESULT" = "success"
+          test "$PYTHON_312_RESULT" = "success"

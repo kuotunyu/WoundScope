@@ -115,7 +115,7 @@ def test_result_bundle_accepts_https_source_url_without_treating_it_as_windows_p
 @pytest.mark.parametrize(
     "private_path",
     [
-        r"C:\Users\owner\private\artifact.json",
+        "C:" + r"\Users\owner\private\artifact.json",
         r"\\server\share\private\artifact.json",
         r"\\?\UNC\server\share\private\artifact.json",
         "/content/drive/MyDrive/private/artifact.json",

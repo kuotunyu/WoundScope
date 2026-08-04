@@ -6,7 +6,7 @@
 
 WoundScope 是一套可重現的足部潰瘍區域 segmentation 研究與部署 pipeline。它從官方 FUSeg 像素標註資料開始，涵蓋 integrity validation、U-Net／SegFormer 訓練、calibration、bootstrap evaluation、ONNX export 與 Gradio demo。輸出只描述模型預測的像素區域，不提供疾病診斷、嚴重度或治療建議。
 
-> 專案狀態：M0–M6 已完成，GitHub hosted CI 已通過；Colab full training、三-seed locked official-validation evaluation、ONNX parity／benchmark 與 privacy-safe handoff 均已完成。模型權重仍只保存在 private Drive，未包含於 repository。請以 [PROGRESS.md](PROGRESS.md) 為準。
+> 專案狀態：M0–M7 的實作已完成；`v0.2.0` release candidate 正等待最終 hosted CI、security settings readback 與 GitHub Release。候選版本說明見 [`docs/releases/v0.2.0.md`](docs/releases/v0.2.0.md)，目前最新已發布版本仍為 [`v0.1.0`](https://github.com/kuotunyu/WoundScope/releases/tag/v0.1.0)。正式實驗結果資產固定於 `v0.1.0`；模型權重只保存在 private Drive，未包含於 repository。請以 [PROGRESS.md](PROGRESS.md) 為準。
 
 ## 問題定義與資料
 
@@ -166,9 +166,11 @@ HF Space 採 CPU ONNX。若 repo 不含權重，可設定 `HF_MODEL_ID`、固定
 uv run ruff check .
 uv run ruff format --check .
 uv run pytest -q
+uv run python scripts/audit_repository_privacy.py --repository .
+uv build --out-dir dist
 ```
 
-CI 只使用 synthetic fixtures，不下載 medical images 或 pretrained weights。測試涵蓋資料損壞／配對／重複、loss finite gradients、known-confusion metrics、兩模型 forward、checkpoint resume、calibration、低信心規則、ONNX parity 與 app inference function。
+CI 只使用 synthetic fixtures，不下載 medical images 或 pretrained weights；Python 3.11／3.12 都執行完整 tests，Python 3.12 另執行 package build smoke。共用 privacy audit 直接檢查 Git index blobs，會拒絕 non-regular entries、tracked `.env.*`、data／image-level／tabular artifacts、private artifact directories、model files、raster images、TensorBoard events、高可信度 secrets 與本機 home paths；報告不回顯 private content。測試涵蓋資料損壞／配對／重複、loss finite gradients、known-confusion metrics、兩模型 forward、checkpoint resume、calibration、低信心規則、ONNX parity 與 app inference function。
 
 ## 限制與醫療免責
 

@@ -7,13 +7,13 @@
 
 | 欄位 | 內容 |
 |---|---|
-| Project state | `RELEASED_V0.1.0 / M7_HF_SPACE_CODE_ONLY_READY` |
-| Current milestone | M7 final-review correction gates 全部通過；code-only candidate 已從修復後 committed HEAD 重建，model-backed live deployment 維持 `PERMISSION_PENDING` |
+| Project state | `RELEASED_V0.1.0 / V0.2.0_RELEASE_CANDIDATE / M7_HF_SPACE_CODE_ONLY_READY` |
+| Current milestone | `v0.2.0` non-destructive closeout 的 reviewer findings 已修正且本機 gates 已通過；等待 independent re-review、hosted CI、security settings 與 GitHub Release，model-backed live deployment 維持 `PERMISSION_PENDING` |
 | Last updated | 2026-08-04（Asia/Taipei） |
-| Last verified state | M7 corrected source `90835981c40acdd23a0e4a686fa1a7d6ec189859`：37 manifest files／38 exact tree+ZIP members、155,986-byte ZIP、SHA-256 `ECB81FFC63A417E956FF3BC98DB672774757A3DCF8D8D2D795DE91192EED4E9D`；62 focused／155 full tests、non-mutating import、pre/post-Docker verifier 與 unpinned clean-clone reproduction 全部 PASS |
+| Last verified state | `v0.2.0` candidate：共用 repository privacy audit 的 17 regressions、Git index blob／non-regular entry／secret redaction／tabular artifact contracts、required CI aggregator、Ruff、format（70 files）、174 full tests、wheel／sdist build 與 isolated wheel install smoke 全部 PASS；M7 candidate provenance 維持 source `90835981c40a` |
 | Active blocker | `FUSeg derived-weight permission pending`；這是 model-backed live deployment blocker，不是 code-only candidate blocker |
-| Next action | 使用者審閱尚未寄出的權限請求；未獲明確指示前不執行任何 Hugging Face 或其他外部動作 |
-| External actions | 既有 Public repository 與 `v0.1.0` Release 維持不變；本輪未建立 Space／model repo，未使用 token，未寄出訊息，未 push／upload／deploy |
+| Next action | 完成 independent re-review，使用 `kuotunyu` 單一作者提交並 push，確認 Python 3.11／3.12 hosted CI 後啟用 Dependabot alerts／Python CodeQL 並建立 `v0.2.0` Release |
+| External actions | 既有 Public repository 與 `v0.1.0` Release 維持不變；本輪目前尚未 push／建立 `v0.2.0` Release，也未建立 Space／model repo、使用 token、寄出訊息或上傳 model artifacts |
 
 ## Resume checklist
 
@@ -25,7 +25,7 @@
 4. 只執行 current milestone 範圍內的工作。
 5. 跑該 milestone 的 gate；記錄成功與失敗，不隱藏 failed checks。
 6. 更新本文件的狀態、artifact、測試證據、決策與下一步。
-7. 只有 gate 全數通過後才建立 milestone boundary local commit；不得 push。
+7. 只有 gate 全數通過後才建立 milestone boundary local commit；未經使用者明確授權不得 push。
 
 ## Milestone dashboard
 
@@ -39,7 +39,7 @@
 | M4 — Evaluation/calibration | Completed | Metrics/bootstrap/calibration/confidence/gallery gates 通過 | Locked official validation、dev calibration、2,000 bootstrap、五類 private gallery completed |
 | M5 — Inference/demo | Completed | CPU/CUDA/ONNX/benchmark/app gates 通過 | 六組 CUDA→ONNX parity、CPU benchmark completed；PyTorch/ONNX/app tests PASS |
 | M6 — Release | Completed | CI/Docker/clean-clone/data-secret audit 通過 | v0.1.0 文件／CI／security／113-test clean checkout、兩次 hosted CI、Release asset、branch protection 與 Contributors audit PASS |
-| M7 — HF Space code-only readiness | Completed | Committed candidate、privacy inventory、non-mutating import、pre/post-Docker verifier、tests 與 real-clone reproduction 通過 | Corrected source `90835981c40a`；37 manifest files／38 exact tree+ZIP members／155,986 bytes／SHA-256 `ECB81FFC63A417E956FF3BC98DB672774757A3DCF8D8D2D795DE91192EED4E9D`；62 focused／155 full tests PASS；live deployment `PERMISSION_PENDING` |
+| M7 — HF Space code-only readiness | Completed | Committed candidate、privacy inventory、non-mutating import、pre/post-Docker verifier、tests 與 real-clone reproduction 通過 | Corrected source `90835981c40a`；37 manifest files／38 exact tree+ZIP members／155,986 bytes／SHA-256 `ECB81FFC63A417E956FF3BC98DB672774757A3DCF8D8D2D795DE91192EED4E9D`；current repository suite 174 tests PASS；live deployment `PERMISSION_PENDING` |
 
 允許的狀態值：`Not started`、`In progress`、`Blocked`、`In review`、`Completed`。
 
@@ -229,7 +229,7 @@
 | `artifacts/handoff/WoundScope_colab_source.zip` | Local, gitignored; verified recovery bundle | Source `8345176593e3`、82 files、SHA-256 `773E0274487F54D040F68943A610BF53C97393157A49A5B50BA05A2B76537A8E`；clean-extract suite 107 passed |
 | `artifacts/handoff/WoundScope_colab_source_792d296.zip` | Local, gitignored; final clean-source audit | Source `792d29602a39`、82 files、248,166 bytes、SHA-256 `13B7611172551171D6504D96477B4500E3F9526C4409332D2525077AA0F18B91`；clean-extract suite 107 passed |
 | `artifacts/huggingface-space/` | Local, gitignored; corrected M7 code-only candidate verified | Source `90835981c40a`；37 manifest files／38 exact tree+ZIP members／155,986-byte ZIP／SHA-256 `ECB81FFC63A417E956FF3BC98DB672774757A3DCF8D8D2D795DE91192EED4E9D`；non-mutating import、pre/post-Docker verifier、privacy 與 unpinned clean-clone gates PASS；舊 contaminated outputs 以 `review-invalidated-pyc-*` 保留 |
-| Release files | Created and verified | README/cards/CFF/CI/Docker/.env.example、`SECURITY.md`、issue form、aggregate SVG、v0.1.0 notes 與 artifact handoff |
+| Release files | Created and verified | README/cards/CFF/CI/Docker/.env.example、`SECURITY.md`、issue form、aggregate SVG、v0.1.0 results notes、v0.2.0 software notes 與 artifact handoff |
 | Model/training artifacts | Private Drive + verified safe local summary | 完整 checkpoints/ONNX/gallery 留在 private Drive；gitignored safe result evidence 52 members，不含 weights/images |
 
 ## Blockers and risks
@@ -248,12 +248,45 @@
 
 ## Next actions
 
-1. 使用者審閱尚未寄出的 FUSeg derived-weight 權限請求；未獲明確指示前，不建立 Space／model repo、不使用 token、不寄信或訊息、不 push／upload／deploy。
-2. 維護 GitHub hosted CI、dependency pin 與 security updates；任何變更都需保留 Ruff／format／pytest／privacy audit gates。
+1. 完成 `v0.2.0` independent review、final local gate、owner-authored push、Python 3.11／3.12 hosted CI 與 GitHub Release。
+2. 啟用 Dependabot vulnerability alerts 與 Python CodeQL；不啟用 bot-authored dependency commits。
 3. Contributors policy 維持只有 `kuotunyu`；未來 commits 不得加入 bot、placeholder 或共同作者 trailer。
-4. 保留 private Drive 的 checkpoints／ONNX 作為未公開備份；不得公開 weights、FUSeg 衍生影像或 image-level artifacts。
+4. FUSeg derived-weight 權限請求仍未寄出；未獲明確指示前，不建立 model-backed Space／model repo、不使用 token、不寄信或訊息、不 upload／deploy model artifacts。
+5. 保留 private Drive 的 checkpoints／ONNX 作為未公開備份；不得公開 weights、FUSeg 衍生影像或 image-level artifacts。
 
 ## Session log
+
+### 2026-08-04 — v0.2.0 non-destructive closeout candidate
+
+**目標**
+
+- 不重寫既有 public history 或 `v0.1.0` provenance，完成共用 privacy gate、雙 Python CI、package build／install smoke、版本與文件同步。
+
+**變更**
+
+- 新增 `src/woundscope/repository_privacy.py` 與 thin CLI；本機、pytest、GitHub Actions 與 release verification 共用 tracked-file contract，輸出只列 path／rule／line，不回顯 private content。
+- 補齊 `.env.*`、`.pth`、checkpoint directory、raster image、TensorBoard event、image-level manifest、`artifacts/` 與 local home path regressions；移除 CI 的 narrow shell regex。
+- CI 將 Python 3.11 tests 與 Python 3.12 build 分成兩個 jobs，並保留 branch protection 要求的 `synthetic-gates` 作雙 job aggregator；所有 third-party actions 仍為 40-character SHA pin。
+- package／citation version 更新為 `0.2.0`；README／PROJECT_PLAN／SECURITY／issue form 與 release notes 同步，Colab 正式實驗 fallback 與 `v0.1.0` results Release 保持不變。
+
+**驗證**
+
+- TDD RED：privacy CLI 缺少時 8 failures；共用 current-tree gate 精準抓到 1 個 test fixture local path；`v0.2.0` metadata／notes 3 failures；dual-Python CI 與 wheel install contracts 各 1 failure。Independent review 再抓出 staged-private／safe-worktree 可繞過、secret 缺少 content gate、image-level／generic tabular filenames 漏網與 Python 3.12 job 未納入 required check；新增精準 RED regressions 後逐項 GREEN。
+- Shared privacy audit 直接讀 Git index blob，拒絕 symlink／submodule 等 non-regular entries，只輸出 redacted path／rule／line；17 regressions PASS。實際 staged candidate 共 115 tracked files，violations 0。
+- `uv lock --check`、`uv pip check`、Ruff check、format（70 files）、`pytest -q` → PASS；174 passed，只有 2 個既有 legacy ONNX exporter deprecation warnings。
+- `uv build` → wheel／sdist 均成功建立於 OS temporary directory；isolated wheel import → `PACKAGE_INSTALL_SMOKE_PASS 0.2.0`。最終 bytes 由 hosted build log 留證，避免在會被納入 sdist 的本文件形成自我參照。
+
+**Artifacts**
+
+- `docs/releases/v0.2.0.md`；build outputs 只位於 OS temporary directory，未寫入 repository。
+
+**決策／偏差**
+
+- 依使用者核准採 non-destructive history closeout；不移動／改寫既有 commits、training source、`v0.1.0` tag 或 results asset。無 scientific protocol、metrics、medical scope 或 model-artifact publication 變更。
+
+**未完成與下一步**
+
+- Independent re-review、owner-authored commits／push、hosted CI、Dependabot alerts、Python CodeQL 與 `v0.2.0` GitHub Release 尚待執行。
 
 ### 2026-08-04 — M7 final review correction
 
