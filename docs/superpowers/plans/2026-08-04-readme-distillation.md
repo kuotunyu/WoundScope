@@ -4,7 +4,7 @@
 
 **Goal:** 將 WoundScope README 重構成作品集優先、30 秒可理解、同時保留可重現證據的正體中文首頁。
 
-**Architecture:** `README.md` 保留單一主要閱讀動線：定位 → 亮點 → 結果 → 直式 pipeline → 快速開始 → 工程可信度 → 限制 → 文件。`tests/test_release_metadata.py` 固化精簡程度、標題順序與正體中文直式 Mermaid；既有 result markers、release metadata 與 privacy contracts 繼續作為不可破壞介面。
+**Architecture:** `README.md` 保留單一主要閱讀動線：定位 → 亮點 → 結果 → 直式 pipeline → 快速開始 → 工程可信度 → 限制 → 文件。既有 automated tests 繼續保護 result markers、release metadata 與 privacy contracts；行數、章節、正體中文直式 Mermaid 與 local links 改由本次 deterministic documentation checks 驗證。
 
 **Tech Stack:** GitHub Flavored Markdown、Mermaid、Pytest、Ruff、WoundScope repository privacy audit。
 
@@ -17,69 +17,35 @@
 - 不加入 data、weights、ONNX binaries、private galleries、image-level artifacts 或 secrets。
 - 所有 commit author／committer 只能是 `kuotunyu <61350295+kuotunyu@users.noreply.github.com>`，不得加入 trailers。
 - 不使用 GPU、不重跑 training／evaluation、不 push。
+- 使用者已核准 human-facing prose 不新增逐字／行數 change-detector test；README 設計本身不變。
 
 ## File Structure
 
 - Modify: `README.md` — 對外首頁、主要 action、aggregate results、直式 Mermaid 與安全界線。
-- Modify: `tests/test_release_metadata.py` — README 精簡／語言／結構的 durable contract。
 - Modify: `PROGRESS.md` — 本輪 README 重構與實際 verification evidence。
 
 ---
 
-### Task 1: 鎖定並實作精簡 README
+### Task 1: 實作精簡 README
 
 **Files:**
-- Modify: `tests/test_release_metadata.py`
 - Modify: `README.md`
 
 **Interfaces:**
 - Consumes: `reports/public/model_comparison.svg`、README result marker region、v0.1.0／v0.2.0 release URLs、Public Colab URL、Hugging Face Space permission gate。
-- Produces: 不超過 140 行、七個主要章節、直式正體中文 Mermaid，並保留現有 release tests 所需字串。
+- Produces: 不超過 140 行、七個主要章節、直式正體中文 Mermaid，並保留現有 release tests 所需 contracts。
 
-- [ ] **Step 1: 新增會先失敗的 README design contract**
-
-在 `tests/test_release_metadata.py` 的 README tests 後加入：
-
-```python
-def test_readme_is_concise_zh_tw_first_and_uses_vertical_mermaid() -> None:
-    readme = Path("README.md").read_text(encoding="utf-8")
-
-    assert len(readme.splitlines()) <= 140
-    assert re.findall(r"^## (.+)$", readme, flags=re.MULTILINE) == [
-        "專案亮點",
-        "已驗證成果",
-        "流程全貌",
-        "快速開始",
-        "工程可信度",
-        "限制與安全界線",
-        "文件與 Release",
-    ]
-    assert "flowchart TD" in readme
-    assert "flowchart LR" not in readme
-    for label in (
-        "固定版本的 FUSeg",
-        "資料完整性與重複檢查",
-        "Group-aware 內部 train／dev",
-        "U-Net／SegFormer 訓練",
-        "鎖定後 official validation 與 Bootstrap",
-        "ONNX 匯出與 parity",
-        "Gradio inference",
-    ):
-        assert label in readme
-    assert "## 90 秒 demo 腳本" not in readme
-```
-
-- [ ] **Step 2: 執行 contract，確認舊 README 會失敗**
+- [ ] **Step 1: 記錄既有 README contracts baseline**
 
 Run:
 
 ```powershell
-uv run pytest tests/test_release_metadata.py::test_readme_is_concise_zh_tw_first_and_uses_vertical_mermaid -q
+uv run pytest tests/test_release_metadata.py tests/test_huggingface_space_metadata.py tests/test_notebook_release.py tests/test_readme_results.py -q
 ```
 
-Expected: FAIL，原因至少包含目前 196 行、`flowchart LR` 或舊章節順序。
+Expected: PASS；證明改寫前 Public Colab、release links、PowerShell variables、result markers、aggregate SVG 與 Space permission status 都有保護。
 
-- [ ] **Step 3: 依核准設計重寫 README**
+- [ ] **Step 2: 依核准設計重寫 README**
 
 保留四個現有 badges，Hero 使用下列定位與 result proof：
 
@@ -138,20 +104,25 @@ $env:WOUNDSCOPE_CALIBRATION_PATH = "artifacts\runs\RUN\calibration.json"
 
 刪除舊 `問題定義與資料`、`方法`、`評估、ONNX 與本機推論`、獨立 `Colab`、獨立 `Gradio demo`、`測試與驗收`、`90 秒 demo 腳本` 與重複說明；其核心事實依上面七節收斂。
 
-- [ ] **Step 4: 執行 README focused contracts**
+- [ ] **Step 3: 執行 README focused contracts 與 deterministic design checks**
 
 Run:
 
 ```powershell
 uv run pytest tests/test_release_metadata.py tests/test_huggingface_space_metadata.py tests/test_notebook_release.py tests/test_readme_results.py -q
+$readme = Get-Content -LiteralPath README.md -Raw -Encoding utf8
+if (($readme -split "`n").Count -gt 140) { throw 'README exceeds 140 lines' }
+if ($readme -notmatch 'flowchart TD' -or $readme -match 'flowchart LR') { throw 'README Mermaid is not vertical' }
+if ($readme -match '^## 90 秒 demo 腳本$') { throw 'Legacy demo section remains' }
+Write-Output 'README_DESIGN_CONTRACT_PASS'
 ```
 
-Expected: PASS；result markers 恰好各一組，Public Colab、release links、PowerShell variables、aggregate SVG 與 Space permission status 均保留。
+Expected: tests PASS 且輸出 `README_DESIGN_CONTRACT_PASS`；result markers 恰好各一組，Public Colab、release links、PowerShell variables、aggregate SVG 與 Space permission status 均保留。
 
-- [ ] **Step 5: 建立 owner-only implementation commit**
+- [ ] **Step 4: 建立 owner-only implementation commit**
 
 ```powershell
-git add -- README.md tests/test_release_metadata.py
+git add -- README.md
 git diff --cached --check
 git -c user.name='kuotunyu' -c user.email='61350295+kuotunyu@users.noreply.github.com' commit --author='kuotunyu <61350295+kuotunyu@users.noreply.github.com>' -m 'docs: distill project README'
 ```
