@@ -56,3 +56,9 @@ tmp/
 temp/
 *.tmp
 *.partial
+
+# Local maintainer and agent workflow (kept outside the public repository)
+AGENTS.md
+.agents/
+docs/superpowers/
+docs/permissions/fuseg-model-artifact-permission-request.md

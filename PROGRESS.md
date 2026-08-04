@@ -266,6 +266,18 @@
 
 ## Session log
 
+### 2026-08-05 — public repository hygiene cleanup
+
+**變更**
+
+- 將內部 `AGENTS.md`、`.agents/`、`docs/superpowers/` 與未發送的 FUSeg permission draft 移出 Git 追蹤；檔案保留在本機並由 `.gitignore` 排除。
+- 將 Hugging Face candidate 驗證順序與授權 gate 摘要移入公開部署指引；測試不再依賴內部規劃文件。
+
+**驗證**
+
+- Public tracked-file inventory 降至 104 files；privacy audit `status=ok`、`violations=[]`。
+- Focused cleanup suite `57 passed`；完整測試 `174 passed`，僅既有 2 個 ONNX exporter deprecation warnings；Ruff、format、`git diff --check` → PASS。
+
 ### 2026-08-05 — README formatting cleanup
 
 **變更**

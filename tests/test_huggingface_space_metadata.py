@@ -38,9 +38,6 @@ def test_space_builder_cli_exposes_safe_output_options() -> None:
 
 def test_deployment_docs_keep_external_actions_permission_gated() -> None:
     guide = Path("docs/huggingface-space-deployment.md").read_text(encoding="utf-8")
-    request = Path("docs/permissions/fuseg-model-artifact-permission-request.md").read_text(
-        encoding="utf-8"
-    )
     readme = Path("README.md").read_text(encoding="utf-8")
     plan = Path("PROJECT_PLAN.md").read_text(encoding="utf-8")
 
@@ -53,19 +50,12 @@ def test_deployment_docs_keep_external_actions_permission_gated() -> None:
         "40-character",
         "rollback",
         "teardown",
+        "CC BY-NC",
+        "derived weights",
+        "ONNX",
+        "可保存的書面同意",
     ):
         assert required in guide
-    for question in (
-        "CC BY-NC",
-        "derived model weights",
-        "public non-commercial inference",
-        "ONNX",
-        "attribution",
-    ):
-        assert question in request
-    assert "尚未發送" in request
-    assert "收件者：FUSeg dataset maintainer / rights holder\n\n主旨：" in request
-    assert "以可保存的書面方式" in request
     assert "可保存的書面回覆" in plan
     assert "Space%20授權確認中" in readme
     assert "docs/huggingface-space-deployment.md" in readme

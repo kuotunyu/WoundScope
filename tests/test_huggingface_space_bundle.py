@@ -158,12 +158,9 @@ def test_task_5_import_smoke_preserves_verified_candidate_inventory(tmp_path: Pa
             expected_source_commit=unsafe_manifest["source_commit"],
         )
 
-    plan = Path(
-        "docs/superpowers/plans/2026-08-04-woundscope-hugging-face-space-safe-deployment.md"
-    ).read_text(encoding="utf-8")
-    task_five = plan.split("### Task 5:", maxsplit=1)[1]
+    guide = Path("docs/huggingface-space-deployment.md").read_text(encoding="utf-8")
     smoke_command = next(
-        line for line in task_five.splitlines() if "HF_SPACE_IMPORT_SMOKE_PASS" in line
+        line for line in guide.splitlines() if "HF_SPACE_IMPORT_SMOKE_PASS" in line
     )
     prescribed_no_bytecode = ".venv\\Scripts\\python.exe -B -c" in smoke_command
     safe_candidate = tmp_path / "safe-candidate"
@@ -181,10 +178,10 @@ def test_task_5_import_smoke_preserves_verified_candidate_inventory(tmp_path: Pa
         )
         == safe_manifest
     )
-    smoke_position = task_five.index("HF_SPACE_IMPORT_SMOKE_PASS")
-    docker_position = task_five.index("docker build", smoke_position)
-    verify_after_import = task_five.index("verify_huggingface_space_candidate", smoke_position)
-    verify_after_docker = task_five.index("verify_huggingface_space_candidate", docker_position)
+    smoke_position = guide.index("HF_SPACE_IMPORT_SMOKE_PASS")
+    docker_position = guide.index("docker build", smoke_position)
+    verify_after_import = guide.index("HF_SPACE_POST_IMPORT_VERIFY_PASS", smoke_position)
+    verify_after_docker = guide.index("HF_SPACE_POST_DOCKER_VERIFY_PASS", docker_position)
     assert smoke_position < verify_after_import < docker_position < verify_after_docker
 
 

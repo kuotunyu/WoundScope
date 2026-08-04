@@ -16,6 +16,23 @@
 
 禁止 inventory 包含 `.env`、FUSeg images 或 labels、image-level manifest、gallery、sample prediction、checkpoint、ONNX、`.pt`、`.pth`、`.safetensors`，以及 `.bmp`、`.gif`、`.jpeg`、`.jpg`、`.png`、`.tif`、`.tiff`、`.webp`。建置器也會拒絕 secret-like 值與絕對路徑；不可為了通過檢查而放寬這些規則。
 
+## 候選驗證順序
+
+在 Docker 前後都必須使用同一份 exact verifier；import 使用 `python -B`，避免產生 `.pyc` 汙染候選目錄：
+
+```powershell
+$candidate = (Resolve-Path 'artifacts/huggingface-space/candidate').Path
+$bundle = (Resolve-Path 'artifacts/huggingface-space/WoundScope_hf_space_code_only.zip').Path
+$env:PYTHONPATH = (Resolve-Path (Join-Path $candidate 'src')).Path
+.venv\Scripts\python.exe -B -c "from woundscope.gradio_app import build_demo; d=build_demo(); assert d.analytics_enabled is False; assert d.delete_cache==(600,600); print('HF_SPACE_IMPORT_SMOKE_PASS')"
+.venv\Scripts\python.exe -B -c "import json; from pathlib import Path; from woundscope.bundles import verify_huggingface_space_candidate; d=Path(r'$candidate'); z=Path(r'$bundle'); m=json.loads((d/'bundle_manifest.json').read_text(encoding='utf-8')); verify_huggingface_space_candidate(d,z,expected_source_commit=m['source_commit']); print('HF_SPACE_POST_IMPORT_VERIFY_PASS')"
+docker build -t woundscope:hf-space-code-only $candidate
+.venv\Scripts\python.exe -B -c "import json; from pathlib import Path; from woundscope.bundles import verify_huggingface_space_candidate; d=Path(r'$candidate'); z=Path(r'$bundle'); m=json.loads((d/'bundle_manifest.json').read_text(encoding='utf-8')); verify_huggingface_space_candidate(d,z,expected_source_commit=m['source_commit']); print('HF_SPACE_POST_DOCKER_VERIFY_PASS')"
+Remove-Item Env:PYTHONPATH
+```
+
+Challenge 文件雖出現「CC BY-NC」，但版本與正式 legal code 尚待 FUSeg rights holder 確認；在取得可保存的書面同意前，維持 `PERMISSION_PENDING`，不發布 derived weights、ONNX 或 live inference。
+
 ## 授權完成後才可選擇的可見性
 
 | 選項 | 適用情況 | 本專案目前是否可啟用 live mode |
