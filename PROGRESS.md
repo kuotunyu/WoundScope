@@ -62,6 +62,17 @@
 
 ## Test and verification evidence
 
+### 2026-08-04 — README 精簡與正體中文 Mermaid
+
+- **目標：**在不更動已驗證 research scope、結果 provenance 或安全邊界下，將 repository 首頁 README 精簡為 zh-TW-first 的實作入口；以 Public Colab 為主要 action，並保留 verified locked official-validation aggregate、privacy 與 medical-use 限制。
+- **變更與契約：**Task 1 commit `43b7c1766c9077acfa0e00f968c41fb187c11eae`（`docs: distill project README`）僅更新 `README.md`（52 insertions、155 deletions）。README test contract 要求 local links、7 個章節順序、8-node Mermaid 單一路徑、Public Colab action、scope boundary 與不超過 140 行；Task 1 的 94-line deterministic check PASS。
+- **README local-link gate：**`$text = Get-Content -LiteralPath README.md -Raw -Encoding utf8; $missing = [regex]::Matches($text, '\[[^\]]+\]\((?!https?://|#)([^)]+)\)') | ForEach-Object { $_.Groups[1].Value.Split('#')[0] } | Where-Object { $_ -and -not (Test-Path -LiteralPath $_) } | Sort-Object -Unique; if ($missing) { throw "Missing README targets: $($missing -join ', ')" }; Write-Output 'README_LOCAL_LINKS_PASS'` → PASS (`README_LOCAL_LINKS_PASS`)。
+- **人工 README 檢查：**Hero 首屏明確說明可重現 segmentation pipeline 與 verified U-Net Dice `0.8508 ± 0.0035`；7 個 `##` 章節順序符合 contract；Mermaid 為 `flowchart TD` 的 A→B→C→D→E→F→G→H 八節點單一路徑；Public Colab 是快速開始的主要 action；明確排除 official-test、clinical performance 與 patient-wise claims，並拒絕診斷／嚴重度／預後／治療建議。檢查輸出：`README_HERO_PASS`、`README_SECTION_ORDER_PASS`、`README_MERMAID_VERTICAL_SINGLE_PATH_PASS`、`README_PRIMARY_ACTION_PASS`、`README_SCOPE_BOUNDARIES_PASS`、`README_LINE_LIMIT_PASS`；`README_LINE_COUNT=93`、`README_SECTION_COUNT=7`、`README_MERMAID_EDGE_COUNT=7`。
+- **完整 repository gates（UTF-8-capable Python 3.12）：**`& '..\..\.venv\Scripts\python.exe' -m ruff check .` → PASS (`All checks passed!`)；`& '..\..\.venv\Scripts\python.exe' -m ruff format --check .` → PASS (`70 files already formatted`)；`& '..\..\.venv\Scripts\python.exe' -m pytest -q` → PASS (`174 passed, 2 warnings in 45.97s`)；warnings 僅為既有 legacy TorchScript-based ONNX exporter deprecation warnings；`& '..\..\.venv\Scripts\python.exe' scripts\audit_repository_privacy.py --repository .` → PASS (`status=ok`、`tracked_files=117`、`violations=[]`)；`git diff --check` → PASS。
+- **Post-commit replay FAIL：**以 Python 3.12 執行四個 documentation-sensitive test files → FAIL（`1 failed, 24 passed in 3.22s`）；接著直接執行 privacy audit → FAIL（1 個 `local_home_path` violation）。根因是驗證證據曾記錄 machine-local absolute interpreter path；未回顯該路徑，也未涉及 secret、data 或 model artifact。
+- **修正與 replay PASS：**將證據中的 interpreter 改為 privacy-safe relative path `..\..\.venv\Scripts\python.exe` 後，以 `& '..\..\.venv\Scripts\python.exe' -m pytest tests\test_release_metadata.py tests\test_huggingface_space_metadata.py tests\test_notebook_release.py tests\test_readme_results.py -q` 重跑 → PASS（`25 passed in 3.22s`）；privacy audit → PASS（`status=ok`、0 violations）；`git diff --check` → PASS。此 gate 覆蓋 release／Space metadata、notebook release 與 README results，屬 documentation closeout，不歸屬於 README Task 1。
+- **範圍與外部動作：**本次未使用 GPU、未執行 training／evaluation、未新增或修改 results，且未 push、upload 或部署。Task 2 僅在通過上述 gates 後記錄本節並建立 owner-only documentation closeout commit。
+
 ### 2026-08-04 — M7 final review correction：non-mutating import 與 exact Docker context
 
 - Reviewer 在舊 final candidate 發現 `src/woundscope/__pycache__/` 下 7 個未列入 manifest 的 `.pyc`：manifest 預期含 manifest 共 37 files，實際 directory 為 44 files；`verify_huggingface_space_candidate` 正確拒絕 `Space candidate inventory does not match bundle`。舊 ZIP 本身仍為 37 members、155,485 bytes、SHA-256 `76E0AB57339A00102E3BD30A9BD61E1D946EBC5A0D987D692D0849DBA4DE50D7`。
