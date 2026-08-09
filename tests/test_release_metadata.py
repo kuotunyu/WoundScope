@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -11,6 +12,13 @@ from woundscope.repository_privacy import audit_repository_privacy
 
 REPOSITORY_URL = "https://github.com/kuotunyu/WoundScope"
 RESULT_BUNDLE_SHA256 = "6FF4D1F14F4242C72FA2EF3382BCBFADC15DF93DD4AEB739AE1864F7DE24F221"
+REMOVED_PUBLIC_PATHS = (
+    "PROGRESS.md",
+    "PROJECT_PLAN.md",
+    "notebooks/WoundScope_FUSeg_c7ec606_Postprocess_Resume_Colab.ipynb",
+    "docs/releases/v0.1.0.md",
+    "docs/releases/v0.2.0.md",
+)
 
 
 def test_release_identity_and_repository_urls() -> None:
@@ -48,6 +56,18 @@ def test_python_support_contract_matches_locked_runtime_wheels() -> None:
     assert "Python 支援 3.11–3.12。" in readme
 
 
+def test_public_repository_excludes_internal_and_historical_files() -> None:
+    completed = subprocess.run(
+        ["git", "ls-files", "--", *REMOVED_PUBLIC_PATHS],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+    assert completed.stdout.strip() == ""
+
+
 def test_tracked_repository_passes_shared_privacy_audit() -> None:
     report = audit_repository_privacy(Path.cwd())
 
@@ -66,7 +86,7 @@ def test_readme_exposes_public_colab_and_reproducible_commands() -> None:
     assert "$env:WOUNDSCOPE_MODEL_PATH" in readme
     assert "$env:WOUNDSCOPE_CALIBRATION_PATH" in readme
     assert "set WOUNDSCOPE_MODEL_PATH" not in readme
-    assert "docs/releases/v0.2.0.md" in readme
+    assert "docs/releases/" not in readme
     assert "releases/tag/v0.2.0" in readme
     assert "v0.2.0` release candidate" not in readme
     assert "releases/tag/v0.1.0" in readme
@@ -74,28 +94,16 @@ def test_readme_exposes_public_colab_and_reproducible_commands() -> None:
     assert "docs/huggingface-space-deployment.md" in readme
 
 
-def test_release_notes_bind_the_verified_safe_result_bundle() -> None:
-    notes = Path("docs/releases/v0.1.0.md").read_text(encoding="utf-8")
+def test_public_cards_bind_verified_results_and_scientific_boundaries() -> None:
+    model_card = Path("MODEL_CARD.md").read_text(encoding="utf-8")
+    data_card = Path("DATA_CARD.md").read_text(encoding="utf-8")
 
-    assert "344,656 bytes" in notes
-    assert RESULT_BUNDLE_SHA256 in notes
-    assert "c7ec6060f1bd0a813a890b95b50c2855d3c2640c" in notes
-    assert "不包含" in notes
-    for forbidden_claim in ("official-test metrics", "patient-wise split", "臨床效能"):
-        assert f"不宣稱 {forbidden_claim}" in notes
-
-
-def test_v020_release_notes_preserve_the_permission_and_artifact_boundaries() -> None:
-    notes = Path("docs/releases/v0.2.0.md").read_text(encoding="utf-8")
-
-    assert "M7" in notes
-    assert "PERMISSION_PENDING" in notes
-    assert "v0.1.0" in notes
-    assert "privacy audit" in notes
-    for prohibited_artifact in ("FUSeg images", "model weights", "ONNX binaries"):
-        assert prohibited_artifact in notes
-    for forbidden_claim in ("official-test metrics", "patient-wise split", "臨床效能"):
-        assert f"不宣稱 {forbidden_claim}" in notes
+    assert RESULT_BUNDLE_SHA256.casefold() in model_card.casefold()
+    assert "c7ec6060f1bd0a813a890b95b50c2855d3c2640c" in model_card
+    assert "0.8508±0.0035" in model_card
+    assert "不是 official test、外部或臨床效能" in model_card
+    assert "不可宣稱 patient-wise split" in data_card
+    assert "授權資訊視為不完整" in data_card
 
 
 def test_public_model_comparison_is_aggregate_only_and_matches_results() -> None:

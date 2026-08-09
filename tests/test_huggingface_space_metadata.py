@@ -39,7 +39,6 @@ def test_space_builder_cli_exposes_safe_output_options() -> None:
 def test_deployment_docs_keep_external_actions_permission_gated() -> None:
     guide = Path("docs/huggingface-space-deployment.md").read_text(encoding="utf-8")
     readme = Path("README.md").read_text(encoding="utf-8")
-    plan = Path("PROJECT_PLAN.md").read_text(encoding="utf-8")
 
     for required in (
         "PERMISSION_PENDING",
@@ -56,7 +55,6 @@ def test_deployment_docs_keep_external_actions_permission_gated() -> None:
         "可保存的書面同意",
     ):
         assert required in guide
-    assert "可保存的書面回覆" in plan
     assert "Space%20授權確認中" in readme
     assert "docs/huggingface-space-deployment.md" in readme
 

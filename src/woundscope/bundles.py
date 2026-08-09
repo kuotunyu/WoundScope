@@ -15,8 +15,19 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-SOURCE_ROOTS = (".github/", "app/", "configs/", "notebooks/", "scripts/", "src/", "tests/")
+SOURCE_ROOTS = (
+    ".github/",
+    "app/",
+    "configs/",
+    "deploy/",
+    "notebooks/",
+    "reports/public/",
+    "scripts/",
+    "src/",
+    "tests/",
+)
 SOURCE_FILES = {
+    ".dockerignore",
     ".env.example",
     ".gitignore",
     "CITATION.cff",
@@ -25,10 +36,24 @@ SOURCE_FILES = {
     "LICENSE",
     "MODEL_CARD.md",
     "README.md",
+    "SECURITY.md",
+    "docs/huggingface-space-deployment.md",
     "pyproject.toml",
+    "reports/README.md",
     "uv.lock",
 }
-SOURCE_SUFFIXES = {".cff", ".ipynb", ".lock", ".md", ".py", ".toml", ".txt", ".yaml", ".yml"}
+SOURCE_SUFFIXES = {
+    ".cff",
+    ".ipynb",
+    ".lock",
+    ".md",
+    ".py",
+    ".svg",
+    ".toml",
+    ".txt",
+    ".yaml",
+    ".yml",
+}
 RESULT_SUFFIXES = {".csv", ".json", ".md", ".png", ".yaml", ".yml"}
 PRIVATE_SUFFIXES = {".onnx", ".pt", ".pth", ".safetensors"}
 SPACE_FILE_MAP = {

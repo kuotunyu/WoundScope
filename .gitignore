@@ -60,5 +60,9 @@ temp/
 # Local maintainer and agent workflow (kept outside the public repository)
 AGENTS.md
 .agents/
+PROGRESS.md
+PROJECT_PLAN.md
 docs/superpowers/
+docs/releases/
 docs/permissions/fuseg-model-artifact-permission-request.md
+notebooks/WoundScope_FUSeg_c7ec606_Postprocess_Resume_Colab.ipynb

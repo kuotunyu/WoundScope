@@ -41,10 +41,35 @@ def test_source_bundle_uses_committed_allowlist_and_records_hashes(tmp_path: Pat
     (repository / "data" / "patient.png").write_bytes(b"private")
     (repository / "docs" / "superpowers").mkdir(parents=True)
     (repository / "docs" / "superpowers" / "notes.md").write_text("local note", encoding="utf-8")
+    (repository / "docs" / "huggingface-space-deployment.md").write_text(
+        "public deployment guide\n", encoding="utf-8"
+    )
+    (repository / "deploy" / "huggingface").mkdir(parents=True)
+    (repository / "deploy" / "huggingface" / "README.md").write_text(
+        "public Space metadata\n", encoding="utf-8"
+    )
+    (repository / "reports" / "public").mkdir(parents=True)
+    (repository / "reports" / "README.md").write_text("public report policy\n", encoding="utf-8")
+    (repository / "reports" / "public" / "model_comparison.svg").write_text(
+        "<svg><title>aggregate comparison</title></svg>\n", encoding="utf-8"
+    )
+    (repository / ".dockerignore").write_text("artifacts/\n", encoding="utf-8")
+    (repository / "SECURITY.md").write_text("# Security\n", encoding="utf-8")
     _git(repository, "init", "-b", "main")
     _git(repository, "config", "user.name", "Test")
     _git(repository, "config", "user.email", "test@example.com")
-    _git(repository, "add", "src", "configs", "pyproject.toml")
+    _git(
+        repository,
+        "add",
+        "src",
+        "configs",
+        "pyproject.toml",
+        ".dockerignore",
+        "SECURITY.md",
+        "deploy",
+        "docs",
+        "reports",
+    )
     _git(repository, "commit", "-m", "fixture")
     source_commit = _git(repository, "rev-parse", "HEAD")
     output = tmp_path / "source.zip"
@@ -61,6 +86,12 @@ def test_source_bundle_uses_committed_allowlist_and_records_hashes(tmp_path: Pat
     assert "src/woundscope/__init__.py" in names
     assert "configs/base.yaml" in names
     assert "pyproject.toml" in names
+    assert ".dockerignore" in names
+    assert "SECURITY.md" in names
+    assert "deploy/huggingface/README.md" in names
+    assert "docs/huggingface-space-deployment.md" in names
+    assert "reports/README.md" in names
+    assert "reports/public/model_comparison.svg" in names
     assert ".env" not in names
     assert "data/patient.png" not in names
     assert "docs/superpowers/notes.md" not in names

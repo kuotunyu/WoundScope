@@ -16,11 +16,18 @@ from woundscope.bundles import build_source_bundle, extract_bundle
 def _verify_clean_extract(bundle: Path, source_commit: str) -> None:
     with tempfile.TemporaryDirectory(prefix="woundscope-source-verify-") as temporary:
         root = Path(temporary)
-        extract_bundle(
+        manifest = extract_bundle(
             bundle,
             root,
             expected_kind="source",
             expected_source_commit=source_commit,
+        )
+        subprocess.run(["git", "init", "-b", "main"], cwd=root, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "add", "--", *[str(record["path"]) for record in manifest["files"]]],
+            cwd=root,
+            check=True,
+            capture_output=True,
         )
         environment = os.environ.copy()
         environment["PYTHONPATH"] = (
