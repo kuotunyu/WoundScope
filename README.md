@@ -129,5 +129,6 @@ Hugging Face Space 目前為 `PERMISSION_PENDING`；維持 code-only 候選發�
 ## 文件與 Release
 
 - [v0.2.0 Release](https://github.com/kuotunyu/WoundScope/releases/tag/v0.2.0)：軟體發布、Repository 強化與授權邊界。
+- [v0.1.0 Result Release](https://github.com/kuotunyu/WoundScope/releases/tag/v0.1.0)：正式實驗的 privacy-safe aggregate results 與 provenance。
 - [DATA_CARD.md](DATA_CARD.md) / [MODEL_CARD.md](MODEL_CARD.md)：資料治理、實驗協議、模型指標與使用邊界。
 - [CITATION.cff](CITATION.cff) / [Apache-2.0 LICENSE](LICENSE)：學術引用格式與程式碼授權。
