@@ -60,8 +60,14 @@ temp/
 # Local maintainer and agent workflow (kept outside the public repository)
 AGENTS.md
 .agents/
+.claude/
+CLAUDE.md
+PLAN.md
 PROGRESS.md
 PROJECT_PLAN.md
+interview*.md
+INTERVIEW_PREP.md
+*.private.md
 docs/superpowers/
 docs/releases/
 docs/permissions/fuseg-model-artifact-permission-request.md
