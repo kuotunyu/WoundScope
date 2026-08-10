@@ -29,7 +29,7 @@ def _report(seed: int, confusions: list[dict[str, int]]) -> dict:
             "source_split": "dev",
         },
         "confidence": {
-            "count": 2,
+            "count": len(confusions),
             "low_confidence_count": 0,
             "low_confidence_fraction": 0.0,
         },
@@ -52,9 +52,9 @@ def test_aggregate_recomputes_three_seed_metrics_and_removes_image_level_data() 
         "true_negative": 90,
     }
     reports = [
-        _report(42, [perfect, missed]),
-        _report(43, [perfect, perfect]),
-        _report(44, [missed, missed]),
+        _report(42, [perfect] * 100 + [missed] * 100),
+        _report(43, [perfect] * 200),
+        _report(44, [missed] * 200),
     ]
 
     aggregate = results.aggregate_official_validation(reports, bootstrap_samples=50)
@@ -82,7 +82,7 @@ def test_aggregate_rejects_mixed_source_commits() -> None:
             "false_negative": 0,
             "true_negative": 1,
         }
-    ]
+    ] * 200
     reports = [_report(seed, confusion) for seed in (42, 43, 44)]
     reports[2]["source_commit"] = "d" * 40
 
@@ -99,11 +99,26 @@ def test_aggregate_rejects_non_dev_calibration() -> None:
             "false_negative": 0,
             "true_negative": 1,
         }
-    ]
+    ] * 200
     reports = [_report(seed, confusion) for seed in (42, 43, 44)]
     reports[1]["calibration"]["source_split"] = "official_validation"
 
     with pytest.raises(ValueError, match="dev calibration"):
+        results.aggregate_official_validation(reports, bootstrap_samples=10)
+
+
+def test_aggregate_rejects_incomplete_official_validation() -> None:
+    results = _module()
+    confusion = {
+        "true_positive": 1,
+        "false_positive": 0,
+        "false_negative": 0,
+        "true_negative": 1,
+    }
+    reports = [_report(seed, [confusion] * 200) for seed in (42, 43, 44)]
+    reports[2]["confusions"] = [confusion] * 199
+
+    with pytest.raises(ValueError, match="exactly 200 images"):
         results.aggregate_official_validation(reports, bootstrap_samples=10)
 
 

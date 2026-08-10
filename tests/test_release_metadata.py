@@ -106,6 +106,35 @@ def test_public_cards_bind_verified_results_and_scientific_boundaries() -> None:
     assert "授權資訊視為不完整" in data_card
 
 
+def test_public_positioning_uses_precise_scientific_claims() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+    public_copy = "\n".join(
+        [
+            readme,
+            Path("DATA_CARD.md").read_text(encoding="utf-8"),
+            Path("MODEL_CARD.md").read_text(encoding="utf-8"),
+        ]
+    )
+
+    for required in (
+        "CV research flagship",
+        "binary semantic segmentation",
+        "duplicate-group-aware",
+        "SHA-256 exact duplicate",
+        "pHash near-duplicate",
+        "image-level Bootstrap",
+    ):
+        assert required in public_copy
+
+    for overclaim in (
+        "糖尿病足部潰瘍實例語意分割",
+        "pHash 去除",
+        "進行盲測",
+        "生產級邊緣部署",
+    ):
+        assert overclaim not in public_copy
+
+
 def test_public_model_comparison_is_aggregate_only_and_matches_results() -> None:
     svg = Path("reports/public/model_comparison.svg").read_text(encoding="utf-8")
 

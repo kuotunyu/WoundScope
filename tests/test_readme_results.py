@@ -13,11 +13,15 @@ def _payload() -> dict:
         "run_mode": "full",
         "verified": True,
         "split": "official_validation",
+        "source_commit": "a" * 40,
         "experiments": [
             {
                 "model": "unet",
                 "loss": "bce_dice",
                 "seeds": [42, 43, 44],
+                "source_commit": "a" * 40,
+                "manifest_sha256": "b" * 64,
+                "sample_order_sha256": "c" * 64,
                 "dice": metric,
                 "iou": metric,
                 "precision": metric,
@@ -29,6 +33,9 @@ def _payload() -> dict:
                 "per_seed": [
                     {
                         "seed": seed,
+                        "image_count": 200,
+                        "config_sha256": f"{seed % 10}" * 64,
+                        "checkpoint_sha256": f"{(seed + 1) % 10}" * 64,
                         "image_summary": {
                             name: {"mean": value}
                             for name in ("dice", "iou", "precision", "recall", "specificity")
@@ -69,4 +76,30 @@ def test_tampered_bootstrap_ci_is_rejected_against_safe_distribution() -> None:
     payload["experiments"][0]["bootstrap_95_ci"]["dice"] = [0.7, 0.9]
 
     with pytest.raises(ValueError, match="bootstrap CI does not match"):
+        render_results_table(payload)
+
+
+def test_incomplete_official_validation_evidence_is_rejected() -> None:
+    payload = _payload()
+    payload["experiments"][0]["per_seed"][1]["image_count"] = 199
+
+    with pytest.raises(ValueError, match="exactly 200 images"):
+        render_results_table(payload)
+
+
+def test_invalid_or_mismatched_provenance_is_rejected() -> None:
+    payload = _payload()
+    payload["experiments"][0]["per_seed"][0]["config_sha256"] = "not-a-hash"
+
+    with pytest.raises(ValueError, match="config_sha256"):
+        render_results_table(payload)
+
+
+def test_cross_experiment_manifest_mismatch_is_rejected() -> None:
+    payload = _payload()
+    second_experiment = dict(payload["experiments"][0])
+    second_experiment["manifest_sha256"] = "d" * 64
+    payload["experiments"].append(second_experiment)
+
+    with pytest.raises(ValueError, match="incompatible manifest_sha256"):
         render_results_table(payload)

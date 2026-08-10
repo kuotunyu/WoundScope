@@ -11,6 +11,7 @@ import numpy as np
 from woundscope.metrics import Confusion, metrics_from_confusion
 
 METRICS = ("dice", "iou", "precision", "recall", "specificity")
+OFFICIAL_VALIDATION_IMAGE_COUNT = 200
 
 
 def _as_confusion(payload: dict[str, Any]) -> Confusion:
@@ -129,7 +130,7 @@ def aggregate_official_validation(
     )
     seed_confusions: list[list[Confusion]] = []
     per_seed: list[dict[str, Any]] = []
-    expected_image_count: int | None = None
+    expected_image_count = OFFICIAL_VALIDATION_IMAGE_COUNT
     for report in reports:
         config_sha256 = _require_hash(report["config_sha256"], 64, "config_sha256")
         checkpoint_sha256 = _require_hash(report["checkpoint_sha256"], 64, "checkpoint_sha256")
@@ -138,10 +139,8 @@ def aggregate_official_validation(
         confusions = [_as_confusion(payload) for payload in report.get("confusions", [])]
         if not confusions:
             raise ValueError("Per-seed report has no image-level confusion evidence")
-        if expected_image_count is None:
-            expected_image_count = len(confusions)
-        elif len(confusions) != expected_image_count:
-            raise ValueError("Per-seed reports have different image counts")
+        if len(confusions) != OFFICIAL_VALIDATION_IMAGE_COUNT:
+            raise ValueError("Each official-validation seed report must contain exactly 200 images")
         image_summary = _summarize_image_confusions(confusions)
         global_metrics = metrics_from_confusion(_sum_confusions(confusions))
         seed_confusions.append(confusions)

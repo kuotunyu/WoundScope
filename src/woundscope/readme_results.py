@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 import math
+import re
 import statistics
 from typing import Any
 
 import numpy as np
 
 METRICS = ("dice", "iou", "precision", "recall", "specificity")
+
+
+def _require_hash(value: object, length: int, label: str) -> str:
+    normalized = str(value)
+    if re.fullmatch(rf"[0-9a-f]{{{length}}}", normalized) is None:
+        raise ValueError(f"Invalid {label}")
+    return normalized
 
 
 def validate_verified_results(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -18,10 +26,17 @@ def validate_verified_results(payload: dict[str, Any]) -> list[dict[str, Any]]:
         raise ValueError("Only verified full-run results may update README")
     if payload.get("split") != "official_validation":
         raise ValueError("README results must use official_validation")
+    source_commit = _require_hash(payload.get("source_commit"), 40, "source_commit")
     experiments = payload.get("experiments")
     if not isinstance(experiments, list) or not experiments:
         raise ValueError("Results must contain at least one experiment")
+    for field in ("manifest_sha256", "sample_order_sha256"):
+        values = {_require_hash(experiment.get(field), 64, field) for experiment in experiments}
+        if len(values) != 1:
+            raise ValueError(f"Experiments have incompatible {field}")
     for experiment in experiments:
+        if _require_hash(experiment.get("source_commit"), 40, "source_commit") != source_commit:
+            raise ValueError("Experiment source_commit does not match results source_commit")
         if sorted(experiment.get("seeds", [])) != [42, 43, 44]:
             raise ValueError("Every final experiment must aggregate seeds 42/43/44")
         per_seed = experiment.get("per_seed")
@@ -29,6 +44,11 @@ def validate_verified_results(payload: dict[str, Any]) -> list[dict[str, Any]]:
             int(seed_report.get("seed", -1)) for seed_report in per_seed
         ) != [42, 43, 44]:
             raise ValueError("Every final experiment must include per-seed aggregate evidence")
+        if any(int(seed_report.get("image_count", -1)) != 200 for seed_report in per_seed):
+            raise ValueError("Every official-validation seed must contain exactly 200 images")
+        for seed_report in per_seed:
+            _require_hash(seed_report.get("config_sha256"), 64, "config_sha256")
+            _require_hash(seed_report.get("checkpoint_sha256"), 64, "checkpoint_sha256")
         for metric in METRICS:
             values = experiment.get(metric)
             if not isinstance(values, dict) or not {"mean", "std"} <= values.keys():
