@@ -8,6 +8,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 ALLOWED_DATA_FILES = {"data/.gitkeep", "data/readme.md"}
+ALLOWED_RASTER_FILES = {"reports/public/woundscope-ui-showcase.webp"}
 PRIVATE_DIRECTORY_COMPONENTS = {
     "artifact",
     "artifacts",
@@ -167,7 +168,7 @@ def _path_rule(path: str) -> str | None:
         return "environment_file"
     if normalized_parts[0] == "data" and normalized_path not in ALLOWED_DATA_FILES:
         return "private_data"
-    if suffix in RASTER_IMAGE_SUFFIXES:
+    if suffix in RASTER_IMAGE_SUFFIXES and path not in ALLOWED_RASTER_FILES:
         return "raster_image"
     if any(part in PRIVATE_DIRECTORY_COMPONENTS for part in normalized_parts[:-1]):
         return "private_artifact_directory"
@@ -202,6 +203,8 @@ def audit_repository_privacy(repository: str | Path) -> dict[str, Any]:
         rule = _path_rule(path)
         if rule is not None:
             violations.append({"path": path, "rule": rule})
+            continue
+        if path in ALLOWED_RASTER_FILES:
             continue
 
         content = _read_index_blob(repository, object_id)

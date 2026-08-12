@@ -169,7 +169,12 @@ def test_ci_and_public_bug_intake_are_least_privilege() -> None:
     assert workflow["concurrency"]["cancel-in-progress"] is True
     assert "workflow_dispatch:" in workflow_text
     jobs = workflow["jobs"]
-    assert set(jobs) == {"python-311-tests", "python-312-build", "synthetic-gates"}
+    assert set(jobs) == {
+        "python-311-tests",
+        "python-312-build",
+        "frontend-tests",
+        "synthetic-gates",
+    }
     setup_versions: dict[str, str] = {}
     commands: dict[str, str] = {}
     for job_name, job in jobs.items():
@@ -188,6 +193,21 @@ def test_ci_and_public_bug_intake_are_least_privilege() -> None:
         if setup is not None:
             setup_versions[job_name] = setup["with"]["python-version"]
     assert setup_versions == {"python-311-tests": "3.11", "python-312-build": "3.12"}
+    frontend_job = jobs["frontend-tests"]
+    setup_node = frontend_job["steps"][1]
+    assert str(setup_node["uses"]).startswith(
+        "actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e"
+    )
+    assert setup_node["with"]["node-version"] == "24"
+    assert setup_node["with"]["package-manager-cache"] is False
+    for command in (
+        "pnpm install --frozen-lockfile",
+        "pnpm test:run",
+        "pnpm typecheck",
+        "pnpm lint",
+        "pnpm build",
+    ):
+        assert command in commands["frontend-tests"]
     assert "scripts/audit_repository_privacy.py" in commands["python-311-tests"]
     assert "grep -E" not in commands["python-311-tests"]
     assert "uv run pytest -q" in commands["python-312-build"]
@@ -197,11 +217,17 @@ def test_ci_and_public_bug_intake_are_least_privilege() -> None:
     required_gate = jobs["synthetic-gates"]
     assert required_gate["name"] == "synthetic-gates"
     assert required_gate["if"] == "${{ always() }}"
-    assert set(required_gate["needs"]) == {"python-311-tests", "python-312-build"}
+    assert set(required_gate["needs"]) == {
+        "python-311-tests",
+        "python-312-build",
+        "frontend-tests",
+    }
     assert "PYTHON_311_RESULT" in commands["synthetic-gates"]
     assert "PYTHON_312_RESULT" in commands["synthetic-gates"]
+    assert "FRONTEND_RESULT" in commands["synthetic-gates"]
     assert 'test "$PYTHON_311_RESULT" = "success"' in commands["synthetic-gates"]
     assert 'test "$PYTHON_312_RESULT" = "success"' in commands["synthetic-gates"]
+    assert 'test "$FRONTEND_RESULT" = "success"' in commands["synthetic-gates"]
     issue_copy = yaml.safe_dump(issue_form, allow_unicode=True)
     for forbidden_upload in ("醫療影像", "模型權重", "secret"):
         assert forbidden_upload in issue_copy
