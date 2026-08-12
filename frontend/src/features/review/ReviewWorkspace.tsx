@@ -17,11 +17,10 @@ export function ReviewWorkspace({ status }: ReviewWorkspaceProps) {
     <section
       className="review-workspace"
       aria-labelledby="review-workspace-title"
-      aria-live="polite"
     >
       <header className="workspace-intro">
         <div>
-          <p className="kicker">Local Review · Private Runtime</p>
+          <p className="kicker">本機複核 · Private Runtime</p>
           <h1 id="review-workspace-title">傷口分割複核工作台</h1>
           <p>
             並排檢視原圖、Overlay 與 binary mask；每次推論均由你明確啟動，結果不作臨床診斷。
@@ -100,7 +99,7 @@ export function ReviewWorkspace({ status }: ReviewWorkspaceProps) {
             height="900"
           />
           <div>
-            <span className="eyebrow">{session.phase === "loading" ? "Inference" : "Ready"}</span>
+            <span className="eyebrow">{session.phase === "loading" ? "推論中" : "等待送出"}</span>
             <h2>{session.phase === "loading" ? "正在建立可複核的預測圖層" : "等待你明確啟動推論"}</h2>
             <p>
               {session.phase === "loading"
@@ -111,9 +110,9 @@ export function ReviewWorkspace({ status }: ReviewWorkspaceProps) {
         </div>
       ) : (
         <div className="empty-review-state">
-          <span aria-hidden="true">01</span>
+          <FileImage aria-hidden="true" />
           <div>
-            <h2>先建立一個暫時性的本機 review session</h2>
+            <h2>建立暫時性的本機 review session</h2>
             <p>不保存檔名、不建立 gallery，也不把影像寫入 repository。</p>
           </div>
         </div>

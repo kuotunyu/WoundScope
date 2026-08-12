@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import axe from "axe-core";
 
 import { App } from "./App";
@@ -50,6 +50,26 @@ it("has no automated accessibility violations in showcase mode", async () => {
   const results = await axe.run(container);
 
   expect(results.violations).toHaveLength(0);
+});
+
+it("keeps interface framing zh-TW first with semantic evidence and provenance", async () => {
+  mockStatus();
+  const { container } = render(<App />);
+  await screen.findByText("研究展示模式");
+
+  expect(screen.getByText("Code-only 展示")).toBeVisible();
+  expect(screen.getByText("Medical Computer Vision · 研究原型")).toBeVisible();
+  expect(screen.getByText("目前工作區")).toBeVisible();
+  expect(screen.getByRole("heading", { level: 2, name: "已驗證證據" })).toBeVisible();
+  expect(screen.getByText("證據，不是裝飾")).toBeVisible();
+  expect(screen.queryByText("Verified evidence")).not.toBeInTheDocument();
+  expect(screen.queryByText("Current workspace")).not.toBeInTheDocument();
+
+  const provenance = screen.getByRole("region", {
+    name: "每個結果，都必須知道從哪裡來。",
+  });
+  expect(within(provenance).getAllByRole("term")).toHaveLength(4);
+  expect(container.querySelectorAll(".provenance-grid article")).toHaveLength(0);
 });
 
 it("offers a labeled theme control without a network font dependency", async () => {

@@ -10,33 +10,33 @@ export function ProvenancePanel({ status }: ProvenancePanelProps) {
   return (
     <section className="provenance" id="provenance" aria-labelledby="provenance-title">
       <div>
-        <span className="eyebrow">Evidence, not decoration</span>
+        <span className="eyebrow">證據，不是裝飾</span>
         <h2 id="provenance-title">每個結果，都必須知道從哪裡來。</h2>
       </div>
-      <div className="provenance-grid">
-        <article>
+      <dl className="provenance-grid">
+        <div>
           <GitCommitHorizontal aria-hidden="true" />
-          <span>Release</span>
-          <strong>v0.2.1 · code-only</strong>
-        </article>
-        <article>
+          <dt>Release</dt>
+          <dd>v0.2.1 · code-only</dd>
+        </div>
+        <div>
           <Fingerprint aria-hidden="true" />
-          <span>Model artifact</span>
-          <strong>{status?.model_sha256_prefix ?? "Private / unavailable"}</strong>
-        </article>
-        <article>
+          <dt>Model artifact</dt>
+          <dd>{status?.model_sha256_prefix ?? "未公開／不可用"}</dd>
+        </div>
+        <div>
           <Scale aria-hidden="true" />
-          <span>Calibration</span>
-          <strong>{status?.calibration_available ? "Dev-only metadata ready" : "Not exposed"}</strong>
-        </article>
-        <article>
+          <dt>Calibration</dt>
+          <dd>{status?.calibration_available ? "Dev-only metadata 已就緒" : "未公開"}</dd>
+        </div>
+        <div>
           <ShieldAlert aria-hidden="true" />
-          <span>Permission</span>
-          <strong>Derived weights pending</strong>
-        </article>
-      </div>
+          <dt>權限狀態</dt>
+          <dd>衍生權重待書面確認</dd>
+        </div>
+      </dl>
       <details>
-        <summary>展開研究與 artifact 邊界</summary>
+        <summary>查看研究與 artifact 邊界</summary>
         <div className="provenance-detail">
           <p>
             公開 repository 僅提供 code、aggregate evidence 與 synthetic fixtures。FUSeg

@@ -11,7 +11,7 @@ export function ResearchShowcase({ status, statusError }: ResearchShowcaseProps)
   return (
     <section className="showcase" aria-labelledby="showcase-title">
       <div className="showcase-copy">
-        <p className="kicker">Medical Computer Vision · Research Prototype</p>
+        <p className="kicker">Medical Computer Vision · 研究原型</p>
         <h1 id="showcase-title">
           從像素預測，
           <span>走到可追溯的人工複核。</span>
@@ -27,7 +27,7 @@ export function ResearchShowcase({ status, statusError }: ResearchShowcaseProps)
           </div>
           <div>
             <span className="eyebrow">
-              {statusError ? "Service status" : "Current workspace"}
+              {statusError ? "服務狀態" : "目前工作區"}
             </span>
             <h2>{statusError ? "無法取得本機模型狀態" : "研究展示模式"}</h2>
             <p>
@@ -55,7 +55,7 @@ export function ResearchShowcase({ status, statusError }: ResearchShowcaseProps)
 
       <div className="research-plate" aria-label="研究流程介面示意，非醫療影像或模型預測">
         <div className="plate-meta">
-          <span>REVIEW PLANE / 01</span>
+          <span>Segmentation 複核平面</span>
           <span>512 × 512</span>
         </div>
         <svg
@@ -90,14 +90,14 @@ export function ResearchShowcase({ status, statusError }: ResearchShowcaseProps)
         <div className="plate-legend">
           <span>
             <Layers3 size={18} aria-hidden="true" />
-            Overlay boundary
+            Overlay 邊界
           </span>
           <span>
             <Binary size={18} aria-hidden="true" />
             Binary semantic segmentation
           </span>
         </div>
-        <p className="plate-note">介面示意圖｜不含醫療影像、mask 或臆造 prediction</p>
+        <p className="plate-note">介面示意圖｜不含醫療影像、mask 或虛構 prediction</p>
       </div>
     </section>
   );

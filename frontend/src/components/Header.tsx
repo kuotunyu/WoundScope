@@ -27,7 +27,7 @@ export function Header({ status, theme, onToggleTheme }: HeaderProps) {
       <div className="header-actions">
         <span className={`status-chip ${ready ? "is-ready" : "is-showcase"}`}>
           <ShieldCheck size={18} aria-hidden="true" />
-          {ready ? "Local model ready" : "Code-only showcase"}
+          {ready ? "本機模型就緒" : "Code-only 展示"}
         </span>
         <nav aria-label="專案導覽">
           <a
@@ -35,14 +35,14 @@ export function Header({ status, theme, onToggleTheme }: HeaderProps) {
             aria-label="查看 WoundScope Model Card"
           >
             <BookOpen size={18} aria-hidden="true" />
-            <span>Model Card</span>
+            <span translate="no">Model Card</span>
           </a>
           <a
             href="https://github.com/kuotunyu/WoundScope"
             aria-label="在 GitHub 查看 WoundScope"
           >
             <Github size={18} aria-hidden="true" />
-            <span>GitHub</span>
+            <span translate="no">GitHub</span>
           </a>
         </nav>
         <button

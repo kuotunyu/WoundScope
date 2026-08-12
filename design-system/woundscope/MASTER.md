@@ -83,6 +83,8 @@
 
 - Lucide outline icons only, consistent stroke width and tokenized sizes.
 - Border first; use one restrained shadow layer for elevated surfaces.
+- Page canvas stays paper-like with a restrained cool haze; grid lines belong only
+  inside segmentation／measurement surfaces, never across the whole page.
 - Hover/focus/pressed transitions: 150–220ms, no layout-shifting transforms.
 - One initial 180–260ms stagger; no continuous decorative motion.
 - `prefers-reduced-motion: reduce` removes nonessential animation.

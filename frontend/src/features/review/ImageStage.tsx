@@ -46,7 +46,12 @@ export function ImageStage({ previewUrl, result }: ImageStageProps) {
   } as CSSProperties;
 
   return (
-    <section className="image-stage" ref={stageRef} data-testid="image-stage">
+    <section
+      className="image-stage"
+      ref={stageRef}
+      data-testid="image-stage"
+      aria-label="影像複核畫布"
+    >
       <header className="stage-toolbar">
         <div className="view-switcher" role="group" aria-label="影像圖層">
           {VIEW_LABELS.map(({ mode, label }) => (
@@ -134,7 +139,7 @@ export function ImageStage({ previewUrl, result }: ImageStageProps) {
         </label>
       </div>
       <p className="stage-legend">
-        <span aria-hidden="true" /> Coral fill + dashed boundary 代表模型預測區域；所有判讀仍以文字狀態為準。
+        <span aria-hidden="true" /> 珊瑚色填滿與虛線邊界代表模型預測區域；所有判讀仍以文字狀態為準。
       </p>
     </section>
   );

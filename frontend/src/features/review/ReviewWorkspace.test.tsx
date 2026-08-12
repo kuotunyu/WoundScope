@@ -80,8 +80,26 @@ it("uploads only after explicit action and renders nonclinical results", async (
   await user.click(screen.getByRole("button", { name: "開始分割複核" }));
 
   expect(await screen.findByText("模型分割信心，非臨床信心")).toBeVisible();
-  expect(screen.getByText("需要人工複核")).toBeVisible();
+  expect(screen.getByRole("heading", { level: 2, name: "需要人工複核" })).toBeVisible();
   expect(screen.getByText("23.8%")).toBeVisible();
+});
+
+it("limits live announcements and keeps local-review framing zh-TW first", () => {
+  const { container } = render(<ReviewWorkspace status={readyStatus} />);
+
+  expect(screen.getByText("本機複核 · Private Runtime")).toBeVisible();
+  expect(screen.getByRole("region", { name: "傷口分割複核工作台" })).not.toHaveAttribute(
+    "aria-live",
+  );
+  expect(screen.getByText("影像僅保留於目前本機工作階段。")).toHaveAttribute(
+    "aria-live",
+    "polite",
+  );
+  expect(screen.queryByText("01")).not.toBeInTheDocument();
+  expect(container.querySelector(".empty-review-state > svg")).toHaveAttribute(
+    "aria-hidden",
+    "true",
+  );
 });
 
 it("rejects unsupported files next to the input", async () => {

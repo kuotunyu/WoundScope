@@ -1,7 +1,7 @@
 # WoundScope 傷口分割複核工作台設計規格
 
 > 日期：2026-08-13
-> 狀態：Approved direction／implementation pending
+> 狀態：Implemented and verified on `codex/ui-review-workbench`
 > 範圍：code-only UI patch；不修改 scientific protocol、正式 metrics、model family、calibration 規則或公開 artifact policy
 
 ## 1. 目標
@@ -115,7 +115,7 @@ Desktop 使用 12-column grid：control pane 4 columns、visual stage 8 columns�
 - 8px spacing grid；主要 section gap 24–32px、card padding 20–24px。
 - Radius 14–18px，避免每一層都包成卡片。
 - 使用 1px 淡色 border、局部 inset highlight 與單層柔和 shadow。
-- 背景加入極淡的 medical-grid／contour pattern，opacity 不高於 4%。
+- 頁面 canvas 使用暖紙色與極淡霧藍環境光；grid 只出現在 segmentation review plane／image canvas 等真正的 measurement surface，不鋪滿全頁。
 - Icon 使用 Lucide SVG；不使用 emoji、圖片式 icon 或無 label 的 icon-only controls。
 
 ### 5.4 Motion
