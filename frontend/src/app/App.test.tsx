@@ -35,6 +35,11 @@ it("renders verified evidence in permission-aware showcase mode", async () => {
   expect(screen.getByText(/Official Validation · 200 張/)).toBeVisible();
   expect(screen.queryByRole("button", { name: "開始分割複核" })).not.toBeInTheDocument();
   expect(screen.getByText(/非臨床診斷/)).toBeVisible();
+  expect(screen.getByRole("link", { name: "跳到主要內容" })).toHaveAttribute(
+    "href",
+    "#main-content",
+  );
+  expect(screen.getByRole("link", { name: "在 GitHub 查看 WoundScope" })).toBeVisible();
 });
 
 it("has no automated accessibility violations in showcase mode", async () => {

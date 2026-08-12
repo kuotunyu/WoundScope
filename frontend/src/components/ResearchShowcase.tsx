@@ -39,7 +39,10 @@ export function ResearchShowcase({ status, statusError }: ResearchShowcaseProps)
         </div>
 
         <div className="showcase-links">
-          <a className="text-link" href="/DATA_CARD.md">
+          <a
+            className="text-link"
+            href="https://github.com/kuotunyu/WoundScope/blob/main/DATA_CARD.md"
+          >
             查看資料治理
             <ArrowRight size={17} aria-hidden="true" />
           </a>

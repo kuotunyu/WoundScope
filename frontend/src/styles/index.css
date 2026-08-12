@@ -34,6 +34,7 @@ button,
 a,
 summary {
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 a {
@@ -53,6 +54,25 @@ input:focus-visible {
   min-height: 100vh;
   margin: 0 auto;
   padding: 0 clamp(18px, 3vw, 52px) 32px;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 20;
+  top: 12px;
+  left: 12px;
+  min-height: 44px;
+  padding: 9px 15px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--surface);
+  font-weight: 700;
+  text-decoration: none;
+  transform: translateY(-160%);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
 }
 
 .site-header {
@@ -222,6 +242,7 @@ main {
   font-weight: 500;
   line-height: 1.13;
   letter-spacing: -0.035em;
+  text-wrap: balance;
 }
 
 .showcase h1 span {
@@ -464,6 +485,7 @@ main {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--surface) 95%, transparent);
+  scroll-margin-top: 24px;
 }
 
 .provenance h2 {
@@ -517,6 +539,10 @@ main {
   color: var(--primary);
   font-weight: 700;
   cursor: pointer;
+}
+
+.provenance summary:hover {
+  color: var(--accent);
 }
 
 .provenance-detail {
@@ -580,6 +606,7 @@ main {
   font-weight: 500;
   line-height: 1.12;
   letter-spacing: -0.035em;
+  text-wrap: balance;
 }
 
 .workspace-intro p:not(.kicker) {
@@ -1080,6 +1107,7 @@ main {
   font-family: var(--font-serif);
   font-size: 23px;
   line-height: 1.18;
+  font-variant-numeric: tabular-nums;
 }
 
 .review-reasons {
@@ -1218,6 +1246,12 @@ main {
 
   .app-shell {
     padding-inline: 16px;
+  }
+
+  .attribution {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: normal;
   }
 
   .site-header {

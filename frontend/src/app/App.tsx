@@ -23,6 +23,9 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem("woundscope-theme", theme);
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", theme === "light" ? "#f4f1ea" : "#172024");
   }, [theme]);
 
   useEffect(() => {
@@ -49,6 +52,9 @@ export function App() {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">
+        跳到主要內容
+      </a>
       <Header status={status} theme={theme} onToggleTheme={toggleTheme} />
       <main id="main-content" tabIndex={-1}>
         {status?.mode === "local_review" && status.model_available ? (

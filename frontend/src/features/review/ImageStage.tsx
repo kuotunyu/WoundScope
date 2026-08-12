@@ -67,12 +67,22 @@ export function ImageStage({ previewUrl, result }: ImageStageProps) {
       </header>
 
       <div className={`image-canvas view-${view}`} style={stageStyle}>
-        <img className="original-layer" src={previewUrl} alt="本機待複核原始影像" />
+        <img
+          className="original-layer"
+          src={previewUrl}
+          alt="本機待複核原始影像"
+          width="1200"
+          height="900"
+          draggable="false"
+        />
         {(view === "compare" || view === "overlay") && (
           <img
             className="overlay-layer"
             src={result.overlay_data_url}
             alt="模型預測 Overlay"
+            width="1200"
+            height="900"
+            draggable="false"
           />
         )}
         {view === "mask" && (
@@ -81,6 +91,9 @@ export function ImageStage({ previewUrl, result }: ImageStageProps) {
             data-testid="mask-layer"
             src={result.mask_data_url}
             alt="模型預測 binary mask"
+            width="1200"
+            height="900"
+            draggable="false"
           />
         )}
         {view === "compare" && (

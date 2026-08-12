@@ -14,7 +14,11 @@ export function ReviewWorkspace({ status }: ReviewWorkspaceProps) {
   const canSubmit = Boolean(session.file) && session.phase !== "loading";
 
   return (
-    <section className="review-workspace" aria-labelledby="review-workspace-title">
+    <section
+      className="review-workspace"
+      aria-labelledby="review-workspace-title"
+      aria-live="polite"
+    >
       <header className="workspace-intro">
         <div>
           <p className="kicker">Local Review · Private Runtime</p>
@@ -36,7 +40,9 @@ export function ReviewWorkspace({ status }: ReviewWorkspaceProps) {
         <label className={`upload-field ${session.file ? "has-file" : ""}`}>
           <input
             type="file"
+            name="review-image"
             accept="image/png,image/jpeg,image/webp"
+            autoComplete="off"
             aria-label="選擇傷口影像"
             aria-describedby="upload-help upload-error"
             onChange={(event) => session.selectFile(event.target.files?.[0] ?? null)}
@@ -70,7 +76,12 @@ export function ReviewWorkspace({ status }: ReviewWorkspaceProps) {
             </button>
           )}
         </div>
-        <p className="field-message" id="upload-error" role="alert">
+        <p
+          className="field-message"
+          id="upload-error"
+          role={session.fieldError || session.requestError ? "alert" : undefined}
+          aria-live="polite"
+        >
           {session.fieldError ?? session.requestError ?? "影像僅保留於目前本機工作階段。"}
         </p>
       </div>
@@ -82,7 +93,12 @@ export function ReviewWorkspace({ status }: ReviewWorkspaceProps) {
         </div>
       ) : session.previewUrl ? (
         <div className={`preview-state ${session.phase === "loading" ? "is-loading" : ""}`}>
-          <img src={session.previewUrl} alt="待複核原始影像預覽" />
+          <img
+            src={session.previewUrl}
+            alt="待複核原始影像預覽"
+            width="1200"
+            height="900"
+          />
           <div>
             <span className="eyebrow">{session.phase === "loading" ? "Inference" : "Ready"}</span>
             <h2>{session.phase === "loading" ? "正在建立可複核的預測圖層" : "等待你明確啟動推論"}</h2>

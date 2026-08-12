@@ -41,6 +41,7 @@ SOURCE_FILES = {
     "docs/huggingface-space-deployment.md",
     "pyproject.toml",
     "reports/README.md",
+    "reports/public/woundscope-ui-showcase.webp",
     "uv.lock",
 }
 SOURCE_SUFFIXES = {

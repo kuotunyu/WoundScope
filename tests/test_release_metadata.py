@@ -158,6 +158,17 @@ def test_public_model_comparison_is_aggregate_only_and_matches_results() -> None
     assert "reports/public/model_comparison.svg" in readme
 
 
+def test_readme_presents_review_workbench_without_model_overclaim() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "reports/public/woundscope-ui-showcase.webp" in readme
+    assert "React + TypeScript + Vite" in readme
+    assert "FastAPI" in readme
+    assert "研究展示模式" in readme
+    assert "模型可用時才開啟本機分割複核" in readme
+    assert "啟動本機 Gradio Web UI" not in readme
+
+
 def test_ci_and_public_bug_intake_are_least_privilege() -> None:
     workflow_text = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
     workflow = yaml.safe_load(workflow_text)

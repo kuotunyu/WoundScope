@@ -74,6 +74,8 @@ it("uploads only after explicit action and renders nonclinical results", async (
   render(<ReviewWorkspace status={readyStatus} />);
 
   await user.upload(screen.getByLabelText("選擇傷口影像"), syntheticPngFile());
+  expect(screen.getByLabelText("選擇傷口影像")).toHaveAttribute("name", "review-image");
+  expect(screen.getByLabelText("選擇傷口影像")).toHaveAttribute("autocomplete", "off");
   expect(predictSpy).not.toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "開始分割複核" }));
 

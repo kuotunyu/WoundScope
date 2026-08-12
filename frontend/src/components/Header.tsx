@@ -19,7 +19,7 @@ export function Header({ status, theme, onToggleTheme }: HeaderProps) {
           <span />
         </span>
         <span>
-          <strong>WoundScope</strong>
+          <strong translate="no">WoundScope</strong>
           <small>傷口分割複核工作台</small>
         </span>
       </a>
@@ -30,11 +30,17 @@ export function Header({ status, theme, onToggleTheme }: HeaderProps) {
           {ready ? "Local model ready" : "Code-only showcase"}
         </span>
         <nav aria-label="專案導覽">
-          <a href="/MODEL_CARD.md">
+          <a
+            href="https://github.com/kuotunyu/WoundScope/blob/main/MODEL_CARD.md"
+            aria-label="查看 WoundScope Model Card"
+          >
             <BookOpen size={18} aria-hidden="true" />
             <span>Model Card</span>
           </a>
-          <a href="https://github.com/kuotunyu/WoundScope">
+          <a
+            href="https://github.com/kuotunyu/WoundScope"
+            aria-label="在 GitHub 查看 WoundScope"
+          >
             <Github size={18} aria-hidden="true" />
             <span>GitHub</span>
           </a>

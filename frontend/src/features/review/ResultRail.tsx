@@ -12,6 +12,16 @@ const REASON_LABELS: Record<string, string> = {
   low_tta_agreement: "Test-time augmentation 一致性偏低",
 };
 
+const PERCENT_FORMAT = new Intl.NumberFormat("zh-TW", {
+  style: "percent",
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+const MILLISECOND_FORMAT = new Intl.NumberFormat("zh-TW", {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
 export function ResultRail({ result }: ResultRailProps) {
   return (
     <aside className="result-rail" aria-labelledby="result-title">
@@ -34,19 +44,19 @@ export function ResultRail({ result }: ResultRailProps) {
         <article>
           <Activity aria-hidden="true" />
           <span>Mask area ratio</span>
-          <strong>{(result.wound_pixel_ratio * 100).toFixed(1)}%</strong>
+          <strong>{PERCENT_FORMAT.format(result.wound_pixel_ratio)}</strong>
           <small>預測 mask pixels／影像 pixels</small>
         </article>
         <article>
           <ScanSearch aria-hidden="true" />
           <span>{result.confidence_label}</span>
-          <strong>{(result.confidence_score * 100).toFixed(1)}%</strong>
+          <strong>{PERCENT_FORMAT.format(result.confidence_score)}</strong>
           <small>僅供 segmentation review 排序</small>
         </article>
         <article>
           <Clock3 aria-hidden="true" />
           <span>Inference</span>
-          <strong>{result.inference_ms.toFixed(1)} ms</strong>
+          <strong>{MILLISECOND_FORMAT.format(result.inference_ms)} ms</strong>
           <small>單次本機推論時間</small>
         </article>
         <article>
