@@ -16,3 +16,15 @@ export interface ApiErrorBody {
     message?: string;
   };
 }
+
+export interface PredictionResponse {
+  overlay_data_url: string;
+  mask_data_url: string;
+  wound_pixel_ratio: number;
+  confidence_score: number;
+  confidence_label: string;
+  inference_ms: number;
+  low_confidence: boolean;
+  review_reasons: string[];
+  provider: string;
+}

@@ -5,6 +5,7 @@ import { Header } from "../components/Header";
 import { ProvenancePanel } from "../components/ProvenancePanel";
 import { ResearchShowcase } from "../components/ResearchShowcase";
 import { SafetyFooter } from "../components/SafetyFooter";
+import { ReviewWorkspace } from "../features/review/ReviewWorkspace";
 import { ApiError, fetchModelStatus } from "../lib/api/client";
 import type { ModelStatus } from "../lib/api/types";
 
@@ -50,7 +51,11 @@ export function App() {
     <div className="app-shell">
       <Header status={status} theme={theme} onToggleTheme={toggleTheme} />
       <main id="main-content" tabIndex={-1}>
-        <ResearchShowcase status={status} statusError={statusError} />
+        {status?.mode === "local_review" && status.model_available ? (
+          <ReviewWorkspace status={status} />
+        ) : (
+          <ResearchShowcase status={status} statusError={statusError} />
+        )}
         <EvidenceStrip />
         <ProvenancePanel status={status} />
       </main>

@@ -65,3 +65,20 @@ it("renders a safe status error when readiness cannot be loaded", async () => {
   });
   expect(screen.queryByText("offline")).not.toBeInTheDocument();
 });
+
+it("opens the review workspace only when a local model is ready", async () => {
+  mockStatus({
+    ...showcaseStatus,
+    mode: "local_review",
+    model_available: true,
+    calibration_available: true,
+    provider: "CPUExecutionProvider",
+    message: "本機模型已就緒。",
+  });
+
+  render(<App />);
+
+  expect(await screen.findByRole("heading", { name: "傷口分割複核工作台" })).toBeVisible();
+  expect(screen.getByLabelText("選擇傷口影像")).toBeVisible();
+  expect(screen.queryByText("研究展示模式")).not.toBeInTheDocument();
+});
