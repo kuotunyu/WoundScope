@@ -9,6 +9,8 @@ from typing import Annotated, Protocol
 
 import numpy as np
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 
 from woundscope import __version__
@@ -92,7 +94,6 @@ def create_app(
     runtime: ReviewRuntime | None = None,
     frontend_dir: Path | None = None,
 ) -> FastAPI:
-    del frontend_dir  # Static hosting is introduced in the dedicated integration task.
     selected_runtime = runtime or _DefaultReviewRuntime()
     app = FastAPI(
         title="WoundScope Review API",
@@ -138,5 +139,22 @@ def create_app(
                 "INFERENCE_FAILED",
                 "分割推論失敗，未保留上傳內容。",
             ) from None
+
+    selected_frontend = (
+        Path(frontend_dir)
+        if frontend_dir is not None
+        else Path(__file__).resolve().parents[2] / "frontend" / "dist"
+    )
+    index_path = selected_frontend / "index.html"
+    assets_path = selected_frontend / "assets"
+    if index_path.is_file():
+        if assets_path.is_dir():
+            app.mount("/assets", StaticFiles(directory=assets_path), name="frontend-assets")
+
+        @app.get("/{browser_path:path}", include_in_schema=False)
+        def frontend_shell(browser_path: str) -> FileResponse:
+            if browser_path == "api" or browser_path.startswith("api/"):
+                raise HTTPException(status_code=404, detail="Not Found")
+            return FileResponse(index_path, media_type="text/html")
 
     return app

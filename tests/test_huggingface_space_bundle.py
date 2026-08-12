@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import os
 import subprocess
 import sys
@@ -8,6 +9,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from fastapi import FastAPI
 
 from woundscope import bundles
 
@@ -47,6 +49,15 @@ def _space_repository(tmp_path: Path) -> Path:
         "pyproject.toml": "[project]\nname='woundscope'\nversion='0.1.0'\n",
         "uv.lock": "version = 1\n",
         "app/app.py": "from woundscope import __version__\n",
+        "frontend/package.json": '{"name":"woundscope-ui"}\n',
+        "frontend/pnpm-lock.yaml": "lockfileVersion: '9.0'\n",
+        "frontend/pnpm-workspace.yaml": "allowBuilds: {}\n",
+        "frontend/index.html": "<div id='root'></div>\n",
+        "frontend/tsconfig.app.json": "{}\n",
+        "frontend/tsconfig.json": "{}\n",
+        "frontend/tsconfig.node.json": "{}\n",
+        "frontend/vite.config.ts": "export default {};\n",
+        "frontend/src/main.tsx": "export {};\n",
         "src/woundscope/__init__.py": '__version__ = "0.1.0"\n',
     }
     for relative, content in files.items():
@@ -81,6 +92,15 @@ def test_space_bundle_uses_committed_allowlist_and_is_deterministic(tmp_path: Pa
         "LICENSE",
         "README.md",
         "app/app.py",
+        "frontend/index.html",
+        "frontend/package.json",
+        "frontend/pnpm-lock.yaml",
+        "frontend/pnpm-workspace.yaml",
+        "frontend/src/main.tsx",
+        "frontend/tsconfig.app.json",
+        "frontend/tsconfig.json",
+        "frontend/tsconfig.node.json",
+        "frontend/vite.config.ts",
         "pyproject.toml",
         "src/woundscope/__init__.py",
         "uv.lock",
@@ -91,6 +111,13 @@ def test_space_bundle_uses_committed_allowlist_and_is_deterministic(tmp_path: Pa
         )
         == first
     )
+
+
+def test_primary_entrypoint_exposes_fastapi_without_importing_gradio() -> None:
+    module = importlib.import_module("app.app")
+
+    assert isinstance(module.app, FastAPI)
+    assert "demo" not in vars(module)
 
 
 def test_task_5_import_smoke_preserves_verified_candidate_inventory(tmp_path: Path) -> None:

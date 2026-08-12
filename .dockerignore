@@ -1,6 +1,8 @@
 .git
 .env
 .venv
+frontend/node_modules
+frontend/dist
 data
 artifacts
 reports/generated
@@ -12,3 +14,4 @@ reports/sample_predictions
 __pycache__
 .pytest_cache
 .ruff_cache
+*.tsbuildinfo

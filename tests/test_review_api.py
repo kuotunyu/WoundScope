@@ -238,3 +238,28 @@ def test_missing_calibration_remains_local_review_with_safe_status() -> None:
     assert response.json()["mode"] == "local_review"
     assert response.json()["calibration_available"] is False
     assert response.json()["model_sha256_prefix"] is None
+
+
+def test_frontend_shell_is_served_without_loading_model(tmp_path) -> None:
+    class ShowcaseOnlyRuntime:
+        def status(self) -> ModelStatus:
+            return SHOWCASE_STATUS
+
+        def predict(self, image: Image.Image) -> PredictionResult:
+            raise AssertionError("static shell must not run inference")
+
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "app.js").write_text("export {};", encoding="utf-8")
+    (tmp_path / "index.html").write_text("<main>WoundScope shell</main>", encoding="utf-8")
+    app = create_app(runtime=ShowcaseOnlyRuntime(), frontend_dir=tmp_path)
+
+    root = _request(app, "GET", "/")
+    review = _request(app, "GET", "/review")
+    asset = _request(app, "GET", "/assets/app.js")
+    missing_api = _request(app, "GET", "/api/missing")
+
+    assert root.text == "<main>WoundScope shell</main>"
+    assert review.text == "<main>WoundScope shell</main>"
+    assert asset.text == "export {};"
+    assert missing_api.status_code == 404
+    assert missing_api.headers["content-type"].startswith("application/json")
