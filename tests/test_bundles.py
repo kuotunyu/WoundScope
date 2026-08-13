@@ -53,6 +53,9 @@ def test_source_bundle_uses_committed_allowlist_and_records_hashes(tmp_path: Pat
     (repository / "reports" / "public" / "model_comparison.svg").write_text(
         "<svg><title>aggregate comparison</title></svg>\n", encoding="utf-8"
     )
+    (repository / "reports" / "public" / "woundscope-ui-showcase.webp").write_bytes(
+        b"RIFFsynthetic-public-showcase"
+    )
     (repository / ".dockerignore").write_text("artifacts/\n", encoding="utf-8")
     (repository / "SECURITY.md").write_text("# Security\n", encoding="utf-8")
     _git(repository, "init", "-b", "main")
@@ -92,6 +95,7 @@ def test_source_bundle_uses_committed_allowlist_and_records_hashes(tmp_path: Pat
     assert "docs/huggingface-space-deployment.md" in names
     assert "reports/README.md" in names
     assert "reports/public/model_comparison.svg" in names
+    assert "reports/public/woundscope-ui-showcase.webp" in names
     assert ".env" not in names
     assert "data/patient.png" not in names
     assert "docs/superpowers/notes.md" not in names

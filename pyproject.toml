@@ -50,10 +50,13 @@ export = [
   "torch>=2,<3",
 ]
 app = [
+  "fastapi>=0.116,<1",
   "gradio>=5,<7",
   "huggingface-hub>=0.25,<2",
   "opencv-python-headless>=4.9,<5",
+  "python-multipart>=0.0.20,<1",
   "torch>=2,<3",
+  "uvicorn[standard]>=0.35,<1",
 ]
 dev = [
   "pytest>=8,<10",

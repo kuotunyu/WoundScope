@@ -20,6 +20,7 @@ SOURCE_ROOTS = (
     "app/",
     "configs/",
     "deploy/",
+    "frontend/",
     "notebooks/",
     "reports/public/",
     "scripts/",
@@ -40,16 +41,23 @@ SOURCE_FILES = {
     "docs/huggingface-space-deployment.md",
     "pyproject.toml",
     "reports/README.md",
+    "reports/public/woundscope-ui-showcase.webp",
     "uv.lock",
 }
 SOURCE_SUFFIXES = {
     ".cff",
+    ".css",
+    ".html",
     ".ipynb",
+    ".js",
+    ".json",
     ".lock",
     ".md",
     ".py",
     ".svg",
     ".toml",
+    ".ts",
+    ".tsx",
     ".txt",
     ".yaml",
     ".yml",
@@ -60,12 +68,20 @@ SPACE_FILE_MAP = {
     ".dockerignore": ".dockerignore",
     "deploy/huggingface/README.md": "README.md",
     "Dockerfile": "Dockerfile",
+    "frontend/index.html": "frontend/index.html",
+    "frontend/package.json": "frontend/package.json",
+    "frontend/pnpm-lock.yaml": "frontend/pnpm-lock.yaml",
+    "frontend/pnpm-workspace.yaml": "frontend/pnpm-workspace.yaml",
+    "frontend/tsconfig.app.json": "frontend/tsconfig.app.json",
+    "frontend/tsconfig.json": "frontend/tsconfig.json",
+    "frontend/tsconfig.node.json": "frontend/tsconfig.node.json",
+    "frontend/vite.config.ts": "frontend/vite.config.ts",
     "LICENSE": "LICENSE",
     "pyproject.toml": "pyproject.toml",
     "uv.lock": "uv.lock",
 }
-SPACE_SOURCE_ROOTS = ("app/", "src/")
-SPACE_SOURCE_SUFFIXES = {".py"}
+SPACE_SOURCE_ROOTS = ("app/", "src/", "frontend/src/")
+SPACE_SOURCE_SUFFIXES = {".css", ".py", ".ts", ".tsx"}
 SPACE_PROHIBITED_SUFFIXES = {
     ".bmp",
     ".gif",
@@ -310,6 +326,10 @@ def _space_destination(source_path: str) -> str | None:
     mapped = SPACE_FILE_MAP.get(source_path)
     if mapped is not None:
         return mapped
+    if source_path.startswith("frontend/src/") and (
+        source_path.startswith("frontend/src/test/") or ".test." in PurePosixPath(source_path).name
+    ):
+        return None
     if source_path.startswith(SPACE_SOURCE_ROOTS):
         return source_path
     return None

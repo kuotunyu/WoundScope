@@ -2,75 +2,13 @@
 
 from __future__ import annotations
 
-import os
-import re
-from functools import lru_cache
-from pathlib import Path
-
 import gradio as gr
 
-from woundscope.calibration import CalibrationArtifact
 from woundscope.demo import process_for_demo
-from woundscope.inference import OnnxPredictor
+from woundscope.model_runtime import load_predictor, resolve_model_artifacts
 
-IMMUTABLE_HF_REVISION = re.compile(r"[0-9a-f]{40}")
-
-
-def _require_immutable_hf_revision() -> str:
-    revision = os.environ.get("HF_MODEL_REVISION", "").strip()
-    if IMMUTABLE_HF_REVISION.fullmatch(revision) is None:
-        raise RuntimeError("HF_MODEL_REVISION must be a 40-character lowercase Git commit SHA.")
-    return revision
-
-
-def _resolve_model_artifacts() -> tuple[Path, Path]:
-    model_path = Path(os.environ.get("WOUNDSCOPE_MODEL_PATH", "artifacts/exports/model.onnx"))
-    calibration_path = Path(
-        os.environ.get("WOUNDSCOPE_CALIBRATION_PATH", "artifacts/calibration.json")
-    )
-    if model_path.is_file():
-        return model_path, calibration_path
-    model_id = os.environ.get("HF_MODEL_ID", "").strip()
-    if not model_id:
-        return model_path, calibration_path
-    from huggingface_hub import hf_hub_download
-
-    revision = _require_immutable_hf_revision()
-    token = os.environ.get("HF_TOKEN") or None
-    try:
-        model_path = Path(
-            hf_hub_download(
-                model_id,
-                filename=os.environ.get("HF_MODEL_FILENAME", "model.onnx"),
-                revision=revision,
-                token=token,
-            )
-        )
-    except Exception:
-        raise RuntimeError("Pinned Hugging Face model download failed.") from None
-    try:
-        calibration_path = Path(
-            hf_hub_download(
-                model_id,
-                filename=os.environ.get("HF_CALIBRATION_FILENAME", "calibration.json"),
-                revision=revision,
-                token=token,
-            )
-        )
-    except Exception:
-        calibration_path = Path("__missing_calibration__.json")
-    return model_path, calibration_path
-
-
-@lru_cache(maxsize=1)
-def _load_predictor() -> OnnxPredictor:
-    model_path, calibration_path = _resolve_model_artifacts()
-    if not model_path.is_file():
-        raise FileNotFoundError(
-            f"找不到 ONNX model：{model_path}。請先匯出模型或設定 WOUNDSCOPE_MODEL_PATH。"
-        )
-    calibration = CalibrationArtifact.load(calibration_path) if calibration_path.is_file() else None
-    return OnnxPredictor(model_path, calibration, device="cpu")
+_resolve_model_artifacts = resolve_model_artifacts
+_load_predictor = load_predictor
 
 
 def _predict(image):

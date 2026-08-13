@@ -10,6 +10,10 @@ WoundScope 是以固定版本 FUSeg 建構的足部潰瘍 binary semantic segmen
 
 > **研究聲明**：本專案為研究用像素分割成果與工程管線展示，非臨床診斷建議；所有分析結果均需合格醫療專業人員複核。
 
+![WoundScope 研究展示模式：傷口分割複核工作台](reports/public/woundscope-ui-showcase.webp)
+
+全新複核工作台採 **React + TypeScript + Vite** 與 **FastAPI**，以正體中文為主，將原圖／Overlay／Mask 比較、透明度控制、mask area ratio、非臨床 confidence、review reasons、execution provider 與 artifact provenance 收斂在同一個高密度介面。公開 code-only 環境顯示**研究展示模式**；模型可用時才開啟本機分割複核，避免把私有 weights 或臆造 prediction 包進公開展示。
+
 ---
 
 ## 系統設計與關鍵特性
@@ -19,7 +23,7 @@ WoundScope 是以固定版本 FUSeg 建構的足部潰瘍 binary semantic segmen
 2. **可重現實驗與雙架構對照**：
    採 duplicate-group-aware internal train/dev、AMP、atomic resume、固定 seeds 42/43/44 與 Dev-only calibration。
 3. **研究級部署驗證與安全交付**：
-   完成 PyTorch→ONNX parity、CPU benchmark、local Gradio 與 privacy-safe aggregate handoff；weights／ONNX 維持 private，Hugging Face Space 為 code-only 候選。
+   完成 PyTorch→ONNX parity、CPU benchmark、React／FastAPI review workbench 與 privacy-safe aggregate handoff；weights／ONNX 維持 private，Hugging Face Space 為 code-only 候選。
 
 ---
 
@@ -42,7 +46,7 @@ flowchart TD
 
     subgraph Stage3 ["階段三：鎖定評估與研究交付 (Evaluation & Handoff)"]
         direction TB
-        Calib --> Eval["Official Validation 評估<br/>200 張 · 2,000 次 image-level Bootstrap"] --> ONNX[("Private ONNX 導出與 parity<br/>CPU benchmark")] --> Demo(["Local Gradio / code-only Space<br/>授權確認後才發布模型"])
+        Calib --> Eval["Official Validation 評估<br/>200 張 · 2,000 次 image-level Bootstrap"] --> ONNX[("Private ONNX 導出與 parity<br/>CPU benchmark")] --> Demo(["React + FastAPI review workbench<br/>授權確認後才發布模型"])
     end
 
     classDef srcStyle fill:#e7f5ff,stroke:#1971c2,stroke-width:2px,color:#212529
@@ -95,8 +99,17 @@ $env:WOUNDSCOPE_DATA_DIR = "data"
 .\.venv\Scripts\python.exe scripts\download_data.py
 ```
 
-<details>
-<summary><strong>啟動本機 Gradio Web UI</strong></summary>
+### 啟動分割複核工作台
+
+前端 production bundle 由 FastAPI 同源託管，不需要另外維持 Streamlit 或 Gradio server：
+
+```powershell
+pnpm --dir frontend install --frozen-lockfile
+pnpm --dir frontend build
+.\.venv\Scripts\python.exe app\app.py
+```
+
+開啟 `http://127.0.0.1:7860/`。未設定模型時會進入**研究展示模式**，不顯示 upload form，也不下載模型。要啟用**本機分割複核**，請在自己的機器指向既有 private artifacts：
 
 ```powershell
 $env:WOUNDSCOPE_MODEL_PATH = "artifacts\runs\RUN\model.onnx"
@@ -104,7 +117,7 @@ $env:WOUNDSCOPE_CALIBRATION_PATH = "artifacts\runs\RUN\calibration.json"
 .\.venv\Scripts\python.exe app\app.py
 ```
 
-</details>
+選取影像後仍需按下「開始分割複核」才會提交至本機 FastAPI；API 以記憶體處理並回傳 Overlay／Mask，不保存原始檔名或建立 gallery。confidence 僅代表模型分割信心，非臨床信心。
 
 Hugging Face Space 目前為 `PERMISSION_PENDING`；維持 code-only 候選發布，部署與授權說明請見 [docs/huggingface-space-deployment.md](docs/huggingface-space-deployment.md)。
 

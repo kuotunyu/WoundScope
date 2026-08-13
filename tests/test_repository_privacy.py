@@ -85,6 +85,7 @@ def test_audit_allows_public_source_and_aggregate_assets(tmp_path: Path) -> None
         "data/README.md": b"Download instructions only.\n",
         "docs/token-example.txt": b"HF_TOKEN=secret\nGITHUB_TOKEN=${GITHUB_TOKEN}\n",
         "reports/public/model_comparison.svg": b"<svg></svg>\n",
+        "reports/public/woundscope-ui-showcase.webp": b"RIFFsynthetic-webp-fixture",
         "src/woundscope/example.py": b"VALUE = 1\n",
     }
     for relative_path, content in safe_files.items():
@@ -98,9 +99,32 @@ def test_audit_allows_public_source_and_aggregate_assets(tmp_path: Path) -> None
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout) == {
         "status": "ok",
-        "tracked_files": 5,
+        "tracked_files": 6,
         "violations": [],
     }
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "reports/public/WoundScope-ui-showcase.webp",
+        "reports/public/woundscope-ui-showcase.png",
+        "reports/public/other-showcase.webp",
+        "docs/woundscope-ui-showcase.webp",
+    ],
+)
+def test_audit_rejects_every_non_allowlisted_raster_path(
+    tmp_path: Path,
+    relative_path: str,
+) -> None:
+    repository = _tracked_repository(tmp_path, relative_path, b"synthetic raster")
+
+    completed = _run_audit(repository)
+
+    assert completed.returncode == 1, completed.stderr
+    assert json.loads(completed.stdout)["violations"] == [
+        {"path": relative_path, "rule": "raster_image"}
+    ]
 
 
 def test_audit_rejects_local_home_paths_without_echoing_content(tmp_path: Path) -> None:
