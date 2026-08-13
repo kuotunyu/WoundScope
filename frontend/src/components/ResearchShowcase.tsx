@@ -37,8 +37,6 @@ export function ResearchShowcase({ status, statusError }: ResearchShowcaseProps)
           </div>
         </div>
 
-        <WorkflowGuide variant="showcase" />
-
         <div className="showcase-links">
           <a
             className="text-link"
@@ -102,6 +100,8 @@ export function ResearchShowcase({ status, statusError }: ResearchShowcaseProps)
           <p className="plate-note">介面示意圖｜不含醫療影像、mask 或虛構 prediction</p>
         </div>
       </div>
+
+      <WorkflowGuide variant="showcase" />
     </section>
   );
 }

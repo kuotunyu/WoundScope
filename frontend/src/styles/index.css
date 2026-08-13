@@ -212,12 +212,17 @@ main {
 .showcase {
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(520px, 7fr);
+  grid-template-areas:
+    "copy plate"
+    "guide guide";
   align-items: start;
-  gap: clamp(24px, 3vw, 42px);
+  column-gap: clamp(24px, 3vw, 42px);
+  row-gap: 16px;
 }
 
 .showcase-copy {
   display: flex;
+  grid-area: copy;
   flex-direction: column;
   justify-content: flex-start;
   padding: 8px 0 0;
@@ -306,7 +311,11 @@ main {
 }
 
 .workflow-guide-showcase {
-  margin-top: 14px;
+  display: grid;
+  grid-area: guide;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(0, 3.2fr) auto;
+  align-items: start;
+  gap: 20px;
 }
 
 .workflow-guide-heading {
@@ -401,6 +410,17 @@ main {
   margin: 0;
 }
 
+.workflow-guide-showcase .workflow-guide-heading {
+  display: block;
+  margin: 0;
+}
+
+.workflow-guide-showcase .setup-link {
+  align-self: center;
+  margin-top: 0;
+  white-space: nowrap;
+}
+
 .showcase-links {
   display: flex;
   flex-wrap: wrap;
@@ -421,6 +441,7 @@ main {
 
 .research-plate {
   display: grid;
+  grid-area: plate;
   min-height: 390px;
   grid-template-rows: auto minmax(0, 1fr) auto;
   padding: 16px;
@@ -1313,6 +1334,16 @@ main {
 
   .showcase {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "copy"
+      "guide"
+      "plate";
+    row-gap: 20px;
+  }
+
+  .workflow-guide-showcase {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .workflow-guide-review {

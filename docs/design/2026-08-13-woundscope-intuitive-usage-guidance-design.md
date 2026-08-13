@@ -48,7 +48,7 @@
 4. 主要 CTA `查看本機啟用方式`，前往 GitHub README 的 `啟動分割複核工作台` anchor。
 5. 次要文字連結 `查看資料治理` 與 `檢視 provenance`。
 
-三步驟導引置於 showcase 左欄，使用單一上方分隔線與序號，不建立三張獨立卡片。抽象 Segmentation 複核平面維持純研究示意，不塞入操作說明。
+三步驟導引在 desktop 置於雙欄摘要與 research plate 下方的跨欄流程帶，避免窄欄換行與右側無效空白；mobile 則排在摘要與 research plate 之間。導引使用單一上方分隔線與序號，不建立三張獨立卡片。抽象 Segmentation 複核平面維持純研究示意，不塞入操作說明。
 
 ### 3.2 Local review mode
 
