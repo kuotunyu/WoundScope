@@ -1,7 +1,7 @@
 # WoundScope 直覺使用導引設計規格
 
 > 日期：2026-08-13
-> 狀態：已核准方向，待使用者複核書面規格
+> 狀態：已完成並合併至 `main`
 > 範圍：改善 code-only showcase 與 local review 的操作理解；不修改模型、inference、scientific protocol、結果或 artifact permission
 
 ## 1. 問題與成功條件

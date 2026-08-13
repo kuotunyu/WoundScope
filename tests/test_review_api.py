@@ -93,7 +93,7 @@ def test_health_does_not_inspect_or_load_model() -> None:
     response = _request(create_app(runtime=HealthOnlyRuntime()), "GET", "/api/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "application": "WoundScope", "version": "0.2.1"}
+    assert response.json() == {"status": "ok", "application": "WoundScope", "version": "0.2.2"}
 
 
 def test_model_status_exposes_only_safe_readiness_fields() -> None:

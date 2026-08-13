@@ -1,6 +1,8 @@
-# Hugging Face Space 安全部署指引
+# Hugging Face Space 封存部署指引
 
-> 狀態：`PERMISSION_PENDING`。本文件是部署前的人工程序契約；目前只允許建立、驗證與審閱 code-only candidate，**不得**建立 Space、建立 model repository、上傳檔案、使用 token 或啟用 live mode。只有在資料集維護者／權利人以可保存的方式明確同意後，才可依本指引執行後續步驟。
+> 狀態：封存／future-only。公開 model artifacts 與 hosted live inference 不在 v0.2.2 發布範圍；本文件保留 M7 code-only candidate 的歷史驗證方式，以及未來若另案重啟時必須遵守的人工授權程序。它不是目前 backlog，也不代表準備建立 Space。
+
+歷史上，FUSeg derived model artifacts 的公開範圍記錄為 `PERMISSION_PENDING`；專案沒有進一步追索這項授權，也不把它視為尚待完成的功能。除非未來由 owner 另案決定重啟，並由資料集維護者／權利人以可保存的方式明確同意，否則**不得**建立 model-backed Space、建立 model repository、上傳 model artifacts、使用 token 或啟用 live mode。
 
 ## 目前可做的 code-only 準備
 
