@@ -12,7 +12,7 @@
 
 - Work only in the canonical checkout on `codex/ui-review-workbench`; do not create a clone or worktree.
 - Human-readable copy is zh-TW-first; technical proper nouns remain in English.
-- Showcase H1 is `WoundScope 傷口分割複核工作台`; desktop 38–42px, tablet 34–38px, mobile 30–34px, sans-serif.
+- Showcase H1 is `WoundScope 傷口分割複核工作台`; desktop 34–36px, tablet 32–34px, mobile 28–30px, sans-serif.
 - Desktop body text is 18px; mobile body text is 17px; visible metadata is at least 16px.
 - Interactive targets remain at least 44×44px.
 - Radius tokens are small 4px, medium 6px, large 8px.
@@ -156,7 +156,7 @@ Then make these bounded stylesheet changes:
 
 - `main`: 24–32px top padding and 16–20px section gap.
 - `.showcase`: top-aligned 5/7 desktop grid; remove copy vertical centering.
-- Showcase H1 and workspace H1: sans-serif, 38–42px desktop, maximum 34px mobile.
+- Showcase H1 and workspace H1: sans-serif, 34–36px desktop, maximum 30px mobile.
 - `.lede`, status copy, evidence labels, provenance labels, footer, review helpers: 16px minimum; main explanatory copy 17–18px.
 - `.mode-status`: inline grid with one top rule, no card background, radius, shadow, or enclosing border.
 - `.research-plate`: 360–390px desktop, one border, 8px radius, no inset pseudo-frame or main shadow; scale SVG accordingly.
@@ -164,7 +164,7 @@ Then make these bounded stylesheet changes:
 - `.provenance`: top rule, no outer background, shadow, radius, or enclosing border; retain semantic grid dividers.
 - Header navigation links become flat 6px controls; reserve pills for status/segmented controls only.
 - Review workspace keeps borders only where the interaction or image plane needs a boundary; remove redundant result-rail and nested metric card radii when dividers communicate the grouping.
-- Mobile `--body-size` becomes 17px; the abstract plate is at most about 300px and H1 30–34px.
+- Mobile `--body-size` becomes 17px; the abstract plate is at most about 300px and H1 28–30px.
 
 Update `MASTER.md` direction to `Scientific Console／理性研究台`, type floors to 18／17／16px, radius to 4／6／8px, and functional-border rules. Do not change colors or motion policy.
 
@@ -227,7 +227,7 @@ Repeat the affected viewports only. Stop after the confirmation pass; do not ent
 - [ ] **Step 5: Run the design detector once**
 
 ```powershell
-node C:\Users\3Hml\.codex\skills\impeccable\scripts\detect.mjs --json frontend/src/components/ResearchShowcase.tsx frontend/src/components/ProvenancePanel.tsx frontend/src/features/review/ReviewWorkspace.tsx frontend/src/styles/tokens.css frontend/src/styles/index.css
+node <IMPECCABLE_SKILL_DIR>\scripts\detect.mjs --json frontend/src/components/ResearchShowcase.tsx frontend/src/components/ProvenancePanel.tsx frontend/src/features/review/ReviewWorkspace.tsx frontend/src/styles/tokens.css frontend/src/styles/index.css
 ```
 
 Resolve material findings in the same batch; document advisory-only findings without rerunning the detector.

@@ -25,7 +25,7 @@
 ### 3.1 Showcase mode
 
 - H1 固定為「WoundScope 傷口分割複核工作台」，不再使用口號式斷句。
-- H1 使用 `Noto Sans TC` 系列，不使用 serif；desktop 38–42px、tablet 34–38px、mobile 30–34px，line-height 1.2，font-weight 650–700。
+- H1 使用 `Noto Sans TC` 系列，不使用 serif；desktop 34–36px、tablet 32–34px、mobile 28–30px，line-height 1.2，font-weight 650–700。
 - H1 下方以一段 17–18px 說明研究工作流；不使用超過兩行的行銷文案。
 - 不在 H1 上方放 kicker；`Medical Computer Vision` 與 `Research prototype` 作為 H1 說明後的 16px research metadata。
 - 一般正文 desktop 18px、mobile 17px；次要資訊與 metadata 不低於 16px。
@@ -33,7 +33,7 @@
 
 ### 3.2 Local review mode
 
-- 工作台 H1 同樣使用 sans-serif，desktop 不超過 40px、mobile 不超過 32px。
+- 工作台 H1 同樣使用 sans-serif，desktop 不超過 36px、mobile 不超過 30px。
 - 結果數值維持清楚的 tabular hierarchy；confidence 仍固定標示為模型分割信心，非臨床信心。
 
 ## 4. Layout 與空間
