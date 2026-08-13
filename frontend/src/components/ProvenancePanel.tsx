@@ -10,8 +10,7 @@ export function ProvenancePanel({ status }: ProvenancePanelProps) {
   return (
     <section className="provenance" id="provenance" aria-labelledby="provenance-title">
       <div>
-        <span className="eyebrow">證據，不是裝飾</span>
-        <h2 id="provenance-title">每個結果，都必須知道從哪裡來。</h2>
+        <h2 id="provenance-title">Artifact 與研究來源</h2>
       </div>
       <dl className="provenance-grid">
         <div>

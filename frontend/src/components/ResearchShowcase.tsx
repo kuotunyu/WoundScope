@@ -11,24 +11,22 @@ export function ResearchShowcase({ status, statusError }: ResearchShowcaseProps)
   return (
     <section className="showcase" aria-labelledby="showcase-title">
       <div className="showcase-copy">
-        <p className="kicker">Medical Computer Vision · 研究原型</p>
-        <h1 id="showcase-title">
-          從像素預測，
-          <span>走到可追溯的人工複核。</span>
-        </h1>
+        <h1 id="showcase-title">WoundScope 傷口分割複核工作台</h1>
         <p className="lede">
-          WoundScope 將 data integrity、segmentation、calibration、ONNX parity
-          與 artifact provenance 收斂成一條可重現的研究工作流。
+          以 data integrity、segmentation、calibration、ONNX parity 與 artifact
+          provenance 建立可重現、可複核的研究工作流。
+        </p>
+        <p className="research-context">
+          <span>Medical Computer Vision</span>
+          <span>Research prototype</span>
         </p>
 
-        <div className="mode-panel" aria-live="polite">
+        <div className="mode-status" role="status" aria-live="polite">
           <div className="mode-icon" aria-hidden="true">
             <CircleDashed size={23} />
           </div>
           <div>
-            <span className="eyebrow">
-              {statusError ? "服務狀態" : "目前工作區"}
-            </span>
+            <span className="status-label">{statusError ? "服務狀態" : "目前工作區"}</span>
             <h2>{statusError ? "無法取得本機模型狀態" : "研究展示模式"}</h2>
             <p>
               {statusError

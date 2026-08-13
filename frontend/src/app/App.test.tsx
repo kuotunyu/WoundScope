@@ -52,23 +52,31 @@ it("has no automated accessibility violations in showcase mode", async () => {
   expect(results.violations).toHaveLength(0);
 });
 
-it("keeps interface framing zh-TW first with semantic evidence and provenance", async () => {
+it("frames the showcase as a scientific workbench instead of an editorial headline", async () => {
   mockStatus();
   const { container } = render(<App />);
   await screen.findByText("研究展示模式");
 
   expect(screen.getByText("Code-only 展示")).toBeVisible();
-  expect(screen.getByText("Medical Computer Vision · 研究原型")).toBeVisible();
+  expect(
+    screen.getByRole("heading", {
+      level: 1,
+      name: "WoundScope 傷口分割複核工作台",
+    }),
+  ).toBeVisible();
+  expect(screen.queryByText(/從像素預測/)).not.toBeInTheDocument();
+  expect(screen.getByRole("status")).toBeVisible();
+  expect(screen.getByText("Medical Computer Vision")).toBeVisible();
   expect(screen.getByText("目前工作區")).toBeVisible();
   expect(screen.getByRole("heading", { level: 2, name: "已驗證證據" })).toBeVisible();
-  expect(screen.getByText("證據，不是裝飾")).toBeVisible();
   expect(screen.queryByText("Verified evidence")).not.toBeInTheDocument();
   expect(screen.queryByText("Current workspace")).not.toBeInTheDocument();
 
   const provenance = screen.getByRole("region", {
-    name: "每個結果，都必須知道從哪裡來。",
+    name: "Artifact 與研究來源",
   });
   expect(within(provenance).getAllByRole("term")).toHaveLength(4);
+  expect(screen.queryByText(/每個結果/)).not.toBeInTheDocument();
   expect(container.querySelectorAll(".provenance-grid article")).toHaveLength(0);
 });
 
