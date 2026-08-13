@@ -16,51 +16,100 @@ WoundScope 是以固定版本 FUSeg 建構的足部潰瘍 binary semantic segmen
 
 ---
 
-## 系統設計與關鍵特性
+## 60 秒看懂 WoundScope
 
-1. **嚴謹資料治理與完整性稽核**：
-   鎖定 FUSeg 2021 revision；以 SHA-256 exact duplicate 稽核排除 train 端 7 張 copies，以 pHash near-duplicate 稽核建立 duplicate groups，完整保留 200 張 Official Validation。
-2. **可重現實驗與雙架構對照**：
-   採 duplicate-group-aware internal train/dev、AMP、atomic resume、固定 seeds 42/43/44 與 Dev-only calibration。
-3. **研究級部署驗證與安全交付**：
-   完成 PyTorch→ONNX parity、CPU benchmark、React／FastAPI review workbench 與 privacy-safe aggregate handoff；weights／ONNX 維持 private，Hugging Face Space 為 code-only 候選。
+WoundScope 不是單一模型 demo，而是一套從資料治理、可重現實驗到本機人工複核的完整 Medical Computer Vision workflow。公開 repository 提供 code、文件與 aggregate evidence；可推論的 ONNX、calibration 與 checkpoints 則由使用者在自己的環境保管。
 
----
-
-## 系統架構與 Pipeline
+### System Context 與系統架構
 
 ```mermaid
-%%{init: {'themeVariables': {'fontSize': '18px'}}}%%
-flowchart TD
-    subgraph Stage1 ["階段一：資料治理與完整性稽核 (Data Governance)"]
-        direction TB
-        Raw[("FUSeg 2021<br/>固定 revision · 1,210 張")] --> Exact["SHA-256 exact duplicate 稽核<br/>排除 train 端 7 張 copies"]
-        Exact --> Near["pHash near-duplicate 稽核<br/>建立 duplicate groups"]
-        Near --> Split[("duplicate-group-aware internal train/dev<br/>鎖定 Official Validation 200 張")]
+%%{init: {"themeVariables": {"fontSize": "18px", "fontFamily": "Arial, sans-serif", "lineColor": "#60736D"}}}%%
+flowchart TB
+    Visitor["GitHub 訪客"]:::actor
+    Engineer["研究者／ML Engineer"]:::actor
+    Repo["GitHub Repository<br/>code · docs"]:::public
+    Colab["Public Colab<br/>reproducible runner"]:::public
+    FUSeg["FUSeg pinned revision<br/>official source"]:::external
+
+    subgraph WoundScope["WoundScope system boundary"]
+        direction LR
+        Pipeline["Research Pipeline<br/>integrity · train · evaluate"]:::process
+        UI["React Review Workbench"]:::component
+        API["FastAPI Review API"]:::component
+        Runtime["Model Runtime<br/>ONNX Runtime"]:::component
+        UI -->|"review request"| API -->|"validated input"| Runtime
     end
 
-    subgraph Stage2 ["階段二：雙模型訓練與閾值校準 (Model Training & Calibration)"]
-        direction TB
-        Split --> Models["雙架構對照訓練<br/>(U-Net EfficientNet-B0 / SegFormer-B0)"] --> Train["AMP 混合精度 + 3 Seeds 訓練<br/>(Seeds 42 / 43 / 44)"] --> Calib["Dev-only 閾值校準<br/>(最佳化分割閾值)"]
-    end
+    Evidence["Public evidence<br/>aggregate results · cards · release"]:::evidence
+    Private["Private artifacts｜Drive／local<br/>checkpoints · calibration · ONNX"]:::private
 
-    subgraph Stage3 ["階段三：鎖定評估與研究交付 (Evaluation & Handoff)"]
-        direction TB
-        Calib --> Eval["Official Validation 評估<br/>200 張 · 2,000 次 image-level Bootstrap"] --> ONNX[("Private ONNX 導出與 parity<br/>CPU benchmark")] --> Demo(["React + FastAPI review workbench<br/>公開版維持 code-only"])
-    end
+    Visitor -->|"understand and inspect"| Repo
+    Engineer -->|"Run all"| Colab
+    Repo -->|"build and start locally"| UI
+    Colab -->|"orchestrates"| Pipeline
+    FUSeg -->|"pinned download"| Pipeline
+    Pipeline -->|"publish aggregate only"| Evidence
+    Pipeline -->|"write"| Private
+    Runtime -.->|"requires owner-provided artifacts"| Private
 
-    classDef srcStyle fill:#e7f5ff,stroke:#1971c2,stroke-width:2px,color:#212529
-    classDef procStyle fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#212529
-    classDef evalStyle fill:#e6fcf5,stroke:#0ca678,stroke-width:2px,color:#212529
-
-    class Raw,Split srcStyle
-    class Exact,Near,Models,Train,Calib procStyle
-    class Eval,ONNX,Demo evalStyle
-
-    style Stage1 fill:#f8f9fa,stroke:#1971c2,stroke-width:2px,color:#1971c2,stroke-dasharray: 4 4
-    style Stage2 fill:#faf5ff,stroke:#7b1fa2,stroke-width:2px,color:#7b1fa2,stroke-dasharray: 4 4
-    style Stage3 fill:#f4fbf7,stroke:#0ca678,stroke-width:2px,color:#0ca678,stroke-dasharray: 4 4
+    classDef actor fill:#F7F3EA,stroke:#4E5D58,color:#1F332F,stroke-width:2px;
+    classDef public fill:#E8F0EC,stroke:#55736A,color:#17352F,stroke-width:2px;
+    classDef external fill:#F2EDE2,stroke:#857861,color:#342F27,stroke-width:2px;
+    classDef evidence fill:#E9EEF3,stroke:#5F7484,color:#1F3340,stroke-width:2px;
+    classDef process fill:#F7E7DF,stroke:#B85F43,color:#46271F,stroke-width:2px;
+    classDef component fill:#E4ECEA,stroke:#486A63,color:#15332D,stroke-width:2px;
+    classDef private fill:#F4E6E3,stroke:#9D574C,color:#45231E,stroke-width:2px,stroke-dasharray:6 4;
 ```
+
+- **一般訪客**可直接檢視 UI、方法與已驗證 aggregate results，不需取得私有模型檔。
+- **研究者／工程師**可從 Public Colab 重跑鎖定 pipeline；產物寫入自己的 Google Drive 或本機 artifact directory。
+- **本機複核**由 React → FastAPI → ONNX Runtime 完成，只有 owner-provided artifacts 存在時才啟用 inference。
+
+### 可重現研究 Pipeline
+
+資料、選模、校準與最終評估各自有明確 gate；Official Validation 只在模型選擇與 Dev-only calibration 凍結後使用。
+
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "18px", "fontFamily": "Arial, sans-serif", "lineColor": "#60736D"}}}%%
+flowchart TB
+    subgraph Governance["1｜Data governance"]
+        direction LR
+        Source["FUSeg<br/>pinned revision"]:::source
+        Integrity["Data integrity<br/>pairing · decode · mask · duplicate audit"]:::gate
+        Exclude["exclude_train<br/>remove 7 exact train copies<br/>retain Official Validation 200"]:::decision
+        Source --> Integrity --> Exclude
+    end
+
+    subgraph Experiment["2｜Locked experiment"]
+        direction LR
+        Quick["Quick GPU gate"]:::gate
+        Compare["2 models × 2 losses<br/>internal-dev comparison"]:::process
+        Lock["Locked loss selection + calibration<br/>internal dev only"]:::decision
+        Seeds["3-seed final runs<br/>42 · 43 · 44"]:::process
+        Quick --> Compare --> Lock --> Seeds
+    end
+
+    subgraph EvidenceStage["3｜Evidence and handoff"]
+        direction LR
+        Validation["Official Validation<br/>frozen selection and calibration"]:::evidence
+        Bootstrap["2,000× image-level Bootstrap<br/>95% CI"]:::evidence
+        Parity["ONNX parity<br/>CPU benchmark"]:::gate
+        Handoff["Privacy-safe aggregate handoff"]:::output
+        Validation --> Bootstrap --> Parity --> Handoff
+    end
+
+    Exclude --> Quick
+    Seeds --> Validation
+
+    classDef source fill:#F2EDE2,stroke:#857861,color:#342F27,stroke-width:2px;
+    classDef process fill:#E4ECEA,stroke:#486A63,color:#15332D,stroke-width:2px;
+    classDef gate fill:#E9EEF3,stroke:#5F7484,color:#1F3340,stroke-width:2px;
+    classDef decision fill:#F7E7DF,stroke:#B85F43,color:#46271F,stroke-width:2px;
+    classDef evidence fill:#E8F0EC,stroke:#55736A,color:#17352F,stroke-width:2px;
+    classDef output fill:#F7F3EA,stroke:#4E5D58,color:#1F332F,stroke-width:2px;
+```
+
+這個流程刻意不宣稱 patient-wise split，也不使用沒有公開 ground-truth masks 的 Official Test 產生量化指標。公開交付僅含 aggregate evidence，不含來源影像、image-level results、weights 或 ONNX。
 
 ---
 
@@ -80,6 +129,47 @@ flowchart TD
 - **數據來源**：結果來自 training commit `c7ec6060f1bd0a813a890b95b50c2855d3c2640c` 的 schema-valid、hash-bound handoff；每個 seed 均含完整 200 張評估證據。
 - **統計解讀**：表格為 3 個 seeds 的 image-level mean 之 mean±sample SD；Dice 95% CI 由 2,000 次 image-level Bootstrap 估計。因缺少 patient ID，此 CI 無法校正同一病患多張影像的相關性。
 - **架構表現**：U-Net 在此鎖定 split 的 observed Dice 較高；未做 paired significance 或外部驗證，不能推論跨機構或臨床優勢。
+
+---
+
+## 本機複核如何運作
+
+介面先確認 private model artifacts 是否就緒，再決定顯示研究展示模式或本機分割複核。即使模型可用，選取影像也只建立本機 preview；使用者必須明確按下「開始分割複核」才會送往同一台機器上的 FastAPI。
+
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "18px", "fontFamily": "Arial, sans-serif", "lineColor": "#60736D", "actorBkg": "#E8F0EC", "actorBorder": "#55736A", "actorTextColor": "#17352F", "signalColor": "#486A63", "signalTextColor": "#1F332F", "labelBoxBkgColor": "#F7F3EA", "labelBoxBorderColor": "#857861", "labelTextColor": "#342F27", "noteBkgColor": "#F7E7DF", "noteBorderColor": "#B85F43", "noteTextColor": "#46271F"}}}%%
+sequenceDiagram
+    autonumber
+    actor Visitor as 使用者
+    participant UI as React Workbench
+    participant API as FastAPI Review API
+    participant Model as Model Runtime
+    participant ONNX as ONNX Runtime
+
+    Visitor->>UI: 開啟本機工作台
+    UI->>API: GET /api/model-status
+    API-->>UI: mode + artifact readiness
+
+    alt model artifacts unavailable
+        UI-->>Visitor: 顯示研究展示模式與取得方式
+    else local_review ready
+        UI-->>Visitor: 開啟三步驟分割複核 workspace
+        Visitor->>UI: 選擇 PNG／JPEG／WebP
+        Note over Visitor,UI: client-side 檢查 MIME／12 MiB 上限；僅建立本機 preview
+        Visitor->>UI: 明確按下「開始分割複核」
+        UI->>API: POST /api/predict
+        API->>API: 驗證 content type、size、decode、dimensions
+        API->>Model: 傳入已驗證影像
+        Model->>ONNX: 載入 private ONNX／calibration 並執行
+        ONNX-->>Model: probability map + provider + inference time
+        Model-->>API: overlay／mask／ratio／confidence／review reasons
+        API-->>UI: sanitized review response
+        UI-->>Visitor: Original／Overlay／Mask + 人工複核提示
+        Note over UI,API: 不保存檔名、影像或 gallery；錯誤不暴露內部路徑
+    end
+```
+
+API 以記憶體處理輸入，不建立 prediction gallery；confidence 是分割模型的非臨床訊號，低信心或 artifact provenance 不完整時，介面會要求人工複核而不是輸出診斷。
 
 ---
 
