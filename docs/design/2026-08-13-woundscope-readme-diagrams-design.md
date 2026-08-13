@@ -18,7 +18,7 @@ README 的第一優先讀者是一般 GitHub 訪客。訪客應能在約 60 秒�
 - 每張圖只回答一個核心問題；不重複用不同圖型描述同一件事。
 - 使用 GitHub 原生 Mermaid，避免需要額外託管的 raster 圖與實驗性 C4 syntax。
 - 節點文字控制在兩行內；主要閱讀方向優先採左至右，過寬時改為分層式 top-down。
-- 配色沿用 WoundScope 的沉靜醫療研究語言：霧藍、灰綠、暖米色與低飽和橘；所有文字保持高對比。
+- WoundScope 的沉靜醫療研究語言由 UI screenshot 與整體敘事延續；Mermaid semantic colors 交由 GitHub 的 light／dark adaptive theme，避免固定前景色在 dark mode 失去對比。
 - 不只依靠顏色傳達 public／private、success／boundary；同時使用明確標籤、線型與節點文字。
 - 不加入 diagnosis、severity、clinical efficacy、patient-wise split、official-test performance 或其他未驗證 claim。
 
@@ -125,8 +125,8 @@ Sequence note 明確標示：API 不保存原始檔名、不建立 gallery；con
 
 ## 7. 視覺與可讀性
 
-- Mermaid theme 以 `themeVariables` 設定 17–18px 基準字級。
-- class definitions 必須明列 `fill`、`stroke`、`stroke-width` 與 `color`，確保 light／dark GitHub theme 都能辨識。
+- Mermaid theme 只以 `themeVariables` 設定 17–18px 基準字級與 font family。
+- class definitions 可保留 `stroke-width`／`stroke-dasharray` 等非色彩語意；不得固定 `fill`、foreground `color`、`lineColor` 或 sequence signal colors，讓 GitHub light／dark theme 自動提供可讀對比。
 - Public、process、private、evidence 使用不同 class；private artifact 使用虛線 border，並標記「不隨 repository 發布」。
 - 避免在節點中放長句、SHA、完整路徑或大量 metrics；精確數字留在結果表與 prose。
 - 每張圖前有一行用途說明，圖後有 2–3 點閱讀提示，讓 Mermaid 無法顯示時仍可理解重點。

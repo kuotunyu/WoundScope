@@ -23,7 +23,7 @@ WoundScope 不是單一模型 demo，而是一套從資料治理、可重現實�
 ### System Context 與系統架構
 
 ```mermaid
-%%{init: {"themeVariables": {"fontSize": "18px", "fontFamily": "Arial, sans-serif", "lineColor": "#60736D"}}}%%
+%%{init: {"themeVariables": {"fontSize": "18px", "fontFamily": "Arial, sans-serif"}}}%%
 flowchart TB
     Visitor["GitHub 訪客"]:::actor
     Engineer["研究者／ML Engineer"]:::actor
@@ -52,13 +52,13 @@ flowchart TB
     Pipeline -->|"write"| Private
     Runtime -.->|"requires owner-provided artifacts"| Private
 
-    classDef actor fill:#F7F3EA,stroke:#4E5D58,color:#1F332F,stroke-width:2px;
-    classDef public fill:#E8F0EC,stroke:#55736A,color:#17352F,stroke-width:2px;
-    classDef external fill:#F2EDE2,stroke:#857861,color:#342F27,stroke-width:2px;
-    classDef evidence fill:#E9EEF3,stroke:#5F7484,color:#1F3340,stroke-width:2px;
-    classDef process fill:#F7E7DF,stroke:#B85F43,color:#46271F,stroke-width:2px;
-    classDef component fill:#E4ECEA,stroke:#486A63,color:#15332D,stroke-width:2px;
-    classDef private fill:#F4E6E3,stroke:#9D574C,color:#45231E,stroke-width:2px,stroke-dasharray:6 4;
+    classDef actor stroke-width:2px;
+    classDef public stroke-width:2px;
+    classDef external stroke-width:2px;
+    classDef evidence stroke-width:2px;
+    classDef process stroke-width:2px;
+    classDef component stroke-width:2px;
+    classDef private stroke-width:2px,stroke-dasharray:6 4;
 ```
 
 - **一般訪客**可直接檢視 UI、方法與已驗證 aggregate results，不需取得私有模型檔。
@@ -70,7 +70,7 @@ flowchart TB
 資料、選模、校準與最終評估各自有明確 gate；Official Validation 只在模型選擇與 Dev-only calibration 凍結後使用。
 
 ```mermaid
-%%{init: {"themeVariables": {"fontSize": "18px", "fontFamily": "Arial, sans-serif", "lineColor": "#60736D"}}}%%
+%%{init: {"themeVariables": {"fontSize": "18px", "fontFamily": "Arial, sans-serif"}}}%%
 flowchart TB
     subgraph Governance["1｜Data governance"]
         direction LR
@@ -101,12 +101,12 @@ flowchart TB
     Exclude --> Quick
     Seeds --> Validation
 
-    classDef source fill:#F2EDE2,stroke:#857861,color:#342F27,stroke-width:2px;
-    classDef process fill:#E4ECEA,stroke:#486A63,color:#15332D,stroke-width:2px;
-    classDef gate fill:#E9EEF3,stroke:#5F7484,color:#1F3340,stroke-width:2px;
-    classDef decision fill:#F7E7DF,stroke:#B85F43,color:#46271F,stroke-width:2px;
-    classDef evidence fill:#E8F0EC,stroke:#55736A,color:#17352F,stroke-width:2px;
-    classDef output fill:#F7F3EA,stroke:#4E5D58,color:#1F332F,stroke-width:2px;
+    classDef source stroke-width:2px;
+    classDef process stroke-width:2px;
+    classDef gate stroke-width:2px;
+    classDef decision stroke-width:2px;
+    classDef evidence stroke-width:2px;
+    classDef output stroke-width:2px;
 ```
 
 這個流程刻意不宣稱 patient-wise split，也不使用沒有公開 ground-truth masks 的 Official Test 產生量化指標。公開交付僅含 aggregate evidence，不含來源影像、image-level results、weights 或 ONNX。
@@ -137,7 +137,7 @@ flowchart TB
 介面先確認 private model artifacts 是否就緒，再決定顯示研究展示模式或本機分割複核。即使模型可用，選取影像也只建立本機 preview；使用者必須明確按下「開始分割複核」才會送往同一台機器上的 FastAPI。
 
 ```mermaid
-%%{init: {"themeVariables": {"fontSize": "18px", "fontFamily": "Arial, sans-serif", "lineColor": "#60736D", "actorBkg": "#E8F0EC", "actorBorder": "#55736A", "actorTextColor": "#17352F", "signalColor": "#486A63", "signalTextColor": "#1F332F", "labelBoxBkgColor": "#F7F3EA", "labelBoxBorderColor": "#857861", "labelTextColor": "#342F27", "noteBkgColor": "#F7E7DF", "noteBorderColor": "#B85F43", "noteTextColor": "#46271F"}}}%%
+%%{init: {"themeVariables": {"fontSize": "18px", "fontFamily": "Arial, sans-serif"}}}%%
 sequenceDiagram
     autonumber
     actor Visitor as 使用者
