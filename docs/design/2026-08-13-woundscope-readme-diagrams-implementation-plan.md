@@ -12,7 +12,7 @@
 
 ## Global constraints
 
-- Work only in the canonical checkout on `codex/readme-diagrams`.
+- Work only in the canonical checkout on the active `codex/readme-diagram-readability` patch branch; do not create a clone or worktree.
 - Do not add FUSeg images/masks, checkpoints, calibration artifacts, ONNX files, manifests, galleries, or secrets.
 - Do not change scientific protocol, published metrics, model/API behavior, public claims, or release version.
 - Preserve the distinction between public code/aggregate evidence and owner-provided private model artifacts.
@@ -64,3 +64,22 @@
 - [x] Record exact PASS/FAIL commands and results in `PROGRESS.md` without changing the project milestone or release version.
 - [x] Commit with `kuotunyu <61350295+kuotunyu@users.noreply.github.com>` as the only author/committer.
 - [x] Leave the branch local and ready for review; do not push until the user explicitly authorizes publication.
+
+### Task 4: Apply the approved readability revision
+
+**Files:**
+
+- Modify: `README.md`
+- Modify: `docs/design/2026-08-13-woundscope-readme-diagrams-design.md`
+- Modify: `docs/design/2026-08-13-woundscope-readme-diagrams-implementation-plan.md`
+- Modify: `PROGRESS.md` (local, ignored evidence only)
+- Temporary only: extracted Mermaid source and default／dark render previews under the operating-system temp directory
+
+- [ ] Render the current three diagrams and verify the reported failure at 823px GitHub content width: 18px base text plus excessive width／lifelines produces projected text below the 16px readability target.
+- [ ] Replace Diagram 1 with a single-user entry model; fold FUSeg into the research-pipeline description instead of treating it as a peer role.
+- [ ] Translate diagram labels to zh-TW where natural while retaining GitHub Repository、Public Colab、React、FastAPI、ONNX Runtime、Official Validation、Bootstrap and other proper nouns.
+- [ ] Raise all three Mermaid base font sizes to 22px and shorten node／edge labels so the effective rendered size remains at least 16px at 823px width.
+- [ ] Reduce the sequence diagram to four lifelines and the local-review happy path; remove autonumber and keep showcase behavior in prose.
+- [ ] Extract the final Mermaid blocks and render all three under default and dark themes; inspect every PNG and record viewBox／projected font metrics.
+- [ ] Run README／release regressions, Ruff, format, full pytest, privacy audit, frontend gates and `git diff --check`; record evidence in `PROGRESS.md`.
+- [ ] Commit with owner-only identity. Keep publication external actions separate from local verification.
