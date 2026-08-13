@@ -53,12 +53,12 @@ export function ResearchShowcase({ status, statusError }: ResearchShowcaseProps)
 
       <div className="research-plate" aria-label="研究流程介面示意，非醫療影像或模型預測">
         <div className="plate-meta">
-          <span>Segmentation 複核平面</span>
+          <strong>Segmentation 複核平面</strong>
           <span>512 × 512</span>
         </div>
         <svg
           className="contour-map"
-          viewBox="0 0 640 470"
+          viewBox="70 82 500 350"
           role="img"
           aria-label="抽象的分割輪廓與網格，不代表病患影像"
         >
@@ -85,17 +85,19 @@ export function ResearchShowcase({ status, statusError }: ResearchShowcaseProps)
           <path className="axis-mark" d="M303 244V282M284 263H322" />
         </svg>
 
-        <div className="plate-legend">
-          <span>
-            <Layers3 size={18} aria-hidden="true" />
-            Overlay 邊界
-          </span>
-          <span>
-            <Binary size={18} aria-hidden="true" />
-            Binary semantic segmentation
-          </span>
+        <div className="plate-footer">
+          <div className="plate-legend">
+            <span>
+              <Layers3 size={18} aria-hidden="true" />
+              Overlay 邊界
+            </span>
+            <span>
+              <Binary size={18} aria-hidden="true" />
+              Binary semantic segmentation
+            </span>
+          </div>
+          <p className="plate-note">介面示意圖｜不含醫療影像、mask 或虛構 prediction</p>
         </div>
-        <p className="plate-note">介面示意圖｜不含醫療影像、mask 或虛構 prediction</p>
       </div>
     </section>
   );
