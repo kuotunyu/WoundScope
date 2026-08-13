@@ -142,3 +142,24 @@ Sequence note 明確標示：API 不保存原始檔名、不建立 gallery；con
 - 不製作 Deployment、CI/CD、class diagram 或 database diagram；這些會重複現有資訊或增加一般訪客負擔。
 - 不改 scientific protocol、正式結果、模型、API schema、runtime behavior 或 release version。
 - 不為了視覺效果加入未執行的 cloud infrastructure、database、queue、monitoring 或 security service。
+
+## 10. Pipeline 混合方向版面修訂
+
+### 目標
+
+將「可重現研究 Pipeline」從三個大階段橫向並排、各階段內小步驟縱向排列，改成更符合閱讀順序的混合方向版面：大階段由上往下，小步驟在各階段內由左往右。
+
+### 版面
+
+- 整張圖使用 top-down 主流程，依序閱讀 `1｜資料治理 → 2｜鎖定實驗 → 3｜證據與交付`。
+- 每個大階段保留 subgraph 外框與編號，階段內的小步驟使用 left-to-right 排列。
+- 大階段之間只保留一條向下的交接連線，避免斜向跨欄與重複方向提示。
+- 節點文案、節點數量、stage gate、數據與流程順序維持不變；只改視覺方向與必要的折行。
+- 22px base font、GitHub light／dark adaptive theme 與不固定 foreground colors 的既有規則維持不變。
+
+### 完成條件
+
+- Mermaid CLI 在 default／dark theme 都能成功渲染。
+- 三個大階段明確縱向排列；每個階段的小步驟明確橫向排列。
+- 823px GitHub README content width 下，投影文字不低於 16px，節點文字無不自然黏合或過度折行。
+- 不修改 scientific protocol、verified metrics、API、runtime、release version 或公開範圍。

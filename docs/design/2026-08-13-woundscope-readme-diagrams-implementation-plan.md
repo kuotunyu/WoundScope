@@ -83,3 +83,26 @@
 - [x] Extract the final Mermaid blocks and render all three under default and dark themes; inspect every PNG and record viewBox／projected font metrics.
 - [x] Run README／release regressions, Ruff, format, full pytest, privacy audit, frontend gates and `git diff --check`; record evidence in `PROGRESS.md`.
 - [x] Commit with owner-only identity. Keep publication external actions separate from local verification.
+
+### Task 5: Reorient the research Pipeline with nested reading directions
+
+**Files:**
+
+- Modify: `README.md:69-107`
+- Modify: `docs/design/2026-08-13-woundscope-readme-diagrams-design.md`
+- Modify: `docs/design/2026-08-13-woundscope-readme-diagrams-implementation-plan.md`
+- Modify: `PROGRESS.md` (local, ignored evidence only)
+- Temporary only: extracted Mermaid source and default／dark render previews under the operating-system temp directory
+
+**Interfaces:**
+
+- Consumes: the existing 12 Pipeline nodes, their fixed scientific order, 22px Mermaid typography, and GitHub adaptive theme behavior.
+- Produces: one GitHub-native Mermaid flowchart whose three numbered stages read top-to-bottom while each stage's nodes read left-to-right.
+
+- [ ] Change the outer Pipeline direction to top-down and each numbered subgraph direction to left-to-right.
+- [ ] Preserve all node labels, process order, stage boundaries, `exclude_train` count, Official Validation count, seeds, Bootstrap count, ONNX parity and privacy-safe delivery claims.
+- [ ] Connect the numbered subgraphs through one stage-to-stage downward handoff without introducing diagonal cross-stage paths.
+- [ ] Extract the final Pipeline block and render it under Mermaid CLI 11.12.0 using default and dark themes.
+- [ ] Inspect the rendered previews at 823px GitHub content width; confirm stage direction, step direction, text wrapping and a projected font size of at least 16px.
+- [ ] Run README／release regressions, Ruff, format, full pytest, privacy audit, frontend gates and `git diff --check`.
+- [ ] Record exact evidence in `PROGRESS.md`; commit with owner-only identity and leave publication as a separate external action.
