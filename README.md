@@ -153,10 +153,10 @@ sequenceDiagram
     ONNX-->>API: mask／ratio／confidence<br/>provider／inference time
     API-->>UI: sanitized review response
     UI-->>User: Original／Overlay／Mask<br/>人工複核提示
-    Note over UI,API: 僅使用記憶體，不保存影像或 gallery<br/>錯誤不暴露內部路徑
+    Note over UI,API: 不建立持久化輸出，不保存影像或 gallery<br/>錯誤不暴露內部路徑
 ```
 
-API 以記憶體處理輸入，不建立 prediction gallery；confidence 是分割模型的非臨床訊號，低信心或 artifact provenance 不完整時，介面會要求人工複核而不是輸出診斷。
+API 不建立持久化 prediction 輸出或 gallery；confidence 是分割模型的非臨床訊號，低信心或 artifact provenance 不完整時，介面會要求人工複核而不是輸出診斷。
 
 ---
 
@@ -194,7 +194,7 @@ $env:WOUNDSCOPE_CALIBRATION_PATH = "artifacts\runs\RUN\calibration.json"
 .\.venv\Scripts\python.exe app\app.py
 ```
 
-選取影像後仍需按下「開始分割複核」才會提交至本機 FastAPI；API 以記憶體處理並回傳 Overlay／Mask，不保存原始檔名或建立 gallery。confidence 僅代表模型分割信心，非臨床信心。
+選取影像後仍需按下「開始分割複核」才會提交至本機 FastAPI；API 回傳 Overlay／Mask，不建立持久化 prediction 輸出，也不保存原始檔名或建立 gallery。confidence 僅代表模型分割信心，非臨床信心。
 
 公開 model artifacts 與 hosted live inference 不在目前發布範圍；這是刻意的 code-only 邊界，不是尚待排除的 service blocker。有合法取得且自行保管 artifacts 的使用者，仍可使用上述本機 private review workflow。過往 Hugging Face candidate 與未來若另案重啟時的授權程序，保留於[封存部署指引](docs/huggingface-space-deployment.md)。
 
