@@ -6,9 +6,9 @@
 
 ## Direction
 
-- Concept: `Clinical Editorial／沉靜研究室`
-- Style: paper-like, matte, precise, calm, research-focused
-- Variance: 6/10; density: 7/10; motion: 3/10
+- Concept: `Scientific Console／理性研究台`
+- Style: instrument-like, matte, precise, calm, research-focused
+- Variance: 4/10; density: 8/10; motion: 3/10
 - Avoid: framework-default dashboards, AI purple gradients, giant hero areas,
   repetitive cards, patient imagery, decorative clinical claims
 
@@ -34,11 +34,11 @@
 
 ## Typography
 
-- Heading/metrics: `Noto Serif TC`, `Songti TC`, `PMingLiU`, serif.
-- Body/UI: `Noto Sans TC`, `PingFang TC`, `Microsoft JhengHei`, sans-serif.
+- Heading/body/UI: `Noto Sans TC`, `PingFang TC`, `Microsoft JhengHei`, sans-serif.
+- Verified metric numerals may use `Noto Serif TC`, `Songti TC`, `PMingLiU`, serif.
 - No remote font request; system-local fallbacks prevent render blocking.
-- Desktop body: 17px/1.65; mobile body: 16px/1.65.
-- Secondary copy: at least 15px; labels/buttons: at least 16px.
+- Desktop body: 18px/1.62; mobile body: 17px/1.62.
+- Secondary copy, metadata, labels, and buttons: at least 16px.
 - Metric numerals: 28–36px with a compact scope label.
 - Long text measure: 42–72 characters.
 
@@ -51,6 +51,7 @@
 - Mobile: one column; result metrics form a 2×2 grid where readable.
 - Interactive target: minimum 44×44px.
 - Avoid nested cards when border, spacing, or typography already communicates hierarchy.
+- Radius scale: 4px, 6px, 8px; pills only for compact state badges and segmented controls.
 
 ## Components
 
@@ -70,6 +71,9 @@
 - Abstract inline SVG contour/grid only; `aria-hidden="true"`.
 - Clearly labeled as interface illustration, never a prediction.
 - Model-unavailable state is intentional permission-aware copy, not an error.
+- The product H1 starts the content hierarchy; research metadata follows the description rather
+  than appearing as a kicker above the heading.
+- Mode status, evidence, and provenance use rules and alignment rather than outer cards.
 
 ### Review workspace
 
@@ -82,7 +86,9 @@
 ## Depth, icons, and motion
 
 - Lucide outline icons only, consistent stroke width and tokenized sizes.
-- Border first; use one restrained shadow layer for elevated surfaces.
+- Full borders belong to interaction and measurement surfaces; informational sections use rules,
+  alignment, and type weight instead of enclosing cards.
+- Use one restrained shadow layer only where elevation communicates interaction state.
 - Page canvas stays paper-like with a restrained cool haze; grid lines belong only
   inside segmentation／measurement surfaces, never across the whole page.
 - Hover/focus/pressed transitions: 150–220ms, no layout-shifting transforms.

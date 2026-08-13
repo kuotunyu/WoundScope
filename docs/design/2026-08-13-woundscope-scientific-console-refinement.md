@@ -27,7 +27,7 @@
 - H1 固定為「WoundScope 傷口分割複核工作台」，不再使用口號式斷句。
 - H1 使用 `Noto Sans TC` 系列，不使用 serif；desktop 38–42px、tablet 34–38px、mobile 30–34px，line-height 1.2，font-weight 650–700。
 - H1 下方以一段 17–18px 說明研究工作流；不使用超過兩行的行銷文案。
-- Kicker 改為資料式標籤，例如 `MEDICAL COMPUTER VISION / RESEARCH PROTOTYPE`，維持 15–16px，但降低 letter-spacing。
+- 不在 H1 上方放 kicker；`Medical Computer Vision` 與 `Research prototype` 作為 H1 說明後的 16px research metadata。
 - 一般正文 desktop 18px、mobile 17px；次要資訊與 metadata 不低於 16px。
 - Metric numeral 可保留 serif 或 tabular numerals，但 section heading、status 與 controls 一律使用 sans-serif。
 
@@ -60,9 +60,9 @@
 
 Showcase 首屏順序固定為：
 
-1. Kicker：研究領域與 prototype scope。
-2. H1：產品／工具名稱。
-3. 一句研究工作流說明。
+1. H1：產品／工具名稱。
+2. 一句研究工作流說明。
+3. Research metadata：研究領域與 prototype scope。
 4. Inline mode status：code-only／local model readiness 與安全說明。
 5. DATA_CARD／provenance 兩個 secondary links。
 6. Abstract research plate。

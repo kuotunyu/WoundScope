@@ -87,10 +87,10 @@ it("uploads only after explicit action and renders nonclinical results", async (
 it("limits live announcements and keeps local-review framing zh-TW first", () => {
   const { container } = render(<ReviewWorkspace status={readyStatus} />);
 
-  expect(screen.getByText("本機複核 · Private Runtime")).toBeVisible();
-  expect(screen.getByRole("region", { name: "傷口分割複核工作台" })).not.toHaveAttribute(
-    "aria-live",
-  );
+  expect(screen.queryByText("本機複核 · Private Runtime")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("region", { name: "WoundScope 傷口分割複核工作台" }),
+  ).not.toHaveAttribute("aria-live");
   expect(screen.getByText("影像僅保留於目前本機工作階段。")).toHaveAttribute(
     "aria-live",
     "polite",

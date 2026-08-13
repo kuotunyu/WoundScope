@@ -92,7 +92,7 @@ Expected: the new H1, `mode-status`, and direct provenance heading assertions fa
 
 - [ ] **Step 3: Implement the minimal semantic change**
 
-Use the exact H1 `WoundScope 傷口分割複核工作台`. Replace the two-line slogan with one concise explanation of data integrity, segmentation, calibration, ONNX parity, and provenance. Rename `.mode-panel` to `.mode-status`, use `role="status" aria-live="polite"`, and keep the existing safe error／showcase messages. Change the provenance eyebrow to `RESEARCH PROVENANCE` and H2 to `Artifact 與研究來源`; retain release, model artifact, calibration, permission, and disclosure paragraphs verbatim.
+Use the exact H1 `WoundScope 傷口分割複核工作台`. Replace the two-line slogan with one concise explanation of data integrity, segmentation, calibration, ONNX parity, and provenance. Remove the kicker above H1 and place `Medical Computer Vision`／`Research prototype` metadata after the explanation. Rename `.mode-panel` to `.mode-status`, use `role="status" aria-live="polite"`, and keep the existing safe error／showcase messages. Remove the provenance eyebrow and use H2 `Artifact 與研究來源`; retain release, model artifact, calibration, permission, and disclosure paragraphs verbatim.
 
 - [ ] **Step 4: Verify GREEN**
 

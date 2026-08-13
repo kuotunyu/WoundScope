@@ -111,7 +111,13 @@ it("opens the review workspace only when a local model is ready", async () => {
 
   render(<App />);
 
-  expect(await screen.findByRole("heading", { name: "傷口分割複核工作台" })).toBeVisible();
-  expect(screen.getByLabelText("選擇傷口影像")).toBeVisible();
+  expect(await screen.findByLabelText("選擇傷口影像")).toBeVisible();
+  expect(
+    screen.getByRole("heading", {
+      level: 1,
+      name: "WoundScope 傷口分割複核工作台",
+    }),
+  ).toBeVisible();
+  expect(screen.queryByText("本機複核 · Private Runtime")).not.toBeInTheDocument();
   expect(screen.queryByText("研究展示模式")).not.toBeInTheDocument();
 });

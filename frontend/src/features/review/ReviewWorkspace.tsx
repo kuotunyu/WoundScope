@@ -20,8 +20,7 @@ export function ReviewWorkspace({ status }: ReviewWorkspaceProps) {
     >
       <header className="workspace-intro">
         <div>
-          <p className="kicker">本機複核 · Private Runtime</p>
-          <h1 id="review-workspace-title">傷口分割複核工作台</h1>
+          <h1 id="review-workspace-title">WoundScope 傷口分割複核工作台</h1>
           <p>
             並排檢視原圖、Overlay 與 binary mask；每次推論均由你明確啟動，結果不作臨床診斷。
           </p>
