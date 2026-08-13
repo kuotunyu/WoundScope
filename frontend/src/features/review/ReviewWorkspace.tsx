@@ -1,5 +1,6 @@
 import { FileImage, LoaderCircle, LockKeyhole, RotateCcw, ScanLine } from "lucide-react";
 
+import { WorkflowGuide } from "../../components/WorkflowGuide";
 import type { ModelStatus } from "../../lib/api/types";
 import { ImageStage } from "./ImageStage";
 import { ResultRail } from "./ResultRail";
@@ -33,6 +34,8 @@ export function ReviewWorkspace({ status }: ReviewWorkspaceProps) {
           </div>
         </div>
       </header>
+
+      <WorkflowGuide variant="review" />
 
       <div className="upload-console">
         <label className={`upload-field ${session.file ? "has-file" : ""}`}>

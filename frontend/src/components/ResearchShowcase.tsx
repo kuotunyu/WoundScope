@@ -1,6 +1,7 @@
 import { ArrowRight, Binary, CircleDashed, Layers3 } from "lucide-react";
 
 import type { ModelStatus } from "../lib/api/types";
+import { WorkflowGuide } from "./WorkflowGuide";
 
 interface ResearchShowcaseProps {
   status: ModelStatus | null;
@@ -35,6 +36,8 @@ export function ResearchShowcase({ status, statusError }: ResearchShowcaseProps)
             </p>
           </div>
         </div>
+
+        <WorkflowGuide variant="showcase" />
 
         <div className="showcase-links">
           <a

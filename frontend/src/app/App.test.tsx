@@ -80,6 +80,24 @@ it("frames the showcase as a scientific workbench instead of an editorial headli
   expect(container.querySelectorAll(".provenance-grid article")).toHaveLength(0);
 });
 
+it("explains how to move from code-only showcase to local review", async () => {
+  mockStatus();
+  render(<App />);
+  await screen.findByText("研究展示模式");
+
+  const guide = screen.getByRole("region", { name: "使用流程" });
+  expect(within(guide).getByRole("list")).toBeVisible();
+  expect(within(guide).getByText("準備 artifacts")).toBeVisible();
+  expect(within(guide).getByText("啟動本機工作台")).toBeVisible();
+  expect(within(guide).getByText("上傳並複核")).toBeVisible();
+  expect(within(guide).getByRole("link", { name: "查看本機啟用方式" })).toHaveAttribute(
+    "href",
+    "https://github.com/kuotunyu/WoundScope#啟動分割複核工作台",
+  );
+  expect(screen.queryByLabelText("選擇傷口影像")).not.toBeInTheDocument();
+  expect(screen.queryByText("立即推論")).not.toBeInTheDocument();
+});
+
 it("offers a labeled theme control without a network font dependency", async () => {
   mockStatus();
   render(<App />);

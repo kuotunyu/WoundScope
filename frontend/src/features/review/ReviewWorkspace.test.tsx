@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import type { ModelStatus, PredictionResponse } from "../../lib/api/types";
@@ -95,7 +95,12 @@ it("limits live announcements and keeps local-review framing zh-TW first", () =>
     "aria-live",
     "polite",
   );
-  expect(screen.queryByText("01")).not.toBeInTheDocument();
+  const guide = screen.getByRole("region", { name: "操作流程" });
+  expect(guide).toBeVisible();
+  expect(within(guide).getByText("選擇影像")).toBeVisible();
+  expect(within(guide).getByText("明確開始分割")).toBeVisible();
+  expect(within(guide).getByText("比較並人工複核")).toBeVisible();
+  expect(within(guide).queryByRole("link")).not.toBeInTheDocument();
   expect(container.querySelector(".empty-review-state > svg")).toHaveAttribute(
     "aria-hidden",
     "true",
