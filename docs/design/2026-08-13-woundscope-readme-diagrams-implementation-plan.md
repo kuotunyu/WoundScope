@@ -4,7 +4,7 @@
 
 **Goal:** Reorganize the README around a 60-second project narrative and add three GitHub-native Mermaid diagrams that make the system boundary, reproducible research workflow, and local review interaction immediately understandable.
 
-**Architecture:** Documentation-only change. Mermaid remains embedded in `README.md`; no generated diagram artifact, runtime component, model file, API behavior, metric, or release metadata changes. Diagrams use conservative GitHub-compatible `flowchart` and `sequenceDiagram` syntax, explicit text labels, and a restrained high-contrast WoundScope palette.
+**Architecture:** Documentation-only change. Mermaid remains embedded in `README.md`; no generated diagram artifact, runtime component, model file, API behavior, metric, or release metadata changes. Diagrams use conservative GitHub-compatible `flowchart` and `sequenceDiagram` syntax, explicit text labels, and GitHub theme-adaptive high-contrast colors; WoundScope styling is retained through typography, hierarchy, borders, screenshot, and prose.
 
 **Tech Stack:** Markdown, Mermaid, Mermaid CLI, existing repository validation scripts, Python test suite, Ruff.
 
