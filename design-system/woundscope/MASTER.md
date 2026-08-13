@@ -75,6 +75,14 @@
   than appearing as a kicker above the heading.
 - Mode status, evidence, and provenance use rules and alignment rather than outer cards.
 
+### Mode-aware guidance
+
+- Use one semantic ordered list for the three-step workflow in each mode.
+- Showcase guidance ends in a truthful local-setup CTA; local-review guidance explains explicit
+  submission and human review before the upload control.
+- Never imply model availability with disabled upload controls, fake predictions, or a public
+  inference CTA.
+
 ### Review workspace
 
 - Visible upload label and helper/error text.

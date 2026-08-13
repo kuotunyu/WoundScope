@@ -300,6 +300,107 @@ main {
   font-size: 16px;
 }
 
+.workflow-guide {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.workflow-guide-showcase {
+  margin-top: 14px;
+}
+
+.workflow-guide-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.workflow-guide-heading h2 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.workflow-guide-heading span {
+  color: var(--muted-ink);
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-size: 16px;
+}
+
+.workflow-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-steps li {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  padding-right: 10px;
+}
+
+.workflow-steps li + li {
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+}
+
+.workflow-index {
+  color: var(--accent);
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.workflow-steps strong {
+  display: block;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.workflow-steps p {
+  margin: 3px 0 0;
+  color: var(--muted-ink);
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.setup-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 0 15px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  color: var(--surface);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.setup-link:hover {
+  filter: brightness(0.94);
+}
+
+.workflow-guide-review {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.7fr) minmax(0, 4fr);
+  gap: 20px;
+}
+
+.workflow-guide-review .workflow-guide-heading {
+  display: block;
+  margin: 0;
+}
+
 .showcase-links {
   display: flex;
   flex-wrap: wrap;
@@ -1214,6 +1315,11 @@ main {
     grid-template-columns: 1fr;
   }
 
+  .workflow-guide-review {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
   .showcase h1 {
     font-size: clamp(32px, 5vw, 34px);
   }
@@ -1337,6 +1443,20 @@ main {
 
   .mode-status {
     margin-top: 16px;
+  }
+
+  .workflow-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-steps li,
+  .workflow-steps li + li {
+    padding: 8px 0;
+    border-left: 0;
+  }
+
+  .workflow-steps li + li {
+    border-top: 1px solid var(--border);
   }
 
   .research-plate {
