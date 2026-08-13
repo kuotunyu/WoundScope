@@ -20,81 +20,78 @@ WoundScope 是以固定版本 FUSeg 建構的足部潰瘍 binary semantic segmen
 
 WoundScope 不是單一模型 demo，而是一套從資料治理、可重現實驗到本機人工複核的完整 Medical Computer Vision workflow。公開 repository 提供 code、文件與 aggregate evidence；可推論的 ONNX、calibration 與 checkpoints 則由使用者在自己的環境保管。
 
-### System Context 與系統架構
+### 系統脈絡與架構（System Context）
 
 ```mermaid
-%%{init: {"themeVariables": {"fontSize": "18px", "fontFamily": "Arial, sans-serif"}}}%%
+%%{init: {"themeVariables": {"fontSize": "22px", "fontFamily": "Arial, sans-serif"}, "flowchart": {"nodeSpacing": 40, "rankSpacing": 48, "curve": "basis"}}}%%
 flowchart TB
-    Visitor["GitHub 訪客"]:::actor
-    Engineer["研究者／ML Engineer"]:::actor
-    Repo["GitHub Repository<br/>code · docs"]:::public
-    Colab["Public Colab<br/>reproducible runner"]:::public
-    FUSeg["FUSeg pinned revision<br/>official source"]:::external
+    User["使用者"]:::actor
+    Entry["公開專案入口<br/>GitHub Repository · Public Colab"]:::public
 
-    subgraph WoundScope["WoundScope system boundary"]
-        direction LR
-        Pipeline["Research Pipeline<br/>integrity · train · evaluate"]:::process
-        UI["React Review Workbench"]:::component
-        API["FastAPI Review API"]:::component
-        Runtime["Model Runtime<br/>ONNX Runtime"]:::component
-        UI -->|"review request"| API -->|"validated input"| Runtime
+    subgraph WoundScope["WoundScope 系統邊界"]
+        Pipeline["研究管線<br/>FUSeg 固定版本 → integrity → train → evaluate"]:::process
+        Evidence["公開研究證據<br/>aggregate results · cards · releases"]:::evidence
+        Private["私有模型產物<br/>checkpoints · calibration · ONNX"]:::private
+
+        subgraph Review["本機分割複核"]
+            direction LR
+            UI["React 複核介面"]:::component
+            API["FastAPI"]:::component
+            Runtime["ONNX Runtime"]:::component
+            UI -->|"送出"| API -->|"驗證"| Runtime
+        end
+
+        Pipeline -->|"只發布 aggregate"| Evidence
+        Pipeline -->|"寫入個人 Drive／本機"| Private
+        Private -.->|"由 owner 提供"| Runtime
     end
 
-    Evidence["Public evidence<br/>aggregate results · cards · release"]:::evidence
-    Private["Private artifacts｜Drive／local<br/>checkpoints · calibration · ONNX"]:::private
-
-    Visitor -->|"understand and inspect"| Repo
-    Engineer -->|"Run all"| Colab
-    Repo -->|"build and start locally"| UI
-    Colab -->|"orchestrates"| Pipeline
-    FUSeg -->|"pinned download"| Pipeline
-    Pipeline -->|"publish aggregate only"| Evidence
-    Pipeline -->|"write"| Private
-    Runtime -.->|"requires owner-provided artifacts"| Private
+    User -->|"閱讀、重現或啟動"| Entry
+    Entry -->|"執行研究流程"| Pipeline
+    Entry -->|"啟動本機介面"| UI
 
     classDef actor stroke-width:2px;
     classDef public stroke-width:2px;
-    classDef external stroke-width:2px;
     classDef evidence stroke-width:2px;
     classDef process stroke-width:2px;
     classDef component stroke-width:2px;
     classDef private stroke-width:2px,stroke-dasharray:6 4;
 ```
 
-- **一般訪客**可直接檢視 UI、方法與已驗證 aggregate results，不需取得私有模型檔。
-- **研究者／工程師**可從 Public Colab 重跑鎖定 pipeline；產物寫入自己的 Google Drive 或本機 artifact directory。
-- **本機複核**由 React → FastAPI → ONNX Runtime 完成，只有 owner-provided artifacts 存在時才啟用 inference。
+- **單一公開入口**：使用者可從 GitHub Repository 閱讀方法與證據，或透過 Public Colab 重現鎖定實驗。
+- **研究管線**：FUSeg 固定版本經資料治理、訓練與評估後，只公開 aggregate results；模型產物保留在使用者自己的環境。
+- **本機複核**：React → FastAPI → ONNX Runtime 只在 owner-provided artifacts 就緒時啟用 inference。
 
 ### 可重現研究 Pipeline
 
 資料、選模、校準與最終評估各自有明確 gate；Official Validation 只在模型選擇與 Dev-only calibration 凍結後使用。
 
 ```mermaid
-%%{init: {"themeVariables": {"fontSize": "18px", "fontFamily": "Arial, sans-serif"}}}%%
-flowchart TB
-    subgraph Governance["1｜Data governance"]
-        direction LR
-        Source["FUSeg<br/>pinned revision"]:::source
-        Integrity["Data integrity<br/>pairing · decode · mask · duplicate audit"]:::gate
-        Exclude["exclude_train<br/>remove 7 exact train copies<br/>retain Official Validation 200"]:::decision
+%%{init: {"themeVariables": {"fontSize": "22px", "fontFamily": "Arial, sans-serif"}, "flowchart": {"nodeSpacing": 36, "rankSpacing": 44, "curve": "basis"}}}%%
+flowchart LR
+    subgraph Governance["1｜資料治理"]
+        direction TB
+        Source["FUSeg<br/>固定 revision"]:::source
+        Integrity["資料完整性檢查<br/>配對 · 解碼 · mask · duplicate"]:::gate
+        Exclude["exclude_train<br/>排除 7 張 train exact copies<br/>Official Validation 保留 200 張"]:::decision
         Source --> Integrity --> Exclude
     end
 
-    subgraph Experiment["2｜Locked experiment"]
-        direction LR
-        Quick["Quick GPU gate"]:::gate
-        Compare["2 models × 2 losses<br/>internal-dev comparison"]:::process
-        Lock["Locked loss selection + calibration<br/>internal dev only"]:::decision
-        Seeds["3-seed final runs<br/>42 · 43 · 44"]:::process
+    subgraph Experiment["2｜鎖定實驗"]
+        direction TB
+        Quick["GPU 快速驗證"]:::gate
+        Compare["2 models × 2 losses<br/>Internal Dev 比較"]:::process
+        Lock["鎖定 loss 與 calibration<br/>僅使用 Internal Dev"]:::decision
+        Seeds["三組 seed 正式訓練<br/>42 · 43 · 44"]:::process
         Quick --> Compare --> Lock --> Seeds
     end
 
-    subgraph EvidenceStage["3｜Evidence and handoff"]
-        direction LR
-        Validation["Official Validation<br/>frozen selection and calibration"]:::evidence
+    subgraph EvidenceStage["3｜證據與交付"]
+        direction TB
+        Validation["Official Validation<br/>selection／calibration 已凍結"]:::evidence
         Bootstrap["2,000× image-level Bootstrap<br/>95% CI"]:::evidence
         Parity["ONNX parity<br/>CPU benchmark"]:::gate
-        Handoff["Privacy-safe aggregate handoff"]:::output
+        Handoff["privacy-safe aggregate 交付"]:::output
         Validation --> Bootstrap --> Parity --> Handoff
     end
 
@@ -134,39 +131,29 @@ flowchart TB
 
 ## 本機複核如何運作
 
-介面先確認 private model artifacts 是否就緒，再決定顯示研究展示模式或本機分割複核。即使模型可用，選取影像也只建立本機 preview；使用者必須明確按下「開始分割複核」才會送往同一台機器上的 FastAPI。
+介面先確認 private model artifacts 是否就緒，再決定顯示研究展示模式或本機分割複核。下圖聚焦 artifacts-ready 的主要成功路徑；若模型產物尚未就緒，介面只顯示研究展示模式與取得方式。即使模型可用，選取影像也只建立本機 preview；使用者必須明確按下「開始分割複核」才會送往同一台機器上的 FastAPI。
 
 ```mermaid
-%%{init: {"themeVariables": {"fontSize": "18px", "fontFamily": "Arial, sans-serif"}}}%%
+%%{init: {"themeVariables": {"fontSize": "22px", "fontFamily": "Arial, sans-serif"}, "sequence": {"diagramMarginX": 24, "diagramMarginY": 16, "actorMargin": 36, "width": 180, "height": 64, "boxMargin": 10, "noteMargin": 12, "messageMargin": 44}}}%%
 sequenceDiagram
-    autonumber
-    actor Visitor as 使用者
-    participant UI as React Workbench
-    participant API as FastAPI Review API
-    participant Model as Model Runtime
-    participant ONNX as ONNX Runtime
+    actor User as 使用者
+    participant UI as React 複核工作台
+    participant API as FastAPI
+    participant ONNX as ONNX 推論層
 
-    Visitor->>UI: 開啟本機工作台
+    User->>UI: 開啟本機工作台
     UI->>API: GET /api/model-status
-    API-->>UI: mode + artifact readiness
-
-    alt model artifacts unavailable
-        UI-->>Visitor: 顯示研究展示模式與取得方式
-    else local_review ready
-        UI-->>Visitor: 開啟三步驟分割複核 workspace
-        Visitor->>UI: 選擇 PNG／JPEG／WebP
-        Note over Visitor,UI: client-side 檢查 MIME／12 MiB 上限；僅建立本機 preview
-        Visitor->>UI: 明確按下「開始分割複核」
-        UI->>API: POST /api/predict
-        API->>API: 驗證 content type、size、decode、dimensions
-        API->>Model: 傳入已驗證影像
-        Model->>ONNX: 載入 private ONNX／calibration 並執行
-        ONNX-->>Model: probability map + provider + inference time
-        Model-->>API: overlay／mask／ratio／confidence／review reasons
-        API-->>UI: sanitized review response
-        UI-->>Visitor: Original／Overlay／Mask + 人工複核提示
-        Note over UI,API: 不保存檔名、影像或 gallery；錯誤不暴露內部路徑
-    end
+    API-->>UI: local_review ready
+    User->>UI: 選擇 PNG／JPEG／WebP
+    Note over User,UI: client-side 驗證 MIME／12 MiB<br/>只建立本機 preview
+    User->>UI: 按下「開始分割複核」
+    UI->>API: POST /api/predict
+    API->>API: 驗證格式、大小與 dimensions
+    API->>ONNX: 已驗證影像<br/>private ONNX／calibration
+    ONNX-->>API: mask／ratio／confidence<br/>provider／inference time
+    API-->>UI: sanitized review response
+    UI-->>User: Original／Overlay／Mask<br/>人工複核提示
+    Note over UI,API: 僅使用記憶體，不保存影像或 gallery<br/>錯誤不暴露內部路徑
 ```
 
 API 以記憶體處理輸入，不建立 prediction gallery；confidence 是分割模型的非臨床訊號，低信心或 artifact provenance 不完整時，介面會要求人工複核而不是輸出診斷。
