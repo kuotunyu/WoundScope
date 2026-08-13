@@ -67,36 +67,35 @@ flowchart TB
 資料、選模、校準與最終評估各自有明確 gate；Official Validation 只在模型選擇與 Dev-only calibration 凍結後使用。
 
 ```mermaid
-%%{init: {"themeVariables": {"fontSize": "22px", "fontFamily": "Arial, sans-serif"}, "flowchart": {"nodeSpacing": 36, "rankSpacing": 44, "curve": "basis"}}}%%
-flowchart LR
+%%{init: {"themeVariables": {"fontSize": "22px", "fontFamily": "Arial, sans-serif"}, "flowchart": {"nodeSpacing": 28, "rankSpacing": 20, "curve": "basis", "subGraphTitleMargin": {"top": 8, "bottom": 8}}}}%%
+flowchart TB
     subgraph Governance["1｜資料治理"]
-        direction TB
+        direction LR
         Source["FUSeg<br/>固定 revision"]:::source
-        Integrity["資料完整性檢查<br/>配對 · 解碼 · mask · duplicate"]:::gate
-        Exclude["exclude_train<br/>排除 7 張 train exact copies<br/>Official Validation 保留 200 張"]:::decision
+        Integrity["完整性檢查<br/>配對 · 解碼<br/>mask · duplicate"]:::gate
+        Exclude["exclude_train<br/>排除 7 張 exact copies<br/>Validation 保留 200 張"]:::decision
         Source --> Integrity --> Exclude
     end
 
     subgraph Experiment["2｜鎖定實驗"]
-        direction TB
-        Quick["GPU 快速驗證"]:::gate
+        direction LR
+        Quick["GPU<br/>快速驗證"]:::gate
         Compare["2 models × 2 losses<br/>Internal Dev 比較"]:::process
-        Lock["鎖定 loss 與 calibration<br/>僅使用 Internal Dev"]:::decision
-        Seeds["三組 seed 正式訓練<br/>42 · 43 · 44"]:::process
+        Lock["鎖定 loss<br/>Dev-only calibration"]:::decision
+        Seeds["正式訓練<br/>seeds 42 · 43 · 44"]:::process
         Quick --> Compare --> Lock --> Seeds
     end
 
     subgraph EvidenceStage["3｜證據與交付"]
-        direction TB
-        Validation["Official Validation<br/>selection／calibration 已凍結"]:::evidence
-        Bootstrap["2,000× image-level Bootstrap<br/>95% CI"]:::evidence
+        direction LR
+        Validation["Official Validation<br/>凍結後評估"]:::evidence
+        Bootstrap["2,000× Bootstrap<br/>image-level 95% CI"]:::evidence
         Parity["ONNX parity<br/>CPU benchmark"]:::gate
-        Handoff["privacy-safe aggregate 交付"]:::output
+        Handoff["privacy-safe<br/>aggregate 交付"]:::output
         Validation --> Bootstrap --> Parity --> Handoff
     end
 
-    Exclude --> Quick
-    Seeds --> Validation
+    Governance --> Experiment --> EvidenceStage
 
     classDef source stroke-width:2px;
     classDef process stroke-width:2px;
