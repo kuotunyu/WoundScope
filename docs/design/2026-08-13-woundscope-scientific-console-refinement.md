@@ -1,7 +1,7 @@
 # WoundScope Scientific Console 視覺精簡規格
 
 > 日期：2026-08-13
-> 狀態：已核准，待實作
+> 狀態：已完成並合併至 `main`
 > 範圍：只調整 React showcase／review workbench 的 typography、spacing、shape 與資訊層級；不修改 scientific protocol、正式 metrics、model behavior 或 artifact policy
 
 ## 1. 問題與目標

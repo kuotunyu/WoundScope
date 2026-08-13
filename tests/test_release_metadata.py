@@ -27,20 +27,20 @@ def test_release_identity_and_repository_urls() -> None:
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
 
     assert cff["authors"] == [{"name": "kuotunyu"}]
-    assert cff["version"] == "0.2.1"
-    assert str(cff["date-released"]) == "2026-08-10"
+    assert cff["version"] == "0.2.2"
+    assert str(cff["date-released"]) == "2026-08-13"
     assert cff["repository-code"] == REPOSITORY_URL
     assert cff["url"] == REPOSITORY_URL
 
     project = pyproject["project"]
-    assert project["version"] == "0.2.1"
+    assert project["version"] == "0.2.2"
     assert project["authors"] == [{"name": "kuotunyu"}]
     assert project["urls"] == {
         "Homepage": REPOSITORY_URL,
         "Repository": REPOSITORY_URL,
         "Issues": f"{REPOSITORY_URL}/issues",
     }
-    assert __version__ == "0.2.1"
+    assert __version__ == "0.2.2"
 
 
 def test_python_support_contract_matches_locked_runtime_wheels() -> None:
@@ -57,7 +57,7 @@ def test_python_support_contract_matches_locked_runtime_wheels() -> None:
     assert "Programming Language :: Python :: 3.11" in project["classifiers"]
     assert "Programming Language :: Python :: 3.12" in project["classifiers"]
     assert lock["requires-python"] == ">=3.11, <3.13"
-    assert woundscope_package["version"] == "0.2.1"
+    assert woundscope_package["version"] == "0.2.2"
     assert "Python 支援 3.11–3.12。" in readme
 
 
@@ -92,13 +92,15 @@ def test_readme_exposes_public_colab_and_reproducible_commands() -> None:
     assert "$env:WOUNDSCOPE_CALIBRATION_PATH" in readme
     assert "set WOUNDSCOPE_MODEL_PATH" not in readme
     assert "docs/releases/" not in readme
-    assert "releases/tag/v0.2.1" in readme
+    assert "releases/tag/v0.2.2" in readme
     assert "releases/tag/v0.2.0" not in readme
     assert "releases/tag/v0.1.0" in readme
-    assert "Space%20授權確認中" in readme
+    assert "Space%20Code--only" in readme
     assert "docs/huggingface-space-deployment.md" in readme
+    assert "公開 model artifacts 與 hosted live inference 不在目前發布範圍" in readme
+    assert "PERMISSION_PENDING" not in readme
     issue_form = Path(".github/ISSUE_TEMPLATE/bug_report.yml").read_text(encoding="utf-8")
-    assert "例如 v0.2.1 或 40-character Git SHA" in issue_form
+    assert "例如 v0.2.2 或 40-character Git SHA" in issue_form
 
 
 def test_public_cards_bind_verified_results_and_scientific_boundaries() -> None:

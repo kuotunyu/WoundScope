@@ -1,9 +1,9 @@
 # WoundScope
 
 [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kuotunyu/WoundScope/blob/main/notebooks/WoundScope_FUSeg_FullRun_Colab.ipynb)
-[![Hugging Face Space](https://img.shields.io/badge/Hugging%20Face-Space%20授權確認中-yellow)](#快速開始)
+[![Hugging Face Space](https://img.shields.io/badge/Hugging%20Face-Space%20Code--only-596a73)](#快速開始)
 [![CI](https://github.com/kuotunyu/WoundScope/actions/workflows/ci.yml/badge.svg)](https://github.com/kuotunyu/WoundScope/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/kuotunyu/WoundScope)](https://github.com/kuotunyu/WoundScope/releases/tag/v0.2.1)
+[![Release](https://img.shields.io/github/v/release/kuotunyu/WoundScope)](https://github.com/kuotunyu/WoundScope/releases/tag/v0.2.2)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 WoundScope 是以固定版本 FUSeg 建構的足部潰瘍 binary semantic segmentation **CV research flagship**：串接資料治理、可恢復 GPU 訓練、鎖定評估、ONNX parity 與 privacy-safe handoff。U-Net (EfficientNet-B0) 在 200 張 Official Validation 上的 observed Dice 為 **0.8508 ± 0.0035**（3 個 seeds；2,000 次 image-level Bootstrap 估計 95% CI）。
@@ -46,7 +46,7 @@ flowchart TD
 
     subgraph Stage3 ["階段三：鎖定評估與研究交付 (Evaluation & Handoff)"]
         direction TB
-        Calib --> Eval["Official Validation 評估<br/>200 張 · 2,000 次 image-level Bootstrap"] --> ONNX[("Private ONNX 導出與 parity<br/>CPU benchmark")] --> Demo(["React + FastAPI review workbench<br/>授權確認後才發布模型"])
+        Calib --> Eval["Official Validation 評估<br/>200 張 · 2,000 次 image-level Bootstrap"] --> ONNX[("Private ONNX 導出與 parity<br/>CPU benchmark")] --> Demo(["React + FastAPI review workbench<br/>公開版維持 code-only"])
     end
 
     classDef srcStyle fill:#e7f5ff,stroke:#1971c2,stroke-width:2px,color:#212529
@@ -119,7 +119,7 @@ $env:WOUNDSCOPE_CALIBRATION_PATH = "artifacts\runs\RUN\calibration.json"
 
 選取影像後仍需按下「開始分割複核」才會提交至本機 FastAPI；API 以記憶體處理並回傳 Overlay／Mask，不保存原始檔名或建立 gallery。confidence 僅代表模型分割信心，非臨床信心。
 
-Hugging Face Space 目前為 `PERMISSION_PENDING`；維持 code-only 候選發布，部署與授權說明請見 [docs/huggingface-space-deployment.md](docs/huggingface-space-deployment.md)。
+公開 model artifacts 與 hosted live inference 不在目前發布範圍；這是刻意的 code-only 邊界，不是尚待排除的 service blocker。有合法取得且自行保管 artifacts 的使用者，仍可使用上述本機 private review workflow。過往 Hugging Face candidate 與未來若另案重啟時的授權程序，保留於[封存部署指引](docs/huggingface-space-deployment.md)。
 
 ---
 
@@ -137,14 +137,14 @@ Hugging Face Space 目前為 `PERMISSION_PENDING`；維持 code-only 候選發�
 - **患者 ID 限制**：資料集未包含 Patient ID，因此不宣稱 Patient-wise 絕對隔離，無法完全排除同病患跨視角之來源相關性。
 - **外部有效性限制**：目前僅驗證單一公開資料來源；Official Test 無公開 Ground-truth Masks，亦無多中心、裝置或 subgroup validation。
 - **指標限制**：影像以 longest-side resize／pad 至 512 評估；Specificity 易受大面積背景與 padding 主導，且目前未報告 HD95／ASSD。
-- **授權限制**：FUSeg 與 pretrained weights 的公開再散布條款尚未完全釐清，因此不公開來源資料、weights、ONNX 或可推論的 live model。
+- **發布範圍**：FUSeg 與 pretrained weights 的公開再散布條款尚未完全釐清；本專案因此刻意維持 code-only，不公開來源資料、weights、ONNX 或可推論的 live model。
 - **非臨床診斷建議**：模型信心度代表分割演算法之數值穩定性與校準度，非臨床信心度；本專案僅供學術研究與工程探索。
 
 ---
 
 ## 文件與 Release
 
-- [v0.2.1 Release](https://github.com/kuotunyu/WoundScope/releases/tag/v0.2.1)：CV research flagship 收尾、證據契約與公開文件精準化。
+- [v0.2.2 Release](https://github.com/kuotunyu/WoundScope/releases/tag/v0.2.2)：React／FastAPI 複核工作台、直覺使用導引與 code-only 發布邊界。
 - [v0.1.0 Result Release](https://github.com/kuotunyu/WoundScope/releases/tag/v0.1.0)：正式實驗的 privacy-safe aggregate results 與 provenance。
 - [DATA_CARD.md](DATA_CARD.md) / [MODEL_CARD.md](MODEL_CARD.md)：資料治理、實驗協議、模型指標與使用邊界。
 - [CITATION.cff](CITATION.cff) / [Apache-2.0 LICENSE](LICENSE)：學術引用格式與程式碼授權。

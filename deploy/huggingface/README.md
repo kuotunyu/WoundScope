@@ -12,9 +12,9 @@ short_description: 足部潰瘍影像 segmentation 的研究與部署介面，�
 
 # WoundScope：足部潰瘍影像 segmentation 介面
 
-> 狀態：`PERMISSION_PENDING`
+> 狀態：封存候選；不在 v0.2.2 發布範圍
 
-本 Space 候選版僅含程式碼；目前沒有模型權重、ONNX 檔案、FUSeg 資料或任何病患相關資料。模型發布與下載設定必須先完成授權確認；未完成時，應維持 fail-closed 行為，不提供推論結果。
+本 Space 候選版是 M7 留存的 code-only evidence，僅含程式碼；目前沒有模型權重、ONNX 檔案、FUSeg 資料或任何病患相關資料。WoundScope v0.2.2 不規劃發布 hosted live inference；此候選不是待部署 service，應持續維持 fail-closed 行為，不提供推論結果。
 
 目前的 `PERMISSION_PENDING` code-only 階段不使用任何 token。只有未來另行核准的 Protected／Private model flow，才可依部署指南設定最小權限 read-only runtime secret；此 Space runtime 永遠不得使用 write token、私密 URL 或未固定的 revision。
 

@@ -76,6 +76,10 @@ it("frames the showcase as a scientific workbench instead of an editorial headli
     name: "Artifact 與研究來源",
   });
   expect(within(provenance).getAllByRole("term")).toHaveLength(4);
+  expect(within(provenance).getByText("v0.2.2 · code-only")).toBeVisible();
+  expect(within(provenance).getByText("公開範圍")).toBeVisible();
+  expect(within(provenance).getByText("模型 artifacts 不隨專案發布")).toBeVisible();
+  expect(within(provenance).queryByText("衍生權重待書面確認")).not.toBeInTheDocument();
   expect(screen.queryByText(/每個結果/)).not.toBeInTheDocument();
   expect(container.querySelectorAll(".provenance-grid article")).toHaveLength(0);
 });

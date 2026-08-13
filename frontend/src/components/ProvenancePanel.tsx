@@ -16,7 +16,7 @@ export function ProvenancePanel({ status }: ProvenancePanelProps) {
         <div>
           <GitCommitHorizontal aria-hidden="true" />
           <dt>Release</dt>
-          <dd>v0.2.1 · code-only</dd>
+          <dd>v0.2.2 · code-only</dd>
         </div>
         <div>
           <Fingerprint aria-hidden="true" />
@@ -30,8 +30,8 @@ export function ProvenancePanel({ status }: ProvenancePanelProps) {
         </div>
         <div>
           <ShieldAlert aria-hidden="true" />
-          <dt>權限狀態</dt>
-          <dd>衍生權重待書面確認</dd>
+          <dt>公開範圍</dt>
+          <dd>模型 artifacts 不隨專案發布</dd>
         </div>
       </dl>
       <details>
