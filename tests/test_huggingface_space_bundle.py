@@ -113,7 +113,10 @@ def test_space_bundle_uses_committed_allowlist_and_is_deterministic(tmp_path: Pa
     )
 
 
-def test_primary_entrypoint_exposes_fastapi_without_importing_gradio() -> None:
+def test_primary_entrypoint_exposes_fastapi_without_importing_gradio(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.syspath_prepend(str(Path.cwd()))
     module = importlib.import_module("app.app")
 
     assert isinstance(module.app, FastAPI)
