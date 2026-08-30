@@ -24,6 +24,8 @@
 - Every commit has author and committer `kuotunyu <61350295+kuotunyu@users.noreply.github.com>` and no co-author trailer. Stage only named paths; `git add .`, `git add -A`, wildcard staging, and force-adding ignored governance files are forbidden.
 - Browser review supply chain is exact: Node 24.16.0; pnpm 11.16.0; `@playwright/test` 1.62.1 (`sha512-DTcUc8qii+cpHvtOwggMtBRMjKZHXYWdw8syRYu2vtzuq4Wxphqq4NfCs5Zt44L6mA8rfDfj+PHnxFc/FeK6mQ==`); `playwright` 1.62.1 (`sha512-0M+L3LAD8/nm554LOla9Ayx0j0tmFZ0FBcoQ7F1VuVHpM/XpiC8RcDzBQB8W5+hA8L22THxELzeF+2WcUzvcLg==`); `playwright-core` 1.62.1 (`sha512-wPYSwEBJY9GHraISXqyqtx0na0LpO3XEX7jNDhntbex7tzUS7kLnZsOlFruFJB4Hi/rhDMjXGqHewDZ68nYZVw==`); `axe-core` 4.13.0 (`sha512-UzGt8zg7Ny8djbYMhxl2zuEevVa7r2gJjYY5Lwr1xM7+XU2nd6CkIWFTVcCIbAP63vSz71NaVyyuSk9lHKcy0A==`); optional `fsevents` 2.3.2 (`sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==`).
 - Browser revisions are Chromium 1234 (`151.0.7922.34`), Firefox 1538 (`153.0`), and WebKit 2336 (`26.5`). A mismatch in installed `playwright-core/browsers.json` fails before a page opens.
+- Every pnpm dependency installation first runs the stdlib package-policy audit, then uses the committed exact lockfile with both `--frozen-lockfile` and `--ignore-scripts`. `package.json` has no lifecycle hook, no production dependency, and no script／dependency outside the approved exact maps. Browser acquisition is a later explicit `playwright install` phase, never an install lifecycle side effect.
+- Controlled package／browser acquisition may use its explicitly approved registries before review execution. The later browser no-egress gate means loopback-only application server plus pre-navigation request ledger／abort; it does not claim a host firewall, air gap, or whole-host offline isolation.
 - Publish byte budgets are blocking: `.nojekyll` = 0; `index.html` ≤ 65,536; `404.html` ≤ 8,192; CSS ≤ 32,768; aggregate SVG = 3,059; `LICENSE.txt` = 11,782; `THIRD_PARTY_NOTICES.txt` ≤ 16,384; `sbom.spdx.json` ≤ 65,536; `pages-manifest.json` ≤ 32,768; all nine files together ≤ 237,568 bytes.
 - Browser gates cover Chromium／Firefox／WebKit × 375×667, 390×844, 768×1024, 1024×768, 1440×900 × light／dark; keyboard, focus, contrast, 200% reflow, no-egress, subpath, and 404 checks are mandatory.
 
@@ -65,6 +67,8 @@
 - Create `site-review/check-toolchain.mjs`: exact package integrity／browser revision receipt.
 - Create `site-review/test-server.mjs`: loopback-only Pages-subpath and safe 404 server.
 - Create `site-review/pages.spec.mjs`: five-viewports × two-color-schemes, keyboard, axe, zoom, no-egress, CSP, and artifact checks.
+- Create `scripts/verify_pages_review_package.py`: pre-install stdlib audit of exact package／lockfile policy and lifecycle-script absence.
+- Create `tests/pages/test_reviewer_package_policy.py`: hostile package／lock mutation tests that run before dependency acquisition.
 
 **Committed CI review only**
 
@@ -682,7 +686,7 @@ assets/model-comparison-e2e8d211a33ac629.svg
 
 It uses `Path.lstat`, rejects links／devices, enforces per-file and 237,568-byte total budgets, recomputes the seven-file SPDX view, eight-file manifest view, and eight-file tree digest, and verifies claims／CSP／links／subpath／zero-JS／privacy. Browser runtime verification is deliberately absent; HTML says no client-side cryptographic verification.
 
-`seal_review` first verifies publish and a strict report allowlist (`toolchain.json`, `network.json`, `axe.json`, `keyboard.json`, `contrast.json`, `zoom.json`, `browser-summary.json`, and `screenshots/**/*.png`). It copies publish into `export_root/publish`, copies only allowed reports into `export_root/reports`, and writes `export_root/review-receipt.json`. The receipt records site/evidence identities, manifest SHA-256, SBOM SHA-256, publish tree digest, report hashes, and a `review_payload_sha256` over `publish/` plus `reports/`; it excludes itself and `CENTRAL_SEAL.json`.
+`seal_review` first verifies publish and a strict report allowlist (`toolchain.json`, `network.json`, `axe.json`, `keyboard.json`, `contrast.json`, `zoom.json`, `browser-summary.json`, and `screenshots/**/*.png`). Final sealing requires `zoom.json.manual_browser_zoom_200_percent` to contain PASS records for all three exact browser revisions; automated content-reflow emulation is a separate field and cannot satisfy it. It copies publish into `export_root/publish`, copies only allowed reports into `export_root/reports`, and writes `export_root/review-receipt.json`. The receipt records site/evidence identities, manifest SHA-256, SBOM SHA-256, publish tree digest, report hashes, and a `review_payload_sha256` over `publish/` plus `reports/`; it excludes itself and `CENTRAL_SEAL.json`.
 
 `record_central_seal` runs only after explicit central approval. It verifies clean HEAD equals the receipt site source, writes `CENTRAL_SEAL.json` beside—not inside—the export, and records receipt SHA-256, site/evidence identities, reviewer `kuotunyu`, explicit approval ID, and decision `approved`. It never changes GitHub or deploys.
 
@@ -752,17 +756,27 @@ Expected: byte-identical nine-file trees, exact source SHA in UI／manifest, evi
 - Create: `site-review/check-toolchain.mjs`
 - Create: `site-review/test-server.mjs`
 - Create: `site-review/pages.spec.mjs`
+- Create: `scripts/verify_pages_review_package.py`
+- Create: `tests/pages/test_reviewer_package_policy.py`
 
 **Interfaces:**
 - Consumes: `WOUNDSCOPE_PAGES_PUBLISH_DIR`, `WOUNDSCOPE_PAGES_REPORT_DIR`, exact reviewer lockfile, loopback port 4173.
-- Produces: approved report allowlist plus PNG screenshots; exits nonzero on toolchain, browser, request, console, CSP, DOM, a11y, layout, keyboard, zoom, subpath, or 404 failure.
+- Produces: `audit_review_package(package_path: Path, lockfile_path: Path) -> dict[str, object]` and its pre-install CLI; approved report allowlist plus PNG screenshots; exits nonzero on package policy, toolchain, browser, request, console, CSP, DOM, a11y, layout, keyboard, zoom, subpath, or 404 failure.
 
-- [ ] **Step 1: Write exact reviewer package and failing toolchain check**
+- [ ] **Step 1: Write the exact reviewer manifest／lockfile and failing pre-install policy tests**
 
-`site-review/package.json` is private, has no production dependencies, requires Node `24.16.0`, declares `packageManager: "pnpm@11.16.0"`, and pins:
+`site-review/package.json` is authored with exactly eight top-level keys, is private, has no `dependencies`, requires Node `24.16.0`, declares `packageManager: "pnpm@11.16.0"`, and contains only these approved scripts and dev dependencies:
 
 ```json
 {
+  "name": "woundscope-pages-review",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@11.16.0",
+  "engines": {
+    "node": "24.16.0"
+  },
   "scripts": {
     "check:toolchain": "node check-toolchain.mjs",
     "test": "playwright test"
@@ -774,43 +788,53 @@ Expected: byte-identical nine-file trees, exact source SHA in UI／manifest, evi
 }
 ```
 
-Activate exact pnpm, generate the lockfile mechanically, and run the checker before installing browser binaries:
+Author `pnpm-lock.yaml` together with this manifest from the centrally verified versions／integrities in Global Constraints; do not resolve or rewrite it through a non-frozen install. `tests/pages/test_reviewer_package_policy.py` imports `audit_review_package`, first validates the approved pair, then mutates copies in `tmp_path` to add `preinstall`, `install`, `postinstall`, `prepare`, an extra script, a production dependency, a ranged version, an extra package, or a changed integrity and requires a stable `ReviewerPackagePolicyError` code.
+
+Run RED before dependency acquisition:
 
 ```powershell
+uv run --python 3.12.13 pytest -q tests/pages/test_reviewer_package_policy.py
+```
+
+Expected: FAIL because `scripts/verify_pages_review_package.py` does not exist.
+
+- [ ] **Step 2: Implement and run the observable pre-install contract**
+
+The stdlib-only verifier parses JSON, treats the YAML lock as a constrained text contract, and requires: exact top-level manifest keys; the two exact scripts above; no lifecycle key of any casing; no `dependencies`, `optionalDependencies`, `peerDependencies`, `bundledDependencies`, or package-manager build allowlist; only the two exact dev dependencies; lockfile version 9; exact importer specifiers; the approved package closure and integrities; no patch, override, catalog, Git／file／workspace source, or unknown package. It prints deterministic JSON with manifest SHA-256, lockfile SHA-256, approved package closure, and `lifecycle_scripts: []` without executing Node or package code.
+
+Run this observable policy gate before corepack or `pnpm install`, then perform the controlled package-acquisition phase with lifecycle execution disabled:
+
+```powershell
+uv run --python 3.12.13 pytest -q tests/pages/test_reviewer_package_policy.py
+uv run --python 3.12.13 python scripts/verify_pages_review_package.py --package site-review/package.json --lockfile site-review/pnpm-lock.yaml
 if ((node --version).Trim() -ne 'v24.16.0') { throw 'Node 24.16.0 required.' }
 corepack enable
 corepack prepare pnpm@11.16.0 --activate
 if ((pnpm --version).Trim() -ne '11.16.0') { throw 'pnpm 11.16.0 activation failed.' }
-pnpm -C site-review install --lockfile-only
-pnpm -C site-review install --frozen-lockfile
-pnpm -C site-review check:toolchain
+pnpm -C site-review install --frozen-lockfile --ignore-scripts
 ```
 
-Expected RED: checker fails until it validates package versions／integrities and browser revisions.
+Expected: policy tests and pre-install audit PASS; pnpm uses the exact committed lock, runs no lifecycle code, and installs package files only. No browser binary is acquired by this command.
 
-- [ ] **Step 2: Implement the exact toolchain receipt**
+- [ ] **Step 3: Implement the exact toolchain receipt**
 
-`check-toolchain.mjs` reads `package.json`, `pnpm-lock.yaml` bytes, installed package metadata, and `playwright-core/browsers.json`. It rejects ranges and mismatches; expects Chromium 1234／151.0.7922.34, Firefox 1538／153.0, WebKit 2336／26.5; and writes `toolchain.json` containing Node／pnpm versions, every resolved direct／transitive／optional package version／license／registry integrity, browser revisions, and lockfile SHA-256. The expected package closure is `@playwright/test` 1.62.1, `playwright` 1.62.1, `playwright-core` 1.62.1, `axe-core` 4.13.0, plus platform-optional `fsevents` 2.3.2; any other resolved package or unknown license fails. It labels Playwright packages (Apache-2.0), axe-core (MPL-2.0), pnpm (MIT), and optional fsevents (MIT) as build-review-only, not production runtime.
+`check-toolchain.mjs` reads `package.json`, `pnpm-lock.yaml` bytes, installed package metadata, and `playwright-core/browsers.json`. It rejects ranges and mismatches; expects Chromium 1234／151.0.7922.34, Firefox 1538／153.0, WebKit 2336／26.5; requires all three resolved Playwright executable paths to exist; and writes `toolchain.json` containing Node／pnpm versions, every resolved direct／transitive／optional package version／license／registry integrity, browser revisions／executable-presence booleans, and lockfile SHA-256. The expected package closure is `@playwright/test` 1.62.1, `playwright` 1.62.1, `playwright-core` 1.62.1, `axe-core` 4.13.0, plus platform-optional `fsevents` 2.3.2; any other resolved package or unknown license fails. It labels Playwright packages (Apache-2.0), axe-core (MPL-2.0), pnpm (MIT), and optional fsevents (MIT) as build-review-only, not production runtime.
 
-Run:
+Before explicit browser acquisition, perform syntax review only; the full checker is intentionally deferred because it must fail if browser executables are absent:
 
 ```powershell
-$siteSha = (git rev-parse HEAD).Trim()
-$runRoot = Join-Path 'temp/pages-review' $siteSha
-$env:WOUNDSCOPE_PAGES_REPORT_DIR = (Resolve-Path -LiteralPath $runRoot).Path + [IO.Path]::DirectorySeparatorChar + 'reports'
-New-Item -ItemType Directory -Path $env:WOUNDSCOPE_PAGES_REPORT_DIR -Force | Out-Null
-pnpm -C site-review check:toolchain
+node --check site-review/check-toolchain.mjs
 ```
 
-Expected GREEN: exact toolchain report is written under ignored `temp/` and no production file changes.
+Expected: syntax check passes without opening a browser or creating a report. Full integrity／executable validation occurs immediately after the separate browser-acquisition phase in Step 7.
 
-- [ ] **Step 3: Implement loopback-only Pages-like test server**
+- [ ] **Step 4: Implement loopback-only Pages-like test server**
 
 `test-server.mjs` resolves the publish root from `WOUNDSCOPE_PAGES_PUBLISH_DIR`, rejects a missing／relative／non-directory path, binds only `127.0.0.1:4173`, serves `/WoundScope/` as `index.html`, serves exact allowlisted assets with safe MIME types, returns the bytes of `404.html` with status 404 for every unknown path, never redirects, never lists a directory, and never echoes request path／query in its body.
 
 `playwright.config.mjs` sets `workers: 1`, `fullyParallel: false`, `retries: 0`, `trace: 'off'`, `video: 'off'`, `outputDir` below the ignored report root, and three exact projects using `chromium`, `firefox`, `webkit`. Its `webServer` starts only the local test server and waits for `/WoundScope/`.
 
-- [ ] **Step 4: Write three-engine matrix and no-egress tests**
+- [ ] **Step 5: Write three-engine matrix and no-egress tests**
 
 For every browser project, iterate the exact five viewport objects and `light`／`dark`. Register request and console listeners before navigation. A request is valid only when origin is `http://127.0.0.1:4173`, path starts `/WoundScope/`, and the normalized path maps to one of the nine manifest files; all external requests are aborted and fail the test.
 
@@ -827,7 +851,7 @@ expect(await page.locator('footer').isVisible()).toBe(true);
 
 It also validates full site/evidence SHAs are distinct, table precedes aggregate image, external link attributes match the nine-item allowlist without clicking, CSS and SVG are same-origin, meta CSP is exact, no resource hint exists, and `performance.getEntriesByType('resource')` contains only expected same-origin files.
 
-- [ ] **Step 5: Add keyboard, axe, contrast, zoom, subpath, and 404 gates**
+- [ ] **Step 6: Add keyboard, axe, contrast, zoom, subpath, and 404 gates**
 
 - Keyboard: first Tab focuses the skip link; Enter moves focus to `main`; subsequent focus order contains links only; every focused link has visible outline and a bounding box at least 44×44 CSS px where the spec marks it touch-targeted.
 - Axe: read exact local `axe-core/axe.min.js`, inject through Playwright evaluation after load, run WCAG 2.2 A／AA tags, and require zero serious／critical violations. This injected test code is not a network request or publish file.
@@ -838,15 +862,25 @@ It also validates full site/evidence SHAs are distinct, table precedes aggregate
 
 Write deterministic JSON summaries to the approved report filenames and PNG screenshots under `reports/screenshots/<engine>/<viewport>-<scheme>.png`. Do not commit snapshots, traces, videos, or reports.
 
-- [ ] **Step 6: Install exact browser revisions and run RED→GREEN browser gate**
+- [ ] **Step 7: Separate controlled browser acquisition from RED→GREEN application no-egress execution**
+
+Phase A is explicit browser acquisition. It may contact the Playwright browser distribution service and is not described as offline or as part of the application no-egress proof:
 
 ```powershell
 pnpm -C site-review exec playwright install chromium firefox webkit
 $siteSha = (git rev-parse HEAD).Trim()
 $runRoot = Join-Path 'temp/pages-review' $siteSha
-$env:WOUNDSCOPE_PAGES_PUBLISH_DIR = (Resolve-Path -LiteralPath (Join-Path $runRoot 'first/publish')).Path
 $env:WOUNDSCOPE_PAGES_REPORT_DIR = (Resolve-Path -LiteralPath $runRoot).Path + [IO.Path]::DirectorySeparatorChar + 'reports'
 pnpm -C site-review check:toolchain
+```
+
+Phase B starts only after acquisition completes. It opens the loopback application under the request-ledger／abort contract; it does not claim whole-host offline isolation:
+
+```powershell
+$siteSha = (git rev-parse HEAD).Trim()
+$runRoot = Join-Path 'temp/pages-review' $siteSha
+$env:WOUNDSCOPE_PAGES_PUBLISH_DIR = (Resolve-Path -LiteralPath (Join-Path $runRoot 'first/publish')).Path
+$env:WOUNDSCOPE_PAGES_REPORT_DIR = (Resolve-Path -LiteralPath $runRoot).Path + [IO.Path]::DirectorySeparatorChar + 'reports'
 pnpm -C site-review test
 ```
 
@@ -865,14 +899,14 @@ git commit -m 'fix: harden Pages review contract'
 
 Rebuild from the new clean commit and rerun until all three engines pass. Never weaken request, axe, contrast, or claim assertions to accept the defect. If no defect is found, do not create this correction commit.
 
-- [ ] **Step 7: Commit only reviewer source and exact lockfile**
+- [ ] **Step 8: Commit only reviewer source, policy, tests, and exact lockfile**
 
 Before committing, `pnpm-lock.yaml` must resolve `@playwright/test`, `playwright`, and `playwright-core` to 1.62.1 and axe-core to 4.13.0 with the Global Constraints integrities.
 
 ```powershell
-git add -- site-review/package.json site-review/pnpm-lock.yaml site-review/playwright.config.mjs site-review/check-toolchain.mjs site-review/test-server.mjs site-review/pages.spec.mjs
+git add -- site-review/package.json site-review/pnpm-lock.yaml site-review/playwright.config.mjs site-review/check-toolchain.mjs site-review/test-server.mjs site-review/pages.spec.mjs scripts/verify_pages_review_package.py tests/pages/test_reviewer_package_policy.py
 $staged = @(git diff --cached --name-only)
-$expected = @('site-review/check-toolchain.mjs','site-review/package.json','site-review/pages.spec.mjs','site-review/playwright.config.mjs','site-review/pnpm-lock.yaml','site-review/test-server.mjs')
+$expected = @('scripts/verify_pages_review_package.py','site-review/check-toolchain.mjs','site-review/package.json','site-review/pages.spec.mjs','site-review/playwright.config.mjs','site-review/pnpm-lock.yaml','site-review/test-server.mjs','tests/pages/test_reviewer_package_policy.py')
 if (@(Compare-Object $expected $staged).Count) { throw 'Unexpected staged path.' }
 git diff --cached --check
 $env:GIT_AUTHOR_NAME = 'kuotunyu'; $env:GIT_AUTHOR_EMAIL = '61350295+kuotunyu@users.noreply.github.com'
@@ -902,6 +936,12 @@ def test_pages_review_workflow_is_read_only() -> None:
     text = (REPOSITORY / ".github/workflows/pages-review.yml").read_text("utf-8")
     assert "permissions:\n  contents: read" in text
     assert "fetch-depth: 0" in text
+    policy = "python scripts/verify_pages_review_package.py --package site-review/package.json --lockfile site-review/pnpm-lock.yaml"
+    install = "pnpm -C site-review install --frozen-lockfile --ignore-scripts"
+    browser_acquire = "pnpm -C site-review exec playwright install --with-deps chromium firefox webkit"
+    browser_execute = "pnpm -C site-review test"
+    assert text.count(install) == 1
+    assert text.index(policy) < text.index(install) < text.index(browser_acquire) < text.index(browser_execute)
     for forbidden in ("pull_request_target", "pages: write", "id-token: write", "deploy-pages", "configure-pages", "secrets."):
         assert forbidden not in text
 ```
@@ -927,7 +967,7 @@ actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
 
 Set checkout `fetch-depth: 0` and `fetch-tags: true`; Python 3.12.13; Node 24.16.0; corepack pnpm 11.16.0; `PYTHONUTF8=1`, `PYTHONIOENCODING=utf-8`, and `SOURCE_DATE_EPOCH` from checked-out commit. Do not use a secret or Pages permission.
 
-The job executes, in order:
+The job executes in two visibly separated phases. Dependency and browser acquisition may use the approved package／Playwright distribution endpoints, but package lifecycle code remains disabled:
 
 ```text
 uv sync --frozen --extra dev --python 3.12.13
@@ -938,13 +978,21 @@ uv run python scripts/audit_repository_privacy.py --repository .
 uv run python scripts/build_pages_site.py --repository . --output temp/pages-review/first/publish --site-source "$GITHUB_SHA"
 uv run python scripts/build_pages_site.py --repository . --output temp/pages-review/second/publish --site-source "$GITHUB_SHA"
 uv run python scripts/audit_pages_site.py compare --left temp/pages-review/first/publish --right temp/pages-review/second/publish
+uv run python scripts/verify_pages_review_package.py --package site-review/package.json --lockfile site-review/pnpm-lock.yaml
 corepack enable && corepack prepare pnpm@11.16.0 --activate
-pnpm -C site-review install --frozen-lockfile
+pnpm -C site-review install --frozen-lockfile --ignore-scripts
 pnpm -C site-review exec playwright install --with-deps chromium firefox webkit
 pnpm -C site-review check:toolchain
+```
+
+Only after controlled acquisition succeeds does the application/browser execution phase start:
+
+```text
 pnpm -C site-review test
 uv run python scripts/audit_pages_site.py seal-review --publish temp/pages-review/first/publish --reports temp/pages-review/reports --output temp/pages-review/export
 ```
+
+The second phase enforces browser request-ledger／abort and a loopback-only server. It makes no whole-runner offline or host-firewall claim; acquisition requests are outside the application request ledger and are identified separately in the gate summary.
 
 The artifact action uploads only `temp/pages-review/export`, uses an exact short retention, errors on missing files, and does not upload source, browser cache, Playwright package, or a second build tree. The workflow never calls an activation API.
 
@@ -1036,12 +1084,14 @@ uv run --python 3.12.13 python scripts/audit_pages_site.py compare --left (Join-
 
 Expected: exact inventory, budgets, no-cycle hashes, dual provenance, and byte determinism pass.
 
-- [ ] **Step 4: Run pinned browser matrix and collect review-only reports**
+- [ ] **Step 4: Reuse prepared caches, fail closed, then run the browser execution phase**
+
+Task 7 is not an acquisition phase. It requires pnpm 11.16.0, the exact package tarballs in the already prepared pnpm store, and all three exact Playwright browser revisions from Task 5／the controlled CI acquisition phase. Run the package-policy audit before pnpm; use offline＋frozen＋ignore-scripts; never retry without `--offline` and never call `playwright install` here:
 
 ```powershell
-corepack prepare pnpm@11.16.0 --activate
-pnpm -C site-review install --frozen-lockfile
-pnpm -C site-review exec playwright install chromium firefox webkit
+uv run --python 3.12.13 python scripts/verify_pages_review_package.py --package site-review/package.json --lockfile site-review/pnpm-lock.yaml
+if ((pnpm --version).Trim() -ne '11.16.0') { throw 'PNPM_CACHE_NOT_PREPARED: return to the controlled acquisition phase.' }
+pnpm -C site-review install --offline --frozen-lockfile --ignore-scripts
 $env:WOUNDSCOPE_PAGES_PUBLISH_DIR = (Resolve-Path -LiteralPath (Join-Path $runRoot 'first/publish')).Path
 $env:WOUNDSCOPE_PAGES_REPORT_DIR = (Resolve-Path -LiteralPath $runRoot).Path + [IO.Path]::DirectorySeparatorChar + 'reports'
 New-Item -ItemType Directory -Path $env:WOUNDSCOPE_PAGES_REPORT_DIR -Force | Out-Null
@@ -1049,11 +1099,13 @@ pnpm -C site-review check:toolchain
 pnpm -C site-review test
 ```
 
-Expected: all three engines, five viewports, light／dark, keyboard, axe, contrast, content-zoom, no-egress, subpath, and 404 checks pass.
+Expected: missing package cache, missing browser executable, revision mismatch, or integrity mismatch fails closed. The operator must return to the explicitly controlled acquisition phase and then restart Task 7 in a fresh run directory; Task 7 must not silently fall back to network. Once prerequisites exist, all three engines, five viewports, light／dark, keyboard, axe, contrast, content-reflow, request-ledger no-egress, subpath, and 404 checks pass. This does not assert whole-host offline isolation.
 
 - [ ] **Step 5: Perform actual 200% browser-zoom and fresh-eye visual review**
 
-Open the loopback site in the exact three installed browser revisions in headed mode, set browser zoom to 200%, and inspect all five viewport sizes. Record only pass/fail, browser revision, viewport, scheme, overflow, overlap, clipped text, table readability, focus visibility, footer visibility, and reviewer identity in `reports/zoom.json`／`browser-summary.json`; do not capture profiles, cookies, history, machine paths, or medical images.
+This is a blocking **central manual gate**, not an unattended automation step. A central operator opens the loopback site in the exact three installed browser revisions in headed mode—or explicitly authorizes an available computer-use session—sets actual browser-chrome zoom to 200%, and inspects all five viewport sizes. If neither a central operator nor explicitly authorized headed computer-use is available, stop with `MANUAL_BROWSER_ZOOM_REQUIRED`; do not seal the review.
+
+Record only pass/fail, browser revision, viewport, scheme, actual browser zoom, overflow, overlap, clipped text, table readability, focus visibility, footer visibility, and reviewer identity in `reports/zoom.json`／`browser-summary.json`; do not capture profiles, cookies, history, machine paths, or medical images. Automated `document.documentElement.style.zoom = '2'` results remain labeled `content_reflow_emulation` and can never populate or substitute the required `manual_browser_zoom_200_percent` field. `seal-review` must require that manual field to be present and PASS for all three engines.
 
 Fresh-eye review must explicitly answer PASS for:
 
@@ -1107,6 +1159,8 @@ The seal remains ignored and local. It authorizes neither push nor deploy; Pages
 - SBOM seven-file view, manifest eight-file view, tree digest eight-file view, and external receipt form the specified acyclic graph.
 - Two fresh builds are byte-identical and source-bound to the final clean commit; generated output remains ignored and uncommitted.
 - Reviewer lockfile integrities and Chromium 1234／Firefox 1538／WebKit 2336 revisions match; three engines × five viewports × light／dark plus keyboard／axe／contrast／zoom／no-egress／subpath／404 pass.
+- Every pnpm install follows a passing pre-install manifest／lock policy audit and uses frozen lock＋ignore-scripts; controlled acquisition is separated from loopback request-ledger execution, and final cache-only install has no network fallback.
+- The central manual 200% browser-chrome zoom gate passes in all three exact browsers; CSS content-reflow emulation is recorded separately and never substituted.
 - Read-only CI workflow contains `contents: read` only and no Pages permission, deployment action, secret, privileged event, or activation.
 - Final export contains only `publish/`, allowed `reports/`, and `review-receipt.json`; a central seal is created only after explicit digest-bound approval.
 - No push, Pages activation, About edit, visibility／topics mutation, HF operation, model／data download, or real inference occurs.
