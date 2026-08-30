@@ -12,7 +12,7 @@
 
 - Implementation base remains descended from remote-main lock `b6f23032d0d55e7442b43724cb059ba67198d3c8`; stop if a fresh `git fetch origin` shows `origin/main` elsewhere.
 - Evidence is the annotated `v0.2.2` tag object `1f51e659f0aeba9e2d249d7f42dae2ba57cd1cc4`, peeled commit `1b3df3b516cc4d366dc9da3cb01e8d0a319be613`, README blob `f5b8dd4681738aa372072cac9c827478d13c1f68`, DATA_CARD blob `2b7fe52ac9784c9c2682300d2bd56bb72b20d19c`, MODEL_CARD blob `c93a99579ad1b4fb1d03b0a6e15ba8300287ca9c`, and SVG blob `28d91ba5f6fb61d1114106e7519007d6aeb5d6b8`.
-- The SVG is exactly 3,059 bytes with SHA-256 `e2e8d211a33ac62942fac64eceae23def21a32c53b51039fe2c504421793b89c`; it is copied from the evidence Git blob, never the worktree path.
+- The SVG is exactly 3,009 bytes with SHA-256 `1eafa7c35b06928b6cfc2910326f9c0adaf88098ab3a734ba43e16914fd7814d`; its canonical byte domain is the raw LF bytes returned by `git cat-file blob` for the pinned evidence blob, never the worktree path, never a line-ending-normalized or reserialized projection.
 - Production has 0 JavaScript, 0 WebAssembly, 0 raster, 0 upload／API／inference／model-download code, 0 remote assets, and 0 external runtime request. Test-only axe injection is never written to `publish/`.
 - Public copy is zh-TW-first, aggregate-only, research-only, non-official-test, and non-clinical. It never claims accuracy percentage, diagnosis, severity, treatment, triage, external／multi-center validation, or patient-wise evidence.
 - The only external anchors are the nine exact URLs in `site/links.allowlist.json`; they require `target="_blank" rel="noopener noreferrer"`. Colab and Hugging Face are absent.
@@ -26,7 +26,7 @@
 - Browser revisions are Chromium 1234 (`151.0.7922.34`), Firefox 1538 (`153.0`), and WebKit 2336 (`26.5`). A mismatch in installed `playwright-core/browsers.json` fails before a page opens.
 - Every pnpm dependency installation first runs the stdlib package-policy audit, then uses the committed exact lockfile with both `--frozen-lockfile` and `--ignore-scripts`. `package.json` has no lifecycle hook, no production dependency, and no script／dependency outside the approved exact maps. Browser acquisition is a later explicit `playwright install` phase, never an install lifecycle side effect.
 - Controlled package／browser acquisition may use its explicitly approved registries before review execution. The later browser no-egress gate means loopback-only application server plus pre-navigation request ledger／abort; it does not claim a host firewall, air gap, or whole-host offline isolation.
-- Publish byte budgets are blocking: `.nojekyll` = 0; `index.html` ≤ 65,536; `404.html` ≤ 8,192; CSS ≤ 32,768; aggregate SVG = 3,059; `LICENSE.txt` = 11,782; `THIRD_PARTY_NOTICES.txt` ≤ 16,384; `sbom.spdx.json` ≤ 65,536; `pages-manifest.json` ≤ 32,768; all nine files together ≤ 237,568 bytes.
+- Publish byte budgets are blocking: `.nojekyll` = 0; `index.html` ≤ 65,536; `404.html` ≤ 8,192; CSS ≤ 32,768; aggregate SVG = 3,009 exact bytes; `LICENSE.txt` = 11,782; `THIRD_PARTY_NOTICES.txt` ≤ 16,384; `sbom.spdx.json` ≤ 65,536; `pages-manifest.json` ≤ 32,768; all nine files together ≤ 237,568 bytes as a design upper bound, not an exact required sum.
 - Browser gates cover Chromium／Firefox／WebKit × 375×667, 390×844, 768×1024, 1024×768, 1440×900 × light／dark; keyboard, focus, contrast, 200% reflow, no-egress, subpath, and 404 checks are mandatory.
 
 ---
@@ -350,9 +350,9 @@ Expected: one owner-only commit and clean tracked status.
 def test_exact_svg_matches_evidence_without_worktree_read() -> None:
     evidence = load_public_evidence(REPOSITORY)
     verified = load_verified_svg(REPOSITORY, evidence)
-    assert len(verified.bytes_value) == 3059
-    assert verified.sha256 == "e2e8d211a33ac62942fac64eceae23def21a32c53b51039fe2c504421793b89c"
-    assert verified.public_filename == "model-comparison-e2e8d211a33ac629.svg"
+    assert len(verified.bytes_value) == 3009
+    assert verified.sha256 == "1eafa7c35b06928b6cfc2910326f9c0adaf88098ab3a734ba43e16914fd7814d"
+    assert verified.public_filename == "model-comparison-1eafa7c35b06928b.svg"
 
 
 @pytest.mark.parametrize("needle,replacement,code", [
@@ -381,7 +381,7 @@ Expected: FAIL because the SVG verifier module is missing.
 
 Use `xml.etree.ElementTree.fromstring` only after rejecting `<!DOCTYPE` and `<!ENTITY` case-insensitively. Accept only namespace-qualified `svg`, `title`, `desc`, `rect`, `text`, `g`, and `line`; maintain explicit per-element attribute allowlists, reject every attribute whose local name begins with `on`, and reject any value containing `url(`, `data:`, `http:`, or `https:`.
 
-Verify byte length, lowercase SHA-256, Git blob ID, root `role="img"`, exact `aria-labelledby="title desc"`, unique non-empty accessible names, model display names, seeds note, official-validation note, non-clinical caveat, and Dice／IoU values formatted from the parsed `Decimal` rows. Never normalize or reserialize approved SVG bytes.
+Verify byte length, lowercase SHA-256, Git blob ID, root `role="img"`, exact `aria-labelledby="title desc"`, unique non-empty accessible names, model display names, seeds note, official-validation note, non-clinical caveat, and Dice／IoU values formatted from the parsed `Decimal` rows. Never normalize or reserialize approved SVG bytes; the canonical byte domain is the raw LF bytes returned by `git cat-file blob`. Any CRLF-projected `3,059`-byte／`e2e8d211a33ac62942fac64eceae23def21a32c53b51039fe2c504421793b89c` variant is diagnostic-only rejected noncanonical content and must never export, validate, or derive the filename.
 
 - [ ] **Step 4: Run GREEN and cross-version gates**
 
@@ -660,7 +660,7 @@ The build uses a private staging directory and promotes output only after every 
 1. Resolve and validate the full `site_source_sha`; get `SOURCE_DATE_EPOCH` from `%ct` of that commit.
 2. Read templates, CSS, links, NOTICE, and site-source `LICENSE` through Git objects at `site_source_sha`, not from a dirty worktree. Require LICENSE blob `6d7d4eed049964731c06b000d257a1bdb2fd6028`, 11,782 bytes, SHA-256 `46f4aa5b30f1e3fdec3c30ff381da83fe0323a00d8d7bde8f1a16265c1305fd1` unless a later central review explicitly changes this lock.
 3. Load evidence and exact SVG from the pinned evidence commit.
-4. Normalize authored CSS bytes first, compute its SHA-256, and choose `site-` plus the first 16 lowercase hex characters as its filename. Then render `index.html`／`404.html` with that exact asset name and write `.nojekyll`, `LICENSE.txt`, `THIRD_PARTY_NOTICES.txt`, hashed CSS, and exact SVG. The SVG filename is fixed by its approved bytes.
+4. Normalize authored CSS bytes first, compute its SHA-256, and choose `site-` plus the first 16 lowercase hex characters as its filename. Then render `index.html`／`404.html` with that exact asset name and write `.nojekyll`, `LICENSE.txt`, `THIRD_PARTY_NOTICES.txt`, hashed CSS, and exact SVG. The SVG filename is fixed by its approved raw blob bytes as `model-comparison-1eafa7c35b06928b.svg`.
 5. Generate SPDX 2.3 `sbom.spdx.json` with deterministic namespace／creation time, one WoundScope production package, seven file records for every publish file except SBOM and manifest, SHA-256 checksums, concluded／declared Apache-2.0 for WoundScope-authored files, and no browser／Python build-tool package as runtime.
 6. Hash the resulting eight non-manifest files. Build `publish_tree_sha256` from records sorted by POSIX-path UTF-8 bytes, each encoded `path NUL decimal_bytes NUL lowercase_sha256 LF`.
 7. Generate `pages-manifest.json` listing exactly those eight files including SBOM, plus dual provenance, base path, tool versions, claim/network schema, and tree digest. Do not add manifest hash／bytes to itself.
@@ -681,7 +681,7 @@ THIRD_PARTY_NOTICES.txt
 sbom.spdx.json
 pages-manifest.json
 assets/site-[0-9a-f]{16}.css
-assets/model-comparison-e2e8d211a33ac629.svg
+assets/model-comparison-1eafa7c35b06928b.svg
 ```
 
 It uses `Path.lstat`, rejects links／devices, enforces per-file and 237,568-byte total budgets, recomputes the seven-file SPDX view, eight-file manifest view, and eight-file tree digest, and verifies claims／CSP／links／subpath／zero-JS／privacy. Browser runtime verification is deliberately absent; HTML says no client-side cryptographic verification.
