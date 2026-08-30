@@ -30,8 +30,8 @@ WoundScope 首版 website 固定為 `https://kuotunyu.github.io/WoundScope/` 下
 | Evidence DATA_CARD blob | `2b7fe52ac9784c9c2682300d2bd56bb72b20d19c` |
 | Evidence MODEL_CARD blob | `c93a99579ad1b4fb1d03b0a6e15ba8300287ca9c` |
 | Aggregate SVG Git blob | `28d91ba5f6fb61d1114106e7519007d6aeb5d6b8` |
-| Aggregate SVG bytes | `3059` |
-| Aggregate SVG SHA-256 | `E2E8D211A33AC62942FAC64ECEAE23DEF21A32C53B51039FE2C504421793B89C` |
+| Aggregate SVG bytes | `3009` |
+| Aggregate SVG SHA-256 | `1eafa7c35b06928b6cfc2910326f9c0adaf88098ab3a734ba43e16914fd7814d` |
 
 這些值已以 local Git object database、`git ls-remote` 與 remote metadata 交叉核對。`v0.2.2` 必須仍是 annotated tag，且 tag object 與 peeled commit 必須同時相符；只比對 tag 名稱或 README 文字不足以通過。
 
@@ -186,7 +186,7 @@ Site template／CSS source 不得出現已知 metric literals。一個 source au
 
 ### 8.2 Aggregate SVG contract
 
-`reports/public/model_comparison.svg` 必須從 evidence commit Git blob 逐字節複製，不從 current worktree path 信任。Builder 同時驗證：
+`reports/public/model_comparison.svg` 必須從 evidence commit Git blob 以 `git cat-file blob` 讀出的 raw LF bytes 逐字節複製，不從 current worktree path 信任，也不得做任何 line-ending normalization、CRLF projection 或 XML reserialization。`3,059` bytes／`e2e8d211a33ac62942fac64eceae23def21a32c53b51039fe2c504421793b89c`／`model-comparison-e2e8d211a33ac629.svg` 只可作為 diagnostic-only 的 rejected noncanonical CRLF content 提及，永不得 export、validate 或用來導出 public filename。Builder 同時驗證：
 
 - Git blob ID、byte length 與 SHA-256 與第 2 節相符。
 - UTF-8 XML 可解析，且 root 只是 SVG。
@@ -354,9 +354,9 @@ Build 必須在兩個全新 OS temporary directories 各執行一次，並產生
 
 可重現性規則：
 
-- Locale、timezone、filesystem enumeration order 與 line endings 不可影響 bytes。
+- Locale、timezone、filesystem enumeration order 與 text line-ending policy 不可影響 bytes；aggregate SVG 的 canonical byte domain 一律是 `git cat-file blob` 回傳的 raw LF bytes，而非 worktree 或 CRLF projection。
 - `SOURCE_DATE_EPOCH` 從 site source commit time 取得，不使用 wall-clock time。
-- JSON keys 排序、UTF-8 without BOM、LF line endings、固定 indentation。
+- JSON keys 排序、UTF-8 without BOM、LF line endings、固定 indentation；但 approved aggregate SVG 不重寫，直接保留其 raw blob bytes。
 - CSS filename 與 SVG filename 只使用 content hash。
 - 無 random IDs、UUID、absolute path、runner name 或 nondeterministic minifier banner。
 
@@ -468,7 +468,7 @@ Pages activation、deploy workflow 與 About Website 設定是下一個獨立中
 2. Base：implementation branch 可追溯至已批准 remote base `b6f2303...`，沒有未解釋的 upstream drift。
 3. Provenance：site source SHA 與 evidence release／peeled SHA 在 UI 與 manifest 中分開顯示。
 4. Evidence：metrics 只從 evidence README Git blob 投影，source 中無手抄 metric literals。
-5. SVG：exact blob、3,059 bytes、SHA-256、XML allowlist、title／desc 與 metrics consistency 全數 PASS。
+5. SVG：exact blob、3,009 bytes、SHA-256、raw `git cat-file blob` LF bytes、XML allowlist、title／desc 與 metrics consistency 全數 PASS。
 6. Claims：zh-TW-first，research-only，non-clinical，且所有禁止 claims 為 0。
 7. Boundary：publish artifact 只有第 9.1 節的 files，含 0 raster、0 JavaScript、0 API／upload／inference code、0 private artifact。
 8. Network：三瀏覽器完整操作期間只產生 same-origin `/WoundScope/**` requests。
