@@ -50,13 +50,13 @@ Repo-local `AGENTS.md` 尚包含已不存在的 legacy C-drive canonical path，
 - 不建立新 clone；只使用中央明確授權的 isolated worktree。
 - 任何 script、test、manifest 或文件都不得寫死 machine-local absolute path。
 
-在未來 implementation 開始前，必須先另行同步：
+未來 implementation 的 **Task 0** 必須在任何 app-source、site-source 或 workflow 變更前，先另行同步：
 
 1. `AGENTS.md` 的 canonical path 發現方式、current release 與 static-site decision；
 2. `PROJECT_PLAN.md` Decision Log 的 Pages-only material publication decision；
 3. `PROGRESS.md` 的 current milestone、gate、branch／worktree 與驗證證據。
 
-上述三個 local governance files 不屬於本 spec commit，不可在本設計分支順便修改。若它們在 implementation 前仍與中央決策衝突，implementation 必須 fail closed。
+上述三個 local governance files 是 ignored／private local-control artifacts，不得進入 public site、CI review artifact 或 app-source scope。是否 commit 必須遵循它們既有的 local governance policy；依目前 policy 預期不 commit，也不得用 `git add -f` 強行納入公開歷史。若它們在 implementation Task 0 後仍與中央決策衝突，implementation 必須 fail closed。
 
 ## 4. 目標與 non-goals
 
@@ -222,19 +222,34 @@ assets/model-comparison-<content-hash>.svg
 
 `<content-hash>` 必須由檔案 bytes 產生，不可使用 timestamp、random value 或 machine path。任何額外檔案、directory、symlink、submodule、device file 或未知 binary 都使 build 失敗。
 
-`pages-manifest.json` 至少記錄：
+`pages-manifest.json` 的 per-file inventory **不得**記錄 `pages-manifest.json` 自身。它必須恰好列出下列八個 publish files，不多不少：
+
+```text
+.nojekyll
+index.html
+404.html
+LICENSE.txt
+THIRD_PARTY_NOTICES.txt
+sbom.spdx.json
+assets/site-<content-hash>.css
+assets/model-comparison-<content-hash>.svg
+```
+
+Manifest 至少記錄：
 
 - schema version、base path 與 build mode；
 - site source commit；
 - evidence tag object、peeled commit 與 source blob IDs；
 - Node／Python 等實際使用之 build toolchain versions；
-- 每個允許檔案的 POSIX path、bytes 與 SHA-256；
+- 上述八個非 manifest 檔案的 POSIX path、bytes 與 lowercase SHA-256，其中包含 `sbom.spdx.json` 的 hash／bytes；
 - 第 13 節定義的 tree digest；
 - claim-boundary 與 network-contract version。
 
+Manifest 不得包含自身的 hash 或 byte length。它的 SHA-256 只由 publish tree 外的 review receipt 記錄。
+
 ### 9.2 Denylist
 
-建置 source、staging、review artifact 與 publish directory 均必須拒絕：
+Site content source、publish staging、publish directory，以及 CI review artifact 的 `publish/` payload 均必須拒絕下列內容。Pinned Playwright／axe 等 build-review tooling 可存在於獨立的 reviewer-tool source／dependency scope，但其 executable code、package cache 與 browser binaries 不得複製到 publish tree 或上傳的 review artifact：
 
 - `.env`、`.env.*`、token、credential、private URL、machine-local absolute path。
 - `data/**`、image-level manifest／result、patient／sample identifiers、CSV／Parquet／JSONL 等 tabular artifacts。
@@ -312,10 +327,20 @@ Meta CSP 是 GitHub Pages 無自訂 response headers 時的 defense-in-depth，�
 
 - `LICENSE.txt`：從 site source commit 的 WoundScope Apache-2.0 `LICENSE` 逐字節投影。
 - `THIRD_PARTY_NOTICES.txt`：列出每個實際 bundled production component 的 name、version／source revision、license identifier、copyright，以及必要 license text／attribution。
-- `sbom.spdx.json`：符合 SPDX JSON schema，且 package／file inventory 與 publish tree 一致。
+- `sbom.spdx.json`：符合 SPDX JSON schema，記錄實際 bundled production components，並為 publish tree 中除 `sbom.spdx.json` 與 `pages-manifest.json` 以外的七個檔案建立可驗證 file records；SBOM 不記錄自身 checksum。
 - CI review artifact 另保存 build-tool dependency report；build-only tools 不可被誤列為網頁 runtime code。
 
-### 12.2 License gate
+### 12.2 Acyclic cross-file contract
+
+完整性資料必須形成單向、無循環的 DAG：
+
+1. `sbom.spdx.json` 記錄七個非 SBOM、非 manifest publish files 的 checksum／license relationship，以及 bundled production components；不記錄自身或 manifest。
+2. `pages-manifest.json` 記錄全部八個非 manifest publish files，因而包含 SBOM 的 SHA-256／bytes，並記錄以同一八檔集合計算的 publish tree digest；不記錄自身。
+3. Publish tree 外的 `review-receipt.json` 記錄 manifest SHA-256、SBOM SHA-256、publish tree digest、site source SHA 與 evidence tag object／peeled SHA。
+
+Gate 依這個順序重算並逐欄比較，任何缺檔、多檔、checksum／bytes／relationship 不符都 fail closed。不得以「SBOM 與整棵 publish tree 相互雜湊一致」等會要求 self-reference 的條件取代此 contract。
+
+### 12.3 License gate
 
 - 對 publish directory 內每個 nontrivial authored／third-party file 建立 source 與 license record。
 - 如 production dependency set 為空，NOTICE 必須明確說明沒有 bundled third-party runtime package；不得省略檔案。
@@ -337,13 +362,15 @@ Build 必須在兩個全新 OS temporary directories 各執行一次，並產生
 
 Tree digest algorithm 固定為：
 
-1. 排除 `pages-manifest.json`，避免 self-reference。
-2. 對其餘 regular files 計算 SHA-256 與 byte length。
+1. 排除 `pages-manifest.json`，避免 self-reference；輸入必須恰好是第 9.1 節列出的其餘八個 regular files。
+2. 對這八個 files 計算 SHA-256 與 byte length。
 3. 將 POSIX relative paths 以 UTF-8 byte order 排序。
 4. 每筆 record 編碼為 `path NUL bytes NUL lowercase_sha256 LF`。
 5. 對連接後的 records 再做 SHA-256，得到 `publish_tree_sha256`。
 
-Manifest 可記錄 tree digest，但不在內部記錄自己的 digest。CI 可在 review summary 額外記錄 manifest SHA-256。
+Manifest 記錄 tree digest，但不在內部記錄自己的 digest／bytes。Publish tree 外的 `review-receipt.json` 必須記錄 manifest SHA-256、SBOM SHA-256 與 tree digest，讓 reviewer 從 receipt 單向驗證 manifest，再由 manifest 驗證其餘八檔。
+
+瀏覽器不執行 runtime digest verification。Zero-JavaScript 完整性是 build、CI review 與未來 deployment tree 的 gate；production HTML 不得宣稱已在 client side 做 cryptographic verification，也不得為此加入 JavaScript、WebAssembly 或 remote runtime。
 
 ## 14. Accessibility, responsive and browser gates
 
@@ -371,13 +398,11 @@ Manifest 可記錄 tree digest，但不在內部記錄自己的 digest。CI 可�
 
 每個 viewport 必須檢查 horizontal overflow、clipped text、table readability、footer visibility、focus outline 與至少 44×44 px 的 touch target（如適用）。Narrow viewport 的 results table 可在明確標記的 table container 內水平捲動，但 page body 不得水平捲動，且要有不依賴 hover 的提示。
 
-### 14.3 Browser matrix
+### 14.3 Browser and reviewer toolchain matrix
 
-- Current Playwright Chromium
-- Current Playwright Firefox
-- Current Playwright WebKit
+Implementation plan 必須鎖定 exact `@playwright/test`、`axe-core` 與相關 reviewer-tool versions，不接受 `latest`、`current`、caret／tilde range 或未鎖定 transitive dependency。Chromium、Firefox、WebKit 必須以可驗證的 Playwright browser revisions 執行；或者整組 reviewer toolchain 使用 digest-pinned image，並在 review receipt 記錄 exact package versions、browser revisions／image digest 與 lockfile digest。
 
-三引擎都必須通過 DOM、request、console、keyboard、axe 與 screenshot review gates。視覺 snapshots 只使用頁面自身的 abstract SVG／aggregate evidence，不準備醫療或 wound-like fixtures。
+三引擎都必須通過 DOM、request、console、keyboard、axe 與 screenshot review gates。Axe 可由 pinned local test tooling 注入 page context，但不可發出 network request，也不可把 script、source map 或 dependency bytes 寫入 production publish directory；production artifact 仍須為 0 JavaScript。視覺 snapshots 只使用頁面自身的 abstract SVG／aggregate evidence，不準備醫療或 wound-like fixtures。
 
 ## 15. GitHub Pages subpath and 404 contract
 
@@ -400,8 +425,8 @@ Implementation 階段先新增只負責 build／test／review artifact 的 workf
 - Top-level permissions 只有 `contents: read`。
 - 不包含 `pages: write`、`id-token: write`、environment deployment 或 GitHub Pages configuration calls。
 - 執行 evidence projection、double-build reproducibility、bundle audit、license／SBOM／NOTICE、accessibility、browser、subpath 與 privacy gates。
-- 上傳短期 CI review artifact，內含 publish directory、manifest、SBOM、NOTICE、screenshots、request log、axe report 與 gate summary。
-- Review artifact 不得包含 source maps、browser profile、cookies、environment dump、absolute path 或不在 allowlist 的 files。
+- 上傳短期 CI review artifact，其結構明確分離：`publish/` 只能是第 9.1 節 exact site tree；tree 外的 `review-receipt.json` 記錄 manifest／SBOM／tree digests 與 dual provenance；`reports/` 才保存 screenshots、request log、axe report、toolchain／browser revisions、dependency-license report 與 gate summary。
+- Review artifact 不得包含 source maps、browser profile、cookies、environment dump、absolute path 或未在本節 artifact 結構允許的 files；`publish/` 的 allowlist 與 `review-receipt.json`／`reports/` 的 review-only allowlist 不可混為一談。
 
 ### 16.2 Activation workflow
 
@@ -427,11 +452,11 @@ Pages activation、deploy workflow 與 About Website 設定是下一個獨立中
 - Publish directory 有未列名 file、symlink、raster、JavaScript、source map、secret-like content、absolute path 或 private artifact。
 - Browser 觀察到 external request、console error、CSP violation 或 unexpected same-origin request。
 - External link 不在 allowlist，或缺 `noopener noreferrer`。
-- License missing／unknown／incompatible，NOTICE 不完整，或 SBOM 與 publish tree 不一致。
+- License missing／unknown／incompatible，NOTICE 不完整，或第 12.2 節的 SBOM → manifest → receipt 單向完整性 contract 不一致。
 - Axe、keyboard、contrast、zoom、viewport、browser 或 subpath／404 gate 失敗。
 - 兩次 clean build 的 file inventory、bytes 或 tree digest 不同。
 - Workflow 需要 secret、privileged event 或 Pages deployment permission。
-- `AGENTS.md`、`PROJECT_PLAN.md`、`PROGRESS.md` 在 implementation 前仍未同步 path／release／site decision。
+- Implementation Task 0 未能同步 `AGENTS.md`、`PROJECT_PLAN.md`、`PROGRESS.md` 的 path／release／site decision，或同步結果被錯誤納入 public site／CI artifact／app-source scope。
 
 錯誤輸出只提供固定 error code、規則與 public relative path，不回顯檔案內容、credential、absolute path 或 environment values。
 
@@ -439,7 +464,7 @@ Pages activation、deploy workflow 與 About Website 設定是下一個獨立中
 
 實作只有在下列條件全數有 fresh evidence 時才可進入 Pages activation review：
 
-1. Governance：`AGENTS.md`、`PROJECT_PLAN.md`、`PROGRESS.md` 已先同步，且無 stale path／release／site decision。
+1. Governance：implementation Task 0 已先同步 ignored／private `AGENTS.md`、`PROJECT_PLAN.md`、`PROGRESS.md`，且無 stale path／release／site decision；三者未進入 public site、CI artifact 或 app-source commit。
 2. Base：implementation branch 可追溯至已批准 remote base `b6f2303...`，沒有未解釋的 upstream drift。
 3. Provenance：site source SHA 與 evidence release／peeled SHA 在 UI 與 manifest 中分開顯示。
 4. Evidence：metrics 只從 evidence README Git blob 投影，source 中無手抄 metric literals。
@@ -449,12 +474,12 @@ Pages activation、deploy workflow 與 About Website 設定是下一個獨立中
 8. Network：三瀏覽器完整操作期間只產生 same-origin `/WoundScope/**` requests。
 9. CSP：HTML 包含 exact zero-JavaScript CSP，無 inline style／script 或 remote asset。
 10. Links：所有 external links 均在 exact allowlist 且有 `target="_blank" rel="noopener noreferrer"`。
-11. License：Apache-2.0 project license、NOTICE、SPDX SBOM 與 dependency license review PASS；unknown／incompatible licenses 為 0。
+11. License：Apache-2.0 project license、NOTICE、SPDX SBOM、無循環 SBOM → manifest → receipt contract 與 dependency license review PASS；unknown／incompatible licenses為 0。
 12. Accessibility：axe serious／critical violations 為 0，heading／table／link／keyboard／focus／contrast／zoom 全數 PASS。
 13. Responsive：指定五種 viewports 在 light／dark 均無 body horizontal overflow、clipping 或 hidden footer。
-14. Browser：Chromium、Firefox、WebKit 均無 console error、unexpected request 或 material visual regression。
+14. Browser：以 exact locked reviewer tools 與可驗證 browser revisions／image digest 執行的 Chromium、Firefox、WebKit，均無 console error、unexpected request 或 material visual regression；axe 注入未進入 production artifact。
 15. Subpath：`/WoundScope/`、assets、direct reload、NOTICE／SBOM／manifest 與 safe 404 全數 PASS。
-16. Determinism：兩次 clean build byte-identical，publish tree digest 一致。
+16. Determinism：兩次 clean build byte-identical，非 manifest 八檔的 publish tree digest 一致；receipt 可重算 manifest／SBOM／tree digests，瀏覽器與頁面不宣稱 runtime cryptographic verification。
 17. Privacy：repository-index audit、publish-bundle audit、secret／absolute-path scan 全數 PASS。
 18. CI：review workflow 只有 read permissions，產生可審閱 artifact，並未 deploy。
 19. Identity：implementation commits 的 author／committer 只有 `kuotunyu <61350295+kuotunyu@users.noreply.github.com>`，沒有 co-author trailer。
@@ -470,4 +495,4 @@ Pages activation、deploy workflow 與 About Website 設定是下一個獨立中
 - Review workflow 與 Pages activation workflow 分離；首次 implementation 不啟用 Pages。
 - 過時 WebP、sample prediction、medical／wound-like raster 全數排除。
 
-核准本 spec 後，下一步是使用 `writing-plans` 撰寫 implementation plan。在計畫開始前，必須先完成第 3 節的 governance sync；不可直接跳到 site code 或 workflow 實作。
+核准本 spec 後，下一步是使用 `writing-plans` 撰寫 implementation plan。該 plan 的 Task 0 必須完成第 3 節的 local governance sync；執行 implementation 時不可跳過 Task 0 直接進入 site code 或 workflow。
