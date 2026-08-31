@@ -381,6 +381,26 @@ def test_rendered_index_and_not_found_pages_remain_semantic_and_static() -> None
     assert "<script" not in not_found_text.casefold()
 
 
+def test_renderer_keeps_skip_navigation_focusable_and_grid_content_intrinsically_sized() -> None:
+    rendered = _render()
+    index_text = rendered.index_html.decode("utf-8")
+    css_text = rendered.css.decode("utf-8")
+
+    assert '<main id="main-content" tabindex="-1">' in index_text
+    assert "overflow-x: hidden" not in css_text
+    assert (
+        "main,\n"
+        ".section-card,\n"
+        ".overview-grid,\n"
+        ".source-columns,\n"
+        ".source-columns > *,\n"
+        ".table-scroll {\n"
+        "  min-width: 0;\n"
+        "}\n"
+    ) in css_text
+    assert ("code,\n.source-list a {\n  overflow-wrap: anywhere;\n}\n") in css_text
+
+
 def test_site_source_contains_no_aggregate_metric_tokens() -> None:
     load_public_evidence, _load_verified_svg = _evidence_exports()
     evidence = load_public_evidence(REPOSITORY)
