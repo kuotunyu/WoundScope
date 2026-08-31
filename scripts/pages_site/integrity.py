@@ -440,9 +440,11 @@ class _HtmlAuditParser(HTMLParser):
             and self._root_closed
         )
 
-    def _record_title_non_data(self, callback: str) -> None:
-        if self._nearest_open_element("title") is not None:
+    def _record_title_non_data(self, callback: str) -> bool:
+        title_is_open = self._nearest_open_element("title") is not None
+        if title_is_open:
             self.invalid_title_content.append(callback)
+        return title_is_open
 
     def handle_comment(self, data: str) -> None:
         self._record_title_non_data("comment")
@@ -454,7 +456,8 @@ class _HtmlAuditParser(HTMLParser):
         self._record_title_non_data("unknown-declaration")
 
     def handle_decl(self, decl: str) -> None:
-        self._record_title_non_data("declaration")
+        if self._record_title_non_data("declaration"):
+            return
         self.doctype_records.append(decl)
         if (
             decl != "doctype html"
