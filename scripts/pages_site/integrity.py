@@ -90,10 +90,10 @@ _SITE_SOURCE_FOOTER_RE = re.compile(
 _HTML_ALLOWED_ATTRIBUTES = {
     "a": frozenset({"class", "href", "rel", "target"}),
     "body": frozenset(),
-    "caption": frozenset(),
+    "caption": frozenset({"id"}),
     "circle": frozenset({"cx", "cy", "r"}),
     "code": frozenset(),
-    "div": frozenset({"class"}),
+    "div": frozenset({"aria-labelledby", "class", "role", "tabindex"}),
     "figcaption": frozenset({"class"}),
     "figure": frozenset({"class"}),
     "footer": frozenset({"class"}),
@@ -137,6 +137,18 @@ _HTML_URL_ATTRIBUTES = frozenset(
 )
 _CSS_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
 _CSS_ESCAPE_RE = re.compile(r"\\([0-9a-fA-F]{1,6})(?:\r\n|[ \t\r\n\f])?|\\(.)", re.DOTALL)
+_TABLE_FOCUS_REGION_ATTRIBUTES = tuple(
+    sorted(
+        {
+            "aria-labelledby": "evidence-table-caption",
+            "class": "table-scroll",
+            "role": "region",
+            "tabindex": "0",
+        }.items()
+    )
+)
+_TABLE_CAPTION_ATTRIBUTES = tuple(sorted({"id": "evidence-table-caption"}.items()))
+_VOID_HTML_TAGS = frozenset({"img", "link", "meta"})
 
 
 class PagesAuditError(RuntimeError):
@@ -203,6 +215,34 @@ def _expected_main_records(
     if public_path == "404.html":
         return Counter({tuple(sorted({"class": "not-found", "id": "main-content"}.items())): 1})
     raise PagesAuditError("HTML_MAIN_MISMATCH", public_path=public_path)
+
+
+def _expected_focus_region_records(
+    public_path: str,
+) -> Counter[tuple[tuple[str, str], ...]]:
+    if public_path == "index.html":
+        return Counter({_TABLE_FOCUS_REGION_ATTRIBUTES: 1})
+    if public_path == "404.html":
+        return Counter()
+    raise PagesAuditError("HTML_FOCUS_REGION_MISMATCH", public_path=public_path)
+
+
+def _expected_tabindex_records(
+    public_path: str,
+) -> Counter[tuple[str, tuple[tuple[str, str], ...]]]:
+    if public_path == "index.html":
+        return Counter(
+            {
+                (
+                    "main",
+                    tuple(sorted({"id": "main-content", "tabindex": "-1"}.items())),
+                ): 1,
+                ("div", _TABLE_FOCUS_REGION_ATTRIBUTES): 1,
+            }
+        )
+    if public_path == "404.html":
+        return Counter()
+    raise PagesAuditError("HTML_FOCUS_REGION_MISMATCH", public_path=public_path)
 
 
 def _expected_meta_records(
@@ -314,6 +354,32 @@ class _HtmlAuditParser(HTMLParser):
         self.main_records: Counter[tuple[tuple[str, str], ...]] = Counter()
         self.meta_records: Counter[tuple[str, tuple[tuple[str, str], ...]]] = Counter()
         self.url_records: Counter[tuple[str, tuple[tuple[str, str], ...]]] = Counter()
+        self.focus_region_records: list[
+            tuple[int, tuple[tuple[str, str], ...]]
+        ] = []
+        self.tabindex_records: Counter[
+            tuple[str, tuple[tuple[str, str], ...]]
+        ] = Counter()
+        self.table_records: list[tuple[int, int | None]] = []
+        self.caption_records: list[
+            tuple[int, tuple[tuple[str, str], ...], int | None, int | None]
+        ] = []
+        self.caption_text: dict[int, list[str]] = {}
+        self.id_records: Counter[str] = Counter()
+        self._next_element_id = 0
+        self._open_elements: list[tuple[int, str, dict[str, str]]] = []
+
+    def _nearest_open_element(self, tag: str) -> int | None:
+        for element_id, open_tag, _attrs in reversed(self._open_elements):
+            if open_tag == tag:
+                return element_id
+        return None
+
+    def _nearest_table_region(self) -> int | None:
+        for element_id, tag, attrs in reversed(self._open_elements):
+            if tag == "div" and attrs.get("class") == "table-scroll":
+                return element_id
+        return None
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag not in _HTML_ALLOWED_ATTRIBUTES:
@@ -327,6 +393,8 @@ class _HtmlAuditParser(HTMLParser):
                 return
             seen_attributes.add(normalized_name)
         attr_map = {name: value or "" for name, value in attrs}
+        element_id = self._next_element_id
+        self._next_element_id += 1
         if any(name.startswith("on") for name, _value in attrs):
             self.invalid_attributes.append(tag)
         for forbidden_attr in ("style", "contenteditable", "download"):
@@ -337,6 +405,28 @@ class _HtmlAuditParser(HTMLParser):
                 self.invalid_attributes.append(f"{tag}[{name}]")
         if tag == "main":
             self.main_records.update({tuple(sorted(attr_map.items())): 1})
+        attribute_record = tuple(sorted(attr_map.items()))
+        if "id" in attr_map:
+            self.id_records.update({attr_map["id"]: 1})
+        if "tabindex" in attr_map:
+            self.tabindex_records.update({(tag, attribute_record): 1})
+        if tag == "div" and (
+            attr_map.get("class") == "table-scroll"
+            or any(name in attr_map for name in ("aria-labelledby", "role", "tabindex"))
+        ):
+            self.focus_region_records.append((element_id, attribute_record))
+        if tag == "table":
+            self.table_records.append((element_id, self._nearest_table_region()))
+        if tag == "caption":
+            self.caption_records.append(
+                (
+                    element_id,
+                    attribute_record,
+                    self._nearest_open_element("table"),
+                    self._nearest_table_region(),
+                )
+            )
+            self.caption_text[element_id] = []
         if tag == "meta":
             self.meta_records.update(
                 {
@@ -411,9 +501,23 @@ class _HtmlAuditParser(HTMLParser):
                 or (tag == "link" and name == "href")
             ):
                 self.invalid_external_resources.append(f"{tag}[{name}]")
+        if tag not in _VOID_HTML_TAGS:
+            self._open_elements.append((element_id, tag, attr_map))
+
+    def handle_data(self, data: str) -> None:
+        caption_id = self._nearest_open_element("caption")
+        if caption_id is not None:
+            self.caption_text[caption_id].append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        for index in range(len(self._open_elements) - 1, -1, -1):
+            if self._open_elements[index][1] == tag:
+                del self._open_elements[index:]
+                return
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self.handle_starttag(tag, attrs)
+        self.handle_endtag(tag)
 
 
 def _json_bytes(payload: object) -> bytes:
@@ -976,6 +1080,50 @@ def _validate_internal_reference(tag: str, value: str, *, public_path: str) -> N
     raise PagesAuditError("HTML_EXTERNAL_RESOURCE", public_path=public_path)
 
 
+def _validate_focus_region_contract(
+    parser: _HtmlAuditParser,
+    *,
+    public_path: str,
+) -> None:
+    focus_region_attributes = Counter(
+        attributes for _element_id, attributes in parser.focus_region_records
+    )
+    if focus_region_attributes != _expected_focus_region_records(public_path):
+        raise PagesAuditError("HTML_FOCUS_REGION_MISMATCH", public_path=public_path)
+    if parser.tabindex_records != _expected_tabindex_records(public_path):
+        raise PagesAuditError("HTML_FOCUS_REGION_MISMATCH", public_path=public_path)
+
+    caption_attributes = Counter(
+        attributes
+        for _element_id, attributes, _table_id, _region_id in parser.caption_records
+    )
+    if public_path == "404.html":
+        if caption_attributes:
+            raise PagesAuditError("HTML_FOCUS_REGION_MISMATCH", public_path=public_path)
+        return
+    if public_path != "index.html":
+        raise PagesAuditError("HTML_FOCUS_REGION_MISMATCH", public_path=public_path)
+    if caption_attributes != Counter({_TABLE_CAPTION_ATTRIBUTES: 1}):
+        raise PagesAuditError("HTML_FOCUS_REGION_MISMATCH", public_path=public_path)
+    if parser.id_records["evidence-table-caption"] != 1:
+        raise PagesAuditError("HTML_FOCUS_REGION_MISMATCH", public_path=public_path)
+    if len(parser.focus_region_records) != 1 or len(parser.table_records) != 1:
+        raise PagesAuditError("HTML_FOCUS_REGION_MISMATCH", public_path=public_path)
+
+    region_id, _region_attributes = parser.focus_region_records[0]
+    table_id, table_region_id = parser.table_records[0]
+    caption_id, _caption_attributes, caption_table_id, caption_region_id = (
+        parser.caption_records[0]
+    )
+    if (
+        table_region_id != region_id
+        or caption_table_id != table_id
+        or caption_region_id != region_id
+        or not "".join(parser.caption_text[caption_id]).strip()
+    ):
+        raise PagesAuditError("HTML_FOCUS_REGION_MISMATCH", public_path=public_path)
+
+
 def _verify_html(
     path: Path,
     public_path: str,
@@ -996,6 +1144,7 @@ def _verify_html(
         raise PagesAuditError("HTML_ATTRIBUTE_INVALID", public_path=public_path)
     if parser.main_records != _expected_main_records(public_path):
         raise PagesAuditError("HTML_MAIN_MISMATCH", public_path=public_path)
+    _validate_focus_region_contract(parser, public_path=public_path)
     if parser.invalid_external_resources:
         raise PagesAuditError("HTML_EXTERNAL_RESOURCE", public_path=public_path)
     expected_meta = _expected_meta_records(public_path)
