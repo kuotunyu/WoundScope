@@ -167,10 +167,30 @@ def _rename_css_and_rewrite_publish(publish: Path, css_text: str) -> str:
     return new_name
 
 
-def _write_mutated_html_and_rewrite(publish: Path, *, old: str, new: str, count: int = 1) -> None:
-    index_path = publish / "index.html"
-    index_path.write_text(
-        index_path.read_text("utf-8").replace(old, new, count),
+def _publish_css_name(publish: Path) -> str:
+    return next((publish / "assets").glob("site-*.css")).name
+
+
+def _publish_svg_name(publish: Path) -> str:
+    return next((publish / "assets").glob("model-comparison-*.svg")).name
+
+
+def _expected_csp_meta_tag() -> str:
+    module = _import_module("scripts.pages_site.integrity")
+    return f'<meta http-equiv="Content-Security-Policy" content="{module.EXPECTED_CSP}">'
+
+
+def _write_mutated_html_and_rewrite(
+    publish: Path,
+    *,
+    old: str,
+    new: str,
+    count: int = 1,
+    html_name: str = "index.html",
+) -> None:
+    html_path = publish / html_name
+    html_path.write_text(
+        html_path.read_text("utf-8").replace(old, new, count),
         encoding="utf-8",
         newline="\n",
     )
@@ -713,6 +733,169 @@ def test_publish_tree_rejects_denied_html_urls_even_when_dag_is_resynced(
         verify_publish_tree(target_publish)
 
     assert _safe_error_text(excinfo.value) == code
+
+
+@pytest.mark.parametrize(
+    ("html_name", "mutate"),
+    [
+        (
+            "index.html",
+            lambda text: text.replace(
+                _expected_csp_meta_tag(),
+                "",
+                1,
+            ),
+        ),
+        (
+            "index.html",
+            lambda text: text.replace(
+                _expected_csp_meta_tag(),
+                _expected_csp_meta_tag() + _expected_csp_meta_tag(),
+                1,
+            ),
+        ),
+        (
+            "index.html",
+            lambda text: text.replace(
+                '<meta name="woundscope:candidate-canonical-url" '
+                'content="https://kuotunyu.github.io/WoundScope/">',
+                "",
+                1,
+            ),
+        ),
+        (
+            "index.html",
+            lambda text: text.replace(
+                '<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#151310">',
+                '<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#151310">\n'
+                '  <meta name="robots" content="noindex">',
+                1,
+            ),
+        ),
+        (
+            "index.html",
+            lambda text: text.replace(
+                "<title>WoundScope | 靜態研究成果展示</title>",
+                '  <meta http-equiv="Refresh" content="0; url=https://example.com">\n'
+                "  <title>WoundScope | 靜態研究成果展示</title>",
+                1,
+            ),
+        ),
+        (
+            "404.html",
+            lambda text: text.replace(
+                '<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#151310">',
+                '<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#151310">\n'
+                '  <meta name="woundscope:candidate-canonical-url" '
+                'content="https://kuotunyu.github.io/WoundScope/missing/">',
+                1,
+            ),
+        ),
+    ],
+)
+def test_publish_tree_rejects_meta_contract_drift_even_when_dag_is_resynced(
+    tmp_path: Path, html_name: str, mutate
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(audited_publish(tmp_path), tmp_path / "mutated-meta")
+    html_path = target_publish / html_name
+    html_path.write_text(
+        mutate(html_path.read_text("utf-8")),
+        encoding="utf-8",
+        newline="\n",
+    )
+    _rewrite_manifest_and_sbom_for_current_tree(target_publish)
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == f"HTML_META_MISMATCH:{html_name}"
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda publish, text: text.replace(
+            f'<link rel="stylesheet" href="/WoundScope/assets/{_publish_css_name(publish)}">',
+            "",
+            1,
+        ),
+        lambda publish, text: text.replace(
+            f'<link rel="stylesheet" href="/WoundScope/assets/{_publish_css_name(publish)}">',
+            f'<link rel="stylesheet" href="/WoundScope/assets/{_publish_css_name(publish)}">\n'
+            f'  <link rel="stylesheet" href="/WoundScope/assets/{_publish_css_name(publish)}">',
+            1,
+        ),
+        lambda publish, text: text.replace(
+            f'<link rel="stylesheet" href="/WoundScope/assets/{_publish_css_name(publish)}">',
+            f'<link rel="stylesheet" href="/WoundScope/assets/{_publish_svg_name(publish)}">',
+            1,
+        ).replace(
+            f'src="/WoundScope/assets/{_publish_svg_name(publish)}"',
+            f'src="/WoundScope/assets/{_publish_css_name(publish)}"',
+            1,
+        ),
+        lambda publish, text: text.replace('href="#overview"', 'href="#evidence"', 1),
+        lambda publish, text: text.replace(
+            'href="https://github.com/kuotunyu/WoundScope/releases/tag/v0.2.2"',
+            'href="https://github.com/kuotunyu/WoundScope"',
+            1,
+        ),
+        lambda publish, text: text.replace(
+            '<li><span>Model card</span><a href="https://github.com/kuotunyu/WoundScope/blob/'
+            '1b3df3b516cc4d366dc9da3cb01e8d0a319be613/MODEL_CARD.md" target="_blank" '
+            'rel="noopener noreferrer">MODEL_CARD.md</a></li>',
+            "",
+            1,
+        ),
+    ],
+)
+def test_publish_tree_rejects_index_url_wiring_drift_even_when_dag_is_resynced(
+    tmp_path: Path, mutate
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(
+        audited_publish(tmp_path), tmp_path / "mutated-index-wiring"
+    )
+    index_path = target_publish / "index.html"
+    index_path.write_text(
+        mutate(target_publish, index_path.read_text("utf-8")),
+        encoding="utf-8",
+        newline="\n",
+    )
+    _rewrite_manifest_and_sbom_for_current_tree(target_publish)
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == "HTML_WIRING_MISMATCH:index.html"
+
+
+@pytest.mark.parametrize(
+    "new_html",
+    [
+        '<img src="/WoundScope/assets/model-comparison-1eafa7c35b06928b.svg" alt="extra">'
+        "</section>",
+        '<a href="https://github.com/kuotunyu/WoundScope" target="_blank" '
+        'rel="noopener noreferrer">Repository</a></section>',
+    ],
+)
+def test_publish_tree_rejects_404_url_wiring_drift_even_when_dag_is_resynced(
+    tmp_path: Path, new_html: str
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(audited_publish(tmp_path), tmp_path / "mutated-404-wiring")
+    _write_mutated_html_and_rewrite(
+        target_publish,
+        html_name="404.html",
+        old="</section>",
+        new=new_html,
+    )
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == "HTML_WIRING_MISMATCH:404.html"
 
 
 @pytest.mark.parametrize(
