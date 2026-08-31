@@ -149,6 +149,8 @@ _TABLE_FOCUS_REGION_ATTRIBUTES = tuple(
 )
 _TABLE_CAPTION_ATTRIBUTES = tuple(sorted({"id": "evidence-table-caption"}.items()))
 _VOID_HTML_TAGS = frozenset({"img", "link", "meta"})
+_DOCUMENT_HTML_ATTRIBUTES = tuple(sorted({"lang": "zh-Hant-TW"}.items()))
+_HEAD_ONLY_TAGS = frozenset({"link", "meta", "title"})
 
 
 class PagesAuditError(RuntimeError):
@@ -367,8 +369,13 @@ class _HtmlAuditParser(HTMLParser):
         ] = []
         self.caption_text: dict[int, list[str]] = {}
         self.id_records: Counter[str] = Counter()
+        self.doctype_records: list[str] = []
+        self.html_records: Counter[tuple[tuple[str, str], ...]] = Counter()
+        self.html_child_tags: list[str] = []
         self._next_element_id = 0
         self._open_elements: list[tuple[int, str, dict[str, str]]] = []
+        self._root_started = False
+        self._root_closed = False
 
     def _nearest_open_element(self, tag: str) -> int | None:
         for element_id, open_tag, _attrs in reversed(self._open_elements):
@@ -381,6 +388,57 @@ class _HtmlAuditParser(HTMLParser):
             if tag == "div" and attrs.get("class") == "table-scroll":
                 return element_id
         return None
+
+    def _has_open_element(self, tag: str) -> bool:
+        return any(open_tag == tag for _element_id, open_tag, _attrs in self._open_elements)
+
+    def _record_document_start(
+        self, tag: str, attribute_record: tuple[tuple[str, str], ...]
+    ) -> None:
+        parent_tag = self._open_elements[-1][1] if self._open_elements else None
+        if tag == "html":
+            self.html_records.update({attribute_record: 1})
+            if (
+                parent_tag is not None
+                or self._root_started
+                or self._root_closed
+                or self.doctype_records != ["doctype html"]
+            ):
+                self.invalid_structure.append("html-root")
+            self._root_started = True
+            return
+        if not self._root_started or self._root_closed:
+            self.invalid_structure.append(f"outside-root:{tag}")
+        if parent_tag == "html":
+            self.html_child_tags.append(tag)
+        if tag in {"head", "body"} and parent_tag != "html":
+            self.invalid_structure.append(f"wrapper-parent:{tag}")
+        if tag in _HEAD_ONLY_TAGS and parent_tag != "head":
+            self.invalid_structure.append(f"head-context:{tag}")
+        if tag not in {"body", "head", "html", *_HEAD_ONLY_TAGS} and not self._has_open_element(
+            "body"
+        ):
+            self.invalid_structure.append(f"body-context:{tag}")
+
+    def has_valid_document_skeleton(self) -> bool:
+        return (
+            self.doctype_records == ["doctype html"]
+            and self.html_records == Counter({_DOCUMENT_HTML_ATTRIBUTES: 1})
+            and self.html_child_tags == ["head", "body"]
+            and self._root_started
+            and self._root_closed
+        )
+
+    def handle_decl(self, decl: str) -> None:
+        self.doctype_records.append(decl)
+        if (
+            decl != "doctype html"
+            or len(self.doctype_records) != 1
+            or self._open_elements
+            or self._root_started
+            or self._root_closed
+        ):
+            self.invalid_structure.append("doctype")
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag not in _HTML_ALLOWED_ATTRIBUTES:
@@ -407,6 +465,7 @@ class _HtmlAuditParser(HTMLParser):
         if tag == "main":
             self.main_records.update({tuple(sorted(attr_map.items())): 1})
         attribute_record = tuple(sorted(attr_map.items()))
+        self._record_document_start(tag, attribute_record)
         if "id" in attr_map:
             self.id_records.update({attr_map["id"]: 1})
         if "tabindex" in attr_map:
@@ -506,6 +565,8 @@ class _HtmlAuditParser(HTMLParser):
             self._open_elements.append((element_id, tag, attr_map))
 
     def handle_data(self, data: str) -> None:
+        if data.strip() and (not self._open_elements or self._open_elements[-1][1] == "html"):
+            self.invalid_structure.append("root-text")
         caption_id = self._nearest_open_element("caption")
         if caption_id is not None:
             self.caption_text[caption_id].append(data)
@@ -518,6 +579,8 @@ class _HtmlAuditParser(HTMLParser):
             self.invalid_structure.append(f"unexpected-close:{tag}")
             return
         self._open_elements.pop()
+        if tag == "html":
+            self._root_closed = True
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         original_depth = len(self._open_elements)
@@ -1155,7 +1218,7 @@ def _verify_html(
         raise PagesAuditError("HTML_TAG_INVALID", public_path=public_path)
     if parser.invalid_attributes:
         raise PagesAuditError("HTML_ATTRIBUTE_INVALID", public_path=public_path)
-    if parser.invalid_structure:
+    if parser.invalid_structure or not parser.has_valid_document_skeleton():
         raise PagesAuditError("HTML_STRUCTURE_INVALID", public_path=public_path)
     if parser.main_records != _expected_main_records(public_path):
         raise PagesAuditError("HTML_MAIN_MISMATCH", public_path=public_path)

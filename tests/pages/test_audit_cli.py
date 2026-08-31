@@ -388,6 +388,104 @@ def _mutate_html_structure(html_text: str, mutation: str) -> str:
     raise AssertionError(f"unknown HTML-structure mutation: {mutation}")
 
 
+def _move_head_line_after_head(html_text: str, line_prefix: str) -> str:
+    lines = html_text.splitlines(keepends=True)
+    line = next(line for line in lines if line.startswith(line_prefix))
+    without_line = _replace_focus_fragment(html_text, line, "")
+    return _replace_focus_fragment(without_line, "</head>\n", f"</head>\n{line}")
+
+
+def _mutate_document_skeleton(html_text: str, mutation: str) -> str:
+    html_open = '<html lang="zh-Hant-TW">'
+    if mutation == "missing_doctype":
+        return _replace_focus_fragment(html_text, "<!doctype html>\n", "")
+    if mutation == "duplicate_doctype":
+        return _replace_focus_fragment(
+            html_text,
+            "<!doctype html>\n",
+            "<!doctype html>\n<!doctype html>\n",
+        )
+    if mutation == "wrong_doctype":
+        return _replace_focus_fragment(html_text, "<!doctype html>", "<!doctype svg>")
+    if mutation == "late_doctype":
+        without_doctype = _replace_focus_fragment(html_text, "<!doctype html>\n", "")
+        return _replace_focus_fragment(
+            without_doctype,
+            "</html>\n",
+            "<!doctype html>\n</html>\n",
+        )
+    if mutation == "missing_html_root":
+        without_open = _replace_focus_fragment(html_text, f"{html_open}\n", "")
+        return _replace_focus_fragment(without_open, "</html>\n", "")
+    if mutation == "duplicate_html_root":
+        return _replace_focus_fragment(
+            html_text,
+            "</html>\n",
+            f"</html>\n{html_open}</html>\n",
+        )
+    if mutation == "wrong_root_lang":
+        return _replace_focus_fragment(
+            html_text,
+            html_open,
+            '<html lang="en">',
+        )
+    if mutation == "missing_head":
+        without_open = _replace_focus_fragment(html_text, "<head>\n", "")
+        return _replace_focus_fragment(without_open, "</head>\n", "")
+    if mutation == "missing_body":
+        without_open = _replace_focus_fragment(html_text, "<body>\n", "")
+        return _replace_focus_fragment(without_open, "</body>\n", "")
+    if mutation == "swapped_head_body":
+        return (
+            html_text.replace("<head>", "<woundscope-head>", 1)
+            .replace("</head>", "</woundscope-head>", 1)
+            .replace("<body>", "<head>", 1)
+            .replace("</body>", "</head>", 1)
+            .replace("<woundscope-head>", "<body>", 1)
+            .replace("</woundscope-head>", "</body>", 1)
+        )
+    if mutation == "nested_wrappers":
+        return _replace_focus_fragment(
+            html_text,
+            "<body>\n",
+            "<body>\n  <head></head><body></body>\n",
+        )
+    if mutation == "head_wrong_parent":
+        wrapped = _replace_focus_fragment(
+            html_text,
+            "<head>",
+            '<div class="page-shell"><head>',
+        )
+        return _replace_focus_fragment(wrapped, "</head>", "</head></div>")
+    if mutation == "meta_outside_head":
+        return _move_head_line_after_head(html_text, "  <meta charset=")
+    if mutation == "title_outside_head":
+        return _move_head_line_after_head(html_text, "  <title>")
+    if mutation == "link_outside_head":
+        return _move_head_line_after_head(html_text, "  <link rel=")
+    if mutation == "body_semantic_outside_body":
+        return _replace_focus_fragment(
+            html_text,
+            "<body>\n",
+            "<p>outside body</p>\n<body>\n",
+        )
+    if mutation == "text_before_root":
+        return f"outside root\n{html_text}"
+    if mutation == "text_after_root":
+        return _replace_focus_fragment(
+            html_text,
+            "</html>\n",
+            "</html>\noutside root\n",
+        )
+    if mutation == "text_between_wrappers":
+        return _replace_focus_fragment(
+            html_text,
+            "</head>\n<body>",
+            "</head>\nroot text\n<body>",
+        )
+    raise AssertionError(f"unknown document-skeleton mutation: {mutation}")
+
+
 def _make_windows_junction(link: Path, target: Path) -> bool:
     if os.name != "nt":
         return False
@@ -1244,6 +1342,53 @@ def test_publish_tree_rejects_unbalanced_or_misnested_html_before_semantics(
         verify_publish_tree(target_publish)
 
     assert _safe_error_text(excinfo.value) == "HTML_STRUCTURE_INVALID:index.html"
+
+
+@pytest.mark.parametrize("html_name", ["index.html", "404.html"])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing_doctype",
+        "duplicate_doctype",
+        "wrong_doctype",
+        "late_doctype",
+        "missing_html_root",
+        "duplicate_html_root",
+        "wrong_root_lang",
+        "missing_head",
+        "missing_body",
+        "swapped_head_body",
+        "nested_wrappers",
+        "head_wrong_parent",
+        "meta_outside_head",
+        "title_outside_head",
+        "link_outside_head",
+        "body_semantic_outside_body",
+        "text_before_root",
+        "text_after_root",
+        "text_between_wrappers",
+    ],
+)
+def test_publish_tree_rejects_document_skeleton_drift_before_semantics(
+    tmp_path: Path, html_name: str, mutation: str
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(
+        audited_publish(tmp_path),
+        tmp_path / f"mutated-document-{html_name.removesuffix('.html')}-{mutation}",
+    )
+    html_path = target_publish / html_name
+    html_path.write_text(
+        _mutate_document_skeleton(html_path.read_text("utf-8"), mutation),
+        encoding="utf-8",
+        newline="\n",
+    )
+    _rewrite_manifest_and_sbom_for_current_tree(target_publish)
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == f"HTML_STRUCTURE_INVALID:{html_name}"
 
 
 @pytest.mark.parametrize(
