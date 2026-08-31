@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="WoundScope 足部潰瘍二元語意分割的靜態研究成果展示。">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f0e8">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#151310">
+  <meta name="woundscope:candidate-canonical-url" content="https://kuotunyu.github.io/WoundScope/">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self'; script-src 'none'; connect-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; manifest-src 'none'; worker-src 'none'">
+  <title>WoundScope | 靜態研究成果展示</title>
+  <link rel="stylesheet" href="/WoundScope/site.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳至主要內容</a>
+  <div class="page-shell">
+    <header class="masthead">
+      <p class="masthead__eyebrow">Static research showcase</p>
+      <h1>WoundScope</h1>
+      <p class="masthead__deck">足部潰瘍二元語意分割的靜態研究成果展示</p>
+      <p class="masthead__boundary">研究用途 · 非 official-test · 非臨床效能</p>
+      <p>本頁只展示方法、可重現控制與鎖定 Official Validation 的彙總結果；不提供影像上傳、API、推論、模型或醫療建議。</p>
+      <nav aria-label="頁面導覽">
+        <ul class="masthead__nav">
+          <li><a href="#overview">研究定位</a></li>
+          <li><a href="#evidence">彙總證據</a></li>
+          <li><a href="#provenance">來源與可重現控制</a></li>
+        </ul>
+      </nav>
+    </header>
+    <main id="main-content">
+      <section id="overview" class="section-card" aria-labelledby="overview-title">
+        <p class="section-card__eyebrow">Research framing</p>
+        <div class="overview-grid">
+          <div>
+            <h2 id="overview-title">研究定位</h2>
+            <p>這些是 observed research results，不是 official-test、外部、多中心或臨床表現，也不能推論診斷、治療、安全性或跨機構優勢。</p>
+          </div>
+          <figure class="contour-panel">
+            <svg viewBox="0 0 640 220" aria-hidden="true" focusable="false">
+              <path d="M30 162C88 128 158 124 211 142C271 162 315 170 377 146C425 128 480 92 610 104" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+              <path d="M62 82C114 52 180 44 246 60C314 77 362 100 427 92C482 84 534 48 594 62" fill="none" stroke="currentColor" stroke-width="1.1"></path>
+              <path d="M44 196C122 180 184 180 260 190C336 200 423 208 594 170" fill="none" stroke="currentColor" stroke-width="1.1"></path>
+              <circle cx="148" cy="92" r="5"></circle>
+              <circle cx="440" cy="138" r="7"></circle>
+            </svg>
+          </figure>
+        </div>
+      </section>
+      <section id="evidence" class="section-card" aria-labelledby="evidence-title">
+        <p class="section-card__eyebrow">Aggregate ledger</p>
+        <h2 id="evidence-title">彙總證據</h2>
+        <p>結果來自單一公開資料來源的 {{VALIDATION_IMAGES}} 張 Official Validation；每個架構使用 seeds 42／43／44。Dice 95% CI 為 {{BOOTSTRAP_ITERATIONS}} 次 image-level percentile Bootstrap；因沒有 patient ID，無法校正同一病患多張影像的相關性。</p>
+        <div class="table-scroll">
+          <table aria-describedby="evidence-summary">
+            <caption>Locked Official Validation aggregate comparison</caption>
+            <thead>
+              <tr>
+                <th scope="col">Model</th>
+                <th scope="col">Loss</th>
+                <th scope="col">Seeds</th>
+                <th scope="col">Dice mean±SD (95% CI)</th>
+                <th scope="col">IoU</th>
+                <th scope="col">Precision</th>
+                <th scope="col">Recall</th>
+                <th scope="col">Specificity</th>
+              </tr>
+            </thead>
+            <tbody>
+{{RESULTS_ROWS}}
+            </tbody>
+          </table>
+        </div>
+        <p id="evidence-summary" class="figure-caption">聚合表格完整列出每個架構的公開鎖定驗證摘要，再以同源 SVG 重現已核可的比較圖。</p>
+        <figure class="evidence-figure">
+          <img src="{{VERIFIED_SVG_PATH}}" alt="鎖定 Official Validation 的彙總 SVG，比較 EfficientNet-B0 U-Net 與 SegFormer-B0 的 Dice 與 IoU。" width="1200" height="520" loading="lazy">
+          <figcaption class="figure-caption">Approved aggregate SVG projected from the pinned Git blob: {{SVG_BLOB}}</figcaption>
+        </figure>
+      </section>
+      <section id="provenance" class="section-card" aria-labelledby="provenance-title">
+        <p class="section-card__eyebrow">Public provenance</p>
+        <h2 id="provenance-title">來源與可重現控制</h2>
+        <div class="source-columns">
+          <div>
+            <h3>Site source</h3>
+            <ul class="source-list">
+              <li><span>Repository</span><a href="{{SITE_REPOSITORY_URL}}" target="_blank" rel="noopener noreferrer">kuotunyu/WoundScope</a></li>
+              <li><span>Pinned release</span><a href="{{SITE_RELEASE_URL}}" target="_blank" rel="noopener noreferrer">{{TAG_NAME}}</a></li>
+              <li><span>README blob</span><a href="{{README_URL}}" target="_blank" rel="noopener noreferrer">{{README_BLOB}}</a></li>
+              <li><span>Citation</span><a href="{{CITATION_URL}}" target="_blank" rel="noopener noreferrer">CITATION.cff</a></li>
+              <li><span>Data card</span><a href="{{DATA_CARD_URL}}" target="_blank" rel="noopener noreferrer">DATA_CARD.md</a></li>
+              <li><span>Model card</span><a href="{{MODEL_CARD_URL}}" target="_blank" rel="noopener noreferrer">MODEL_CARD.md</a></li>
+              <li><span>License</span><a href="{{LICENSE_URL}}" target="_blank" rel="noopener noreferrer">LICENSE</a></li>
+            </ul>
+            <p class="footer-note">site source SHA: <code>{{SITE_SOURCE_SHA}}</code> · tag object: <code>{{TAG_OBJECT}}</code> · peeled commit: <code>{{PEELED_COMMIT}}</code></p>
+          </div>
+          <div>
+            <h3>Evidence source</h3>
+            <ul class="source-list">
+              <li><span>Publication</span><a href="{{DOI_URL}}" target="_blank" rel="noopener noreferrer">Scientific Reports DOI</a></li>
+              <li><span>Dataset source</span><a href="{{DATASET_URL}}" target="_blank" rel="noopener noreferrer">Foot Ulcer Segmentation Challenge</a></li>
+            </ul>
+            <p class="footer-note">model card blob: <code>{{MODEL_CARD_BLOB}}</code> · data card blob: <code>{{DATA_CARD_BLOB}}</code></p>
+          </div>
+        </div>
+      </section>
+    </main>
+    <footer class="footer-card">
+      <p>公開邊界：code、methodology、aggregate evidence；不公開資料影像、weights、ONNX、image-level results 或 live model。</p>
+    </footer>
+  </div>
+</body>
+</html>

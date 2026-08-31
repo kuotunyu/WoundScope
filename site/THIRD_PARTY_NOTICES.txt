@@ -1,0 +1,13 @@
+WoundScope Static Research Showcase — Third-Party Notices
+
+Bundled third-party runtime packages: none.
+The production site contains authored HTML/CSS, WoundScope project material under Apache-2.0, and a WoundScope-authored aggregate SVG projected from the pinned v0.2.2 Git evidence object.
+
+Aggregate research-fact attribution (not bundled software or redistributed data):
+FUSeg / Foot Ulcer Segmentation Challenge, pinned public source revision 42a272dfe0679f20675e826385925cb7562934b6.
+Publication: https://doi.org/10.1038/s41598-020-78799-w
+Source: https://github.com/uwm-bigdata/wound-segmentation/tree/42a272dfe0679f20675e826385925cb7562934b6/data/Foot%20Ulcer%20Segmentation%20Challenge
+
+No FUSeg image, mask, patient/sample identifier, model weight, ONNX artifact, or image-level result is redistributed by this site. Apache-2.0 does not assert ownership of FUSeg or model artifacts.
+
+Build/review-only tools are reported separately in the review artifact and are not production runtime components.
