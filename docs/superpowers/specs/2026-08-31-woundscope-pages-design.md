@@ -378,9 +378,9 @@ Manifest 記錄 tree digest，但不在內部記錄自己的 digest／bytes。Pu
 
 - `<html lang="zh-Hant-TW">`、unique title、description、canonical candidate URL 與 viewport metadata。
 - 一個 H1；heading levels 不跳級；header、nav、main、section、figure、table、footer 使用正確 semantics。
-- 第一個 focusable element 是 skip link，並能將 focus 移到 main content。
-- 只有連結可 focus；沒有偽 button、tab 或不可用 controls。
-- Visible focus、keyboard-only order、連結文字目的清楚、不只用顏色表達狀態。
+- 第一個 sequentially focusable element 是 skip link；第一次 Tab 必須聚焦該 link，且在 Enter 前只對該 skip link 斷言至少 2 CSS px 的 visible outline。Enter 必須把 focus 移到 exact `<main id="main-content" tabindex="-1">`；這個 programmatic main focus 不適用 focused-link outline 規則。
+- 其後 sequential focus order 只允許受本規格 internal／external link contract 管轄的 anchors，以及 `.table-scroll` regions。每個 `.table-scroll` 必須具有 exact `tabindex="0" role="region" aria-labelledby="<id>"`，其中 `<id>` 必須指向同一 table 的 visible、unique caption 或 heading；禁止 positive `tabindex`，也禁止 main 的 exact `tabindex="-1"` skip target 以外任何其他非 link／非 `.table-scroll` focus exception。
+- Skip link、其後每個 keyboard-focused governed anchor 與 `.table-scroll` region 都必須有 visible focus；連結文字目的清楚，且狀態不只以顏色表達。
 - Normal text contrast 至少 4.5:1，large text／focus／non-text contrast 至少 3:1；light 與 dark 分開驗證。
 - 200% browser zoom 時不遺失內容、不重疊、不產生 two-dimensional scrolling。
 - `prefers-reduced-motion` 下無非必要 animation。首版原則上不需要 animation。
@@ -396,7 +396,7 @@ Manifest 記錄 tree digest，但不在內部記錄自己的 digest／bytes。Pu
 - 1024×768
 - 1440×900
 
-每個 viewport 必須檢查 horizontal overflow、clipped text、table readability、footer visibility、focus outline 與至少 44×44 px 的 touch target（如適用）。Narrow viewport 的 results table 可在明確標記的 table container 內水平捲動，但 page body 不得水平捲動，且要有不依賴 hover 的提示。
+每個 viewport 必須檢查 horizontal overflow、clipped text、table readability、footer visibility、上述 governed anchors／`.table-scroll` regions 的 focus visibility，以及至少 44×44 px 的 touch target（如適用）。至少 2 CSS px 的 outline 數值 gate 只套用第一次 Tab 後、Enter 前的 skip link。Narrow viewport 的 results table 可在具有第 14.1 節 exact focus／region attributes 的 `.table-scroll` 內水平捲動，但 page body 不得水平捲動，且要有不依賴 hover 的提示。
 
 ### 14.3 Browser and reviewer toolchain matrix
 
