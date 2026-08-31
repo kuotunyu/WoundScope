@@ -56,7 +56,8 @@ a:hover {
 
 a:focus-visible,
 button:focus-visible,
-summary:focus-visible {
+summary:focus-visible,
+.table-scroll:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 3px;
 }
@@ -315,6 +316,11 @@ code {
 
 code,
 .source-list a {
+  overflow-wrap: anywhere;
+}
+
+.masthead h1,
+.figure-caption {
   overflow-wrap: anywhere;
 }
 
