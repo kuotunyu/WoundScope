@@ -93,9 +93,11 @@ class _StructureParser(HTMLParser):
         self.root_asset_refs: list[str] = []
         self.img_attrs: list[dict[str, str | None]] = []
         self.theme_colors: list[tuple[str | None, str | None]] = []
+        self.elements: list[tuple[str, dict[str, str | None]]] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attr_map = dict(attrs)
+        self.elements.append((tag, attr_map))
         if tag == "body":
             self.in_body = True
         elif self.in_body:
@@ -399,6 +401,72 @@ def test_renderer_keeps_skip_navigation_focusable_and_grid_content_intrinsically
         "}\n"
     ) in css_text
     assert ("code,\n.source-list a {\n  overflow-wrap: anywhere;\n}\n") in css_text
+
+
+def test_renderer_emits_exact_table_focus_region_and_true_wrap_contract() -> None:
+    rendered = _render()
+    index_text = rendered.index_html.decode("utf-8")
+    source_text = (SITE_ROOT / "index.template.html").read_text("utf-8")
+    css_text = rendered.css.decode("utf-8")
+    structure = _parse_structure(rendered.index_html)
+    region_attributes = {
+        "aria-labelledby": "evidence-table-caption",
+        "class": "table-scroll",
+        "role": "region",
+        "tabindex": "0",
+    }
+    expected_region = (
+        '<div class="table-scroll" tabindex="0" role="region" '
+        'aria-labelledby="evidence-table-caption">'
+    )
+    expected_caption = (
+        '<caption id="evidence-table-caption">'
+        "Locked Official Validation aggregate comparison</caption>"
+    )
+
+    for document in (source_text, index_text):
+        assert document.count(expected_region) == 1
+        assert document.count(expected_caption) == 1
+        assert document.count('id="evidence-table-caption"') == 1
+        assert document.index(expected_region) < document.index("<table")
+        assert document.index("<table") < document.index(expected_caption)
+        assert document.index(expected_caption) < document.index("</table>")
+
+    tabindexed = [
+        (tag, attrs) for tag, attrs in structure.elements if "tabindex" in attrs
+    ]
+    assert tabindexed == [
+        ("main", {"id": "main-content", "tabindex": "-1"}),
+        ("div", region_attributes),
+    ]
+    assert not any(
+        tag in {"button", "input", "select", "summary", "textarea"}
+        or (tag in {"audio", "video"} and "controls" in attrs)
+        for tag, attrs in structure.elements
+    )
+    assert not re.search(r'tabindex="[1-9][0-9]*"', index_text)
+
+    assert (
+        "summary:focus-visible,\n"
+        ".table-scroll:focus-visible {\n"
+        "  outline: 3px solid var(--focus);\n"
+        "  outline-offset: 3px;\n"
+        "}\n"
+    ) in css_text
+    assert (
+        ".masthead h1,\n"
+        ".figure-caption {\n"
+        "  overflow-wrap: anywhere;\n"
+        "}\n"
+    ) in css_text
+    for clipping_rule in (
+        "overflow: clip",
+        "overflow: hidden",
+        "overflow-x: hidden",
+        "text-overflow: clip",
+        "text-overflow: ellipsis",
+    ):
+        assert clipping_rule not in css_text
 
 
 def test_site_source_contains_no_aggregate_metric_tokens() -> None:

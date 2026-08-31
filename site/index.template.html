@@ -51,9 +51,9 @@
         <p class="section-card__eyebrow">Aggregate ledger</p>
         <h2 id="evidence-title">彙總證據</h2>
         <p>結果來自單一公開資料來源的 {{VALIDATION_IMAGES}} 張 Official Validation；每個架構使用 seeds 42／43／44。Dice 95% CI 為 {{BOOTSTRAP_ITERATIONS}} 次 image-level percentile Bootstrap；因沒有 patient ID，無法校正同一病患多張影像的相關性。</p>
-        <div class="table-scroll">
+        <div class="table-scroll" tabindex="0" role="region" aria-labelledby="evidence-table-caption">
           <table aria-describedby="evidence-summary">
-            <caption>Locked Official Validation aggregate comparison</caption>
+            <caption id="evidence-table-caption">Locked Official Validation aggregate comparison</caption>
             <thead>
               <tr>
                 <th scope="col">Model</th>
