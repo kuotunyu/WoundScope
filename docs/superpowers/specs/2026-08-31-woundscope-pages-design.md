@@ -325,7 +325,7 @@ Meta CSP 是 GitHub Pages 無自訂 response headers 時的 defense-in-depth，�
 
 ### 12.1 Required outputs
 
-- `LICENSE.txt`：從 site source commit 的 WoundScope Apache-2.0 `LICENSE` 逐字節投影。
+- `LICENSE.txt`：從 site source commit 的 WoundScope Apache-2.0 `LICENSE` 逐字節投影。Normative identity contract 固定為 `<site_source_sha>:LICENSE` 必須解析到 Git blob `6d7d4eed049964731c06b000d257a1bdb2fd6028`，其 raw size 必須是 `11,577` bytes，raw SHA-256 必須是 `7203278db33515a51443fb4969f84deabc6081086c55a59cc94ee2a384c83f7d`。Byte domain 僅限對該已選定 Git object 執行 `git cat-file blob` 讀出的 raw bytes，直接複製到 `LICENSE.txt`；不得讀取 checkout／worktree `LICENSE`、不得做 line-ending normalization、CRLF projection 或 reserialization。`11,782` bytes／`46f4aa5b30f1e3fdec3c30ff381da83fe0323a00d8d7bde8f1a16265c1305fd1` 只可作為 diagnostic-only 的 rejected noncanonical working-copy variant 提及，永不得 export、validate 或作為 hash／budget assertion 來源。
 - `THIRD_PARTY_NOTICES.txt`：列出每個實際 bundled production component 的 name、version／source revision、license identifier、copyright，以及必要 license text／attribution。
 - `sbom.spdx.json`：符合 SPDX JSON schema，記錄實際 bundled production components，並為 publish tree 中除 `sbom.spdx.json` 與 `pages-manifest.json` 以外的七個檔案建立可驗證 file records；SBOM 不記錄自身 checksum。
 - CI review artifact 另保存 build-tool dependency report；build-only tools 不可被誤列為網頁 runtime code。
