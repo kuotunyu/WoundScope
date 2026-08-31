@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import stat
@@ -19,12 +20,14 @@ from .constants import (
     AUTHORED_SITE_FILES,
     BASE_PATH,
     CLAIM_BOUNDARY_VERSION,
+    DATA_CARD_BLOB,
     EXPECTED_BROWSER_REVISIONS,
     EXPECTED_CSP,
     EXPECTED_LICENSE_LENGTH,
     EXPECTED_LICENSE_SHA256,
     EXPECTED_PUBLIC_SVG_FILENAME,
     EXPECTED_PUBLIC_SVG_LENGTH,
+    EXPECTED_PUBLIC_SVG_SHA256,
     EXTERNAL_LINK_ALLOWLIST,
     FORBIDDEN_METRIC_LITERALS,
     LICENSE_BLOB,
@@ -32,23 +35,26 @@ from .constants import (
     MANUAL_BROWSER_ZOOM_FIELD,
     MAX_CSS_BYTES,
     MAX_TOTAL_PUBLISH_BYTES,
+    MODEL_CARD_BLOB,
     NETWORK_CONTRACT_VERSION,
     PUBLISH_FILE_BUDGETS,
+    README_BLOB,
     REVIEW_REPORT_FILES,
     REVIEW_SCREENSHOT_DIRECTORY,
     REVIEW_SCREENSHOT_SUFFIX,
     SITE_BUILD_MODE,
+    SVG_BLOB,
+    TAG_NAME,
+    TAG_OBJECT,
 )
 from .evidence import PEELED_COMMIT, PublicEvidence, load_public_evidence
 from .render import render_site
-from .svg_contract import load_verified_svg, verify_svg_bytes
+from .svg_contract import load_verified_svg
 
 _HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
 _APPROVAL_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 _STYLE_HREF_RE = re.compile(r'href="/WoundScope/site\.css"')
-_CSP_RE = re.compile(
-    r'(<meta http-equiv="Content-Security-Policy" content=")([^"]+)(">)'
-)
+_CSP_RE = re.compile(r'(<meta http-equiv="Content-Security-Policy" content=")([^"]+)(">)')
 _WINDOWS_ABSOLUTE_PATH_RE = re.compile(r"(?i)\b[A-Z]:[\\/][^\s<>'\"]+")
 _UNIX_ABSOLUTE_PATH_RE = re.compile(r"/(?:Users|home|root)/[^\s<>'\"]+")
 _SECRET_RE = re.compile(
@@ -74,6 +80,12 @@ _ALLOWED_ROOT_FILES = frozenset(
 )
 _RASTER_SUFFIXES = frozenset(
     {".apng", ".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp"}
+)
+_REPORTED_OWNER = "kuotunyu"
+_SITE_SOURCE_FOOTER_RE = re.compile(
+    r"site source SHA:\s*<code>(?P<site_source>[0-9a-f]{40})</code>\s*·\s*tag object:\s*"
+    r"<code>(?P<tag_object>[0-9a-f]{40})</code>\s*·\s*peeled commit:\s*"
+    r"<code>(?P<peeled_commit>[0-9a-f]{40})</code>"
 )
 
 
@@ -211,13 +223,10 @@ def source_date_epoch_for_commit(repository: Path, site_source_sha: str) -> int:
     )
 
 
-def _git_root_from_cwd() -> Path:
-    root = _run_git_text(Path.cwd(), ["rev-parse", "--show-toplevel"], code="GIT_DIRTY")
-    return Path(root)
-
-
 def _git_tree_blob_id(repository: Path, commit_sha: str, public_path: str) -> str:
-    entry = _run_git_text(repository, ["ls-tree", commit_sha, "--", public_path], code="SITE_SOURCE_READ")
+    entry = _run_git_text(
+        repository, ["ls-tree", commit_sha, "--", public_path], code="SITE_SOURCE_READ"
+    )
     if not entry:
         raise PagesAuditError("SITE_SOURCE_READ", public_path=public_path)
     parts = entry.split(maxsplit=3)
@@ -338,11 +347,60 @@ def _tree_digest(records: tuple[_FileRecord, ...]) -> str:
     return _sha256_bytes(b"".join(payload_parts))
 
 
-def _toolchain_payload() -> dict[str, str]:
-    repository = _git_root_from_cwd()
+def _toolchain_payload(repository: Path | None = None) -> dict[str, str]:
+    try:
+        completed = subprocess.run(
+            ["git", "--version"],
+            cwd=repository,
+            check=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as error:
+        raise PagesAuditError("GIT_COMMAND_FAILED") from error
     return {
-        "git": _run_git_text(repository, ["--version"], code="GIT_COMMAND_FAILED"),
+        "git": completed.stdout.decode("utf-8").strip(),
         "python": sys.version.split()[0],
+    }
+
+
+def _expected_manifest_evidence_payload() -> dict[str, str]:
+    return {
+        "data_card_blob": DATA_CARD_BLOB,
+        "model_card_blob": MODEL_CARD_BLOB,
+        "peeled_commit": PEELED_COMMIT,
+        "readme_blob": README_BLOB,
+        "svg_blob": SVG_BLOB,
+        "tag_name": TAG_NAME,
+        "tag_object": TAG_OBJECT,
+    }
+
+
+def _file_payloads(file_records: tuple[_FileRecord, ...]) -> list[dict[str, object]]:
+    return [
+        {"bytes": record.bytes_size, "path": record.path, "sha256": record.sha256}
+        for record in sorted(file_records, key=lambda item: item.path.encode("utf-8"))
+    ]
+
+
+def _expected_manifest_payload(
+    site_source_sha: str,
+    source_date_epoch: int,
+    file_records: tuple[_FileRecord, ...],
+    publish_tree_sha256: str,
+    *,
+    repository: Path | None,
+) -> dict[str, object]:
+    return {
+        "base_path": BASE_PATH,
+        "build_mode": SITE_BUILD_MODE,
+        "claim_boundary_version": CLAIM_BOUNDARY_VERSION,
+        "evidence": _expected_manifest_evidence_payload(),
+        "files": _file_payloads(file_records),
+        "network_contract_version": NETWORK_CONTRACT_VERSION,
+        "publish_tree_sha256": publish_tree_sha256,
+        "site_source_sha": site_source_sha,
+        "source_date_epoch": source_date_epoch,
+        "toolchain": _toolchain_payload(repository),
     }
 
 
@@ -355,6 +413,14 @@ def _spdx_payload(
     source_date_epoch: int,
     file_records: tuple[_FileRecord, ...],
 ) -> bytes:
+    return _json_bytes(_expected_spdx_payload(site_source_sha, source_date_epoch, file_records))
+
+
+def _expected_spdx_payload(
+    site_source_sha: str,
+    source_date_epoch: int,
+    file_records: tuple[_FileRecord, ...],
+) -> dict[str, object]:
     created = datetime.fromtimestamp(source_date_epoch, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     package_id = "SPDXRef-Package-WoundScopePages"
     files = []
@@ -377,7 +443,7 @@ def _spdx_payload(
                 "spdxElementId": package_id,
             }
         )
-    payload = {
+    return {
         "SPDXID": "SPDXRef-DOCUMENT",
         "creationInfo": {
             "created": created,
@@ -403,44 +469,46 @@ def _spdx_payload(
         "relationships": relationships,
         "spdxVersion": "SPDX-2.3",
     }
-    return _json_bytes(payload)
 
 
 def _manifest_payload(
     site_source_sha: str,
     evidence: PublicEvidence,
+    source_date_epoch: int,
     file_records: tuple[_FileRecord, ...],
     publish_tree_sha256: str,
+    *,
+    repository: Path,
 ) -> bytes:
-    payload = {
-        "base_path": BASE_PATH,
-        "build_mode": SITE_BUILD_MODE,
-        "claim_boundary_version": CLAIM_BOUNDARY_VERSION,
-        "evidence": {
-            "data_card_blob": evidence.provenance.data_card_blob,
-            "model_card_blob": evidence.provenance.model_card_blob,
-            "peeled_commit": evidence.provenance.peeled_commit,
-            "readme_blob": evidence.provenance.readme_blob,
-            "svg_blob": evidence.provenance.svg_blob,
-            "tag_name": evidence.provenance.tag_name,
-            "tag_object": evidence.provenance.tag_object,
-        },
-        "files": [
-            {"bytes": record.bytes_size, "path": record.path, "sha256": record.sha256}
-            for record in sorted(file_records, key=lambda item: item.path.encode("utf-8"))
-        ],
-        "network_contract_version": NETWORK_CONTRACT_VERSION,
-        "publish_tree_sha256": publish_tree_sha256,
-        "site_source_sha": site_source_sha,
-        "toolchain": _toolchain_payload(),
-    }
+    payload = _expected_manifest_payload(
+        site_source_sha,
+        source_date_epoch,
+        file_records,
+        publish_tree_sha256,
+        repository=repository,
+    )
+    if payload["evidence"] != {
+        "data_card_blob": evidence.provenance.data_card_blob,
+        "model_card_blob": evidence.provenance.model_card_blob,
+        "peeled_commit": evidence.provenance.peeled_commit,
+        "readme_blob": evidence.provenance.readme_blob,
+        "svg_blob": evidence.provenance.svg_blob,
+        "tag_name": evidence.provenance.tag_name,
+        "tag_object": evidence.provenance.tag_object,
+    }:
+        raise PagesAuditError("MANIFEST_STRUCTURE", public_path="pages-manifest.json")
     return _json_bytes(payload)
 
 
 def _classify_extra_path(relative_path: str) -> str:
     lower = relative_path.casefold()
     suffix = Path(relative_path).suffix.casefold()
-    if lower.startswith(("data/", "artifacts/")):
+    if (
+        lower == "data"
+        or lower.startswith("data/")
+        or lower == "artifacts"
+        or lower.startswith("artifacts/")
+    ):
         return "TREE_PRIVATE_DATA"
     if suffix in {".js", ".mjs"}:
         return "TREE_JAVASCRIPT"
@@ -474,23 +542,26 @@ def _assert_no_metric_drift(text: str, public_path: str) -> None:
 
 
 def _verify_inventory(publish: Path) -> tuple[str, str]:
-    if not publish.is_dir():
+    if not publish.exists():
         raise PagesAuditError("TREE_MISSING_FILE", public_path=".")
+    publish_stats = publish.lstat()
+    if stat.S_ISLNK(publish_stats.st_mode) or _is_reparse_point(publish_stats):
+        raise PagesAuditError("TREE_SYMLINK", public_path=".")
+    if not stat.S_ISDIR(publish_stats.st_mode):
+        raise PagesAuditError("TREE_SPECIAL_FILE", public_path=".")
     css_relative: str | None = None
     svg_relative: str | None = None
     for path in publish.rglob("*"):
         relative_path = path.relative_to(publish).as_posix()
         stats = path.lstat()
-        if stat.S_ISLNK(stats.st_mode):
+        if stat.S_ISLNK(stats.st_mode) or _is_reparse_point(stats):
             raise PagesAuditError("TREE_SYMLINK", public_path=relative_path)
         if stat.S_ISDIR(stats.st_mode):
             if relative_path == "assets":
                 continue
-            if relative_path == "data" or relative_path.startswith("data/"):
+            if relative_path in {"data", "artifacts"} and any(path.iterdir()):
                 continue
-            if relative_path == "artifacts" or relative_path.startswith("artifacts/"):
-                continue
-            raise PagesAuditError("TREE_EXTRA_FILE", public_path=relative_path)
+            raise PagesAuditError(_classify_extra_path(relative_path), public_path=relative_path)
         if not stat.S_ISREG(stats.st_mode):
             raise PagesAuditError("TREE_SPECIAL_FILE", public_path=relative_path)
         if relative_path in _ALLOWED_ROOT_FILES:
@@ -576,13 +647,27 @@ def _verify_license(path: Path) -> None:
 def _verify_svg(path: Path) -> None:
     if path.stat().st_size != EXPECTED_PUBLIC_SVG_LENGTH:
         raise PagesAuditError("SVG_LENGTH", public_path=path.as_posix())
-    evidence = load_public_evidence(_git_root_from_cwd())
-    try:
-        verified = verify_svg_bytes(path.read_bytes(), evidence, enforce_exact_bytes=True)
-    except Exception as error:  # pragma: no cover
-        raise PagesAuditError(str(error), public_path=path.as_posix()) from error
-    if verified.public_filename != EXPECTED_PUBLIC_SVG_FILENAME:
+    if _sha256_path(path) != EXPECTED_PUBLIC_SVG_SHA256:
         raise PagesAuditError("SVG_PUBLIC_FILENAME", public_path=path.as_posix())
+
+
+def _is_reparse_point(path_stat: os.stat_result) -> bool:
+    return bool(
+        getattr(path_stat, "st_file_attributes", 0)
+        & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    )
+
+
+def _extract_site_source_footer(index_path: Path) -> tuple[str, str, str]:
+    text = _decode_utf8(index_path, "index.html")
+    match = _SITE_SOURCE_FOOTER_RE.search(text)
+    if match is None:
+        raise PagesAuditError("HTML_SOURCE_FOOTER", public_path="index.html")
+    return (
+        match.group("site_source"),
+        match.group("tag_object"),
+        match.group("peeled_commit"),
+    )
 
 
 def _verify_notices(path: Path) -> None:
@@ -630,6 +715,20 @@ def _verify_sbom(publish: Path, sbom_path: Path) -> str:
             raise PagesAuditError("SBOM_CHECKSUM_MISMATCH", public_path="sbom.spdx.json")
     if len(files) != len(actual_records):
         raise PagesAuditError("SBOM_FILE_SET_MISMATCH", public_path="sbom.spdx.json")
+    manifest_payload = json.loads(
+        _decode_utf8(publish / "pages-manifest.json", "pages-manifest.json")
+    )
+    source_date_epoch = manifest_payload.get("source_date_epoch")
+    site_source_sha = manifest_payload.get("site_source_sha")
+    if not isinstance(source_date_epoch, int) or not isinstance(site_source_sha, str):
+        raise PagesAuditError("SBOM_STRUCTURE", public_path="sbom.spdx.json")
+    expected_payload = _expected_spdx_payload(
+        site_source_sha,
+        source_date_epoch,
+        tuple(actual_records[path] for path in _publish_paths(publish) if path in actual_records),
+    )
+    if payload != expected_payload:
+        raise PagesAuditError("SBOM_STRUCTURE", public_path="sbom.spdx.json")
     return _sha256_path(sbom_path)
 
 
@@ -649,7 +748,8 @@ def _verify_manifest(publish: Path, manifest_path: Path) -> tuple[str, str]:
     if "manifest_sha256" in payload or "manifest_bytes" in payload:
         raise PagesAuditError("MANIFEST_SELF_REFERENCE", public_path="pages-manifest.json")
     site_source_sha = payload.get("site_source_sha")
-    if not isinstance(site_source_sha, str):
+    source_date_epoch = payload.get("source_date_epoch")
+    if not isinstance(site_source_sha, str) or not isinstance(source_date_epoch, int):
         raise PagesAuditError("MANIFEST_STRUCTURE", public_path="pages-manifest.json")
     _require_hex40(site_source_sha, code="MANIFEST_STRUCTURE")
     actual_records = {
@@ -675,6 +775,24 @@ def _verify_manifest(publish: Path, manifest_path: Path) -> tuple[str, str]:
     publish_tree_sha256 = _tree_digest(tuple(actual_records.values()))
     if payload.get("publish_tree_sha256") != publish_tree_sha256:
         raise PagesAuditError("TREE_DIGEST_MISMATCH", public_path="pages-manifest.json")
+    footer_site_source, footer_tag_object, footer_peeled_commit = _extract_site_source_footer(
+        publish / "index.html"
+    )
+    if (
+        footer_site_source != site_source_sha
+        or footer_tag_object != TAG_OBJECT
+        or footer_peeled_commit != PEELED_COMMIT
+    ):
+        raise PagesAuditError("MANIFEST_STRUCTURE", public_path="pages-manifest.json")
+    expected_payload = _expected_manifest_payload(
+        site_source_sha,
+        source_date_epoch,
+        tuple(actual_records.values()),
+        publish_tree_sha256,
+        repository=None,
+    )
+    if payload != expected_payload:
+        raise PagesAuditError("MANIFEST_STRUCTURE", public_path="pages-manifest.json")
     return site_source_sha, _sha256_path(manifest_path)
 
 
@@ -710,19 +828,32 @@ def _review_payload_sha256(
 
 
 def _verify_reports(reports: Path) -> tuple[_FileRecord, ...]:
-    if not reports.is_dir():
+    if not reports.exists():
         raise PagesAuditError("REPORT_MISSING", public_path="reports")
-    for path in reports.rglob("*"):
+    report_root_stats = reports.lstat()
+    if stat.S_ISLNK(report_root_stats.st_mode) or _is_reparse_point(report_root_stats):
+        raise PagesAuditError("REPORT_SYMLINK", public_path="reports")
+    if not stat.S_ISDIR(report_root_stats.st_mode):
+        raise PagesAuditError("REPORT_SPECIAL_FILE", public_path="reports")
+    for path in sorted(reports.rglob("*")):
         relative_path = path.relative_to(reports).as_posix()
-        if path.is_dir():
+        path_stat = path.lstat()
+        if stat.S_ISLNK(path_stat.st_mode) or _is_reparse_point(path_stat):
+            raise PagesAuditError("REPORT_SYMLINK", public_path=relative_path)
+        if stat.S_ISDIR(path_stat.st_mode):
             if relative_path == REVIEW_SCREENSHOT_DIRECTORY:
                 continue
             if relative_path.startswith(f"{REVIEW_SCREENSHOT_DIRECTORY}/"):
                 continue
             raise PagesAuditError("REPORT_EXTRA_FILE", public_path=relative_path)
+        if not stat.S_ISREG(path_stat.st_mode):
+            raise PagesAuditError("REPORT_SPECIAL_FILE", public_path=relative_path)
         if relative_path in REVIEW_REPORT_FILES:
             continue
-        if relative_path.startswith(f"{REVIEW_SCREENSHOT_DIRECTORY}/") and path.suffix == REVIEW_SCREENSHOT_SUFFIX:
+        if (
+            relative_path.startswith(f"{REVIEW_SCREENSHOT_DIRECTORY}/")
+            and path.suffix == REVIEW_SCREENSHOT_SUFFIX
+        ):
             continue
         raise PagesAuditError("REPORT_EXTRA_FILE", public_path=relative_path)
     for filename in REVIEW_REPORT_FILES:
@@ -732,7 +863,10 @@ def _verify_reports(reports: Path) -> tuple[_FileRecord, ...]:
     manual_records = zoom_payload.get(MANUAL_BROWSER_ZOOM_FIELD)
     if not isinstance(manual_records, list):
         raise PagesAuditError("REPORT_MANUAL_ZOOM_REQUIRED", public_path="zoom.json")
-    seen = {(item.get("browser"), str(item.get("revision")), item.get("status")) for item in manual_records}
+    seen = {
+        (item.get("browser"), str(item.get("revision")), item.get("status"))
+        for item in manual_records
+    }
     for browser, revision in EXPECTED_BROWSER_REVISIONS.items():
         if (browser, revision, "PASS") not in seen:
             raise PagesAuditError("REPORT_MANUAL_ZOOM_REQUIRED", public_path="zoom.json")
@@ -748,8 +882,12 @@ def build_site(
     repository = repository.resolve()
     output = output.resolve()
     normalized_sha = normalize_site_source_sha(repository, site_source_sha)
+    output_preexisting_empty = False
     if output.exists():
-        raise PagesAuditError("OUTPUT_EXISTS", public_path=output.name)
+        if output.is_dir() and not any(output.iterdir()):
+            output_preexisting_empty = True
+        else:
+            raise PagesAuditError("OUTPUT_EXISTS", public_path=output.name)
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="woundscope-pages-", dir=output.parent) as temp_dir:
         staging_root = Path(temp_dir)
@@ -778,9 +916,18 @@ def build_site(
         publish_tree_sha256 = _tree_digest(manifest_records)
         _write_bytes(
             publish / "pages-manifest.json",
-            _manifest_payload(normalized_sha, evidence, manifest_records, publish_tree_sha256),
+            _manifest_payload(
+                normalized_sha,
+                evidence,
+                source_date_epoch,
+                manifest_records,
+                publish_tree_sha256,
+                repository=repository,
+            ),
         )
         verified = verify_publish_tree(publish)
+        if output_preexisting_empty:
+            output.rmdir()
         publish.rename(output)
         return BuildResult(
             publish=output,
@@ -842,49 +989,104 @@ def seal_review(publish: Path, reports: Path, export_root: Path) -> Path:
     export_root = export_root.resolve()
     if export_root.exists():
         raise PagesAuditError("OUTPUT_EXISTS", public_path=export_root.name)
-    shutil.copytree(verified.publish, export_root / "publish")
-    shutil.copytree(reports.resolve(), export_root / "reports")
-    publish_records = _collect_records(
-        export_root / "publish",
-        include_manifest=True,
-        include_sbom=True,
-    )
-    copied_report_records = _report_records(export_root / "reports")
-    receipt = {
-        "evidence_peeled_commit": PEELED_COMMIT,
-        "evidence_tag_object": "1f51e659f0aeba9e2d249d7f42dae2ba57cd1cc4",
-        "manifest_sha256": verified.manifest_sha256,
-        "publish_tree_sha256": verified.publish_tree_sha256,
-        "report_hashes": [
-            {"bytes": record.bytes_size, "path": record.path, "sha256": record.sha256}
-            for record in sorted(copied_report_records, key=lambda item: item.path.encode("utf-8"))
-        ],
-        "review_payload_sha256": _review_payload_sha256(publish_records, copied_report_records),
-        "sbom_sha256": verified.sbom_sha256,
-        "site_source_sha": verified.site_source_sha,
-    }
-    receipt_path = export_root / "review-receipt.json"
-    _write_bytes(receipt_path, _json_bytes(receipt))
-    if report_records != copied_report_records:
-        raise PagesAuditError("REPORT_COPY_MISMATCH", public_path="reports")
-    return receipt_path
+    export_root.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(
+        prefix="woundscope-review-", dir=export_root.parent
+    ) as temp_dir:
+        staging_root = Path(temp_dir) / export_root.name
+        shutil.copytree(verified.publish, staging_root / "publish")
+        copied_report_records = _copy_reports_individually(
+            reports.resolve(), staging_root / "reports"
+        )
+        publish_records = _collect_records(
+            staging_root / "publish",
+            include_manifest=True,
+            include_sbom=True,
+        )
+        receipt = {
+            "evidence_peeled_commit": PEELED_COMMIT,
+            "evidence_tag_object": TAG_OBJECT,
+            "manifest_sha256": verified.manifest_sha256,
+            "publish_tree_sha256": verified.publish_tree_sha256,
+            "report_hashes": [
+                {"bytes": record.bytes_size, "path": record.path, "sha256": record.sha256}
+                for record in sorted(
+                    copied_report_records, key=lambda item: item.path.encode("utf-8")
+                )
+            ],
+            "review_payload_sha256": _review_payload_sha256(publish_records, copied_report_records),
+            "sbom_sha256": verified.sbom_sha256,
+            "site_source_sha": verified.site_source_sha,
+        }
+        receipt_path = staging_root / "review-receipt.json"
+        _write_bytes(receipt_path, _json_bytes(receipt))
+        if report_records != copied_report_records:
+            raise PagesAuditError("REPORT_COPY_MISMATCH", public_path="reports")
+        staging_root.rename(export_root)
+    return export_root / "review-receipt.json"
 
 
 def _git_is_dirty(repository: Path) -> bool:
     return bool(_run_git_text(repository, ["status", "--porcelain=v1", "-uno"], code="GIT_DIRTY"))
 
 
+def _copy_reports_individually(reports: Path, destination: Path) -> tuple[_FileRecord, ...]:
+    copied_records: list[_FileRecord] = []
+    for record in _verify_reports(reports):
+        source = reports / record.path
+        source_stat = source.lstat()
+        if stat.S_ISLNK(source_stat.st_mode) or _is_reparse_point(source_stat):
+            raise PagesAuditError("REPORT_SYMLINK", public_path=record.path)
+        if not stat.S_ISREG(source_stat.st_mode):
+            raise PagesAuditError("REPORT_SPECIAL_FILE", public_path=record.path)
+        target = destination / record.path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        copied_records.append(_file_record(target, record.path))
+    return tuple(copied_records)
+
+
 def record_central_seal(
+    repository: Path,
     receipt: Path,
     output: Path,
     approved_site_source: str,
     reviewer: str,
     approval_id: str,
 ) -> Path:
+    repository = repository.resolve()
     approved_site_source = _require_hex40(approved_site_source, code="SITE_SOURCE_SHA_INVALID")
+    if reviewer != _REPORTED_OWNER:
+        raise PagesAuditError("CENTRAL_REVIEWER_INVALID")
     if not _APPROVAL_ID_RE.fullmatch(approval_id):
         raise PagesAuditError("CENTRAL_APPROVAL_ID_INVALID")
-    repository = _git_root_from_cwd()
+    receipt = receipt.resolve()
+    if receipt.name != "review-receipt.json":
+        raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
+    receipt_stat = receipt.lstat() if receipt.exists() else None
+    if receipt_stat is None:
+        raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
+    if stat.S_ISLNK(receipt_stat.st_mode) or _is_reparse_point(receipt_stat):
+        raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
+    if not stat.S_ISREG(receipt_stat.st_mode):
+        raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
+    export_root = receipt.parent
+    export_root_stat = export_root.lstat()
+    if stat.S_ISLNK(export_root_stat.st_mode) or _is_reparse_point(export_root_stat):
+        raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
+    if not stat.S_ISDIR(export_root_stat.st_mode):
+        raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
+    publish_root = export_root / "publish"
+    reports_root = export_root / "reports"
+    if not publish_root.exists() or not reports_root.exists():
+        raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
+    if not stat.S_ISDIR(publish_root.lstat().st_mode) or not stat.S_ISDIR(
+        reports_root.lstat().st_mode
+    ):
+        raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
+    output = output.resolve()
+    if output != export_root.parent / "CENTRAL_SEAL.json":
+        raise PagesAuditError("CENTRAL_SEAL_PATH_INVALID")
     if _git_is_dirty(repository):
         raise PagesAuditError("GIT_DIRTY")
     if normalize_site_source_sha(repository, "HEAD") != approved_site_source:
@@ -892,7 +1094,6 @@ def record_central_seal(
     receipt_payload = json.loads(receipt.read_text("utf-8"))
     if receipt_payload.get("site_source_sha") != approved_site_source:
         raise PagesAuditError("SITE_SOURCE_SHA_MISMATCH")
-    output = output.resolve()
     if output.exists():
         raise PagesAuditError("OUTPUT_EXISTS", public_path=output.name)
     payload = {

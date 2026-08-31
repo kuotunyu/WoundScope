@@ -34,6 +34,7 @@ def main() -> int:
     seal_parser.add_argument("--output", type=Path, required=True)
 
     central_parser = subparsers.add_parser("record-central-seal")
+    central_parser.add_argument("--repository", type=Path, required=True)
     central_parser.add_argument("--receipt", type=Path, required=True)
     central_parser.add_argument("--output", type=Path, required=True)
     central_parser.add_argument("--approved-site-source", required=True)
@@ -62,6 +63,7 @@ def main() -> int:
             payload = {
                 "seal": str(
                     record_central_seal(
+                        repository=arguments.repository,
                         receipt=arguments.receipt,
                         output=arguments.output,
                         approved_site_source=arguments.approved_site_source,
