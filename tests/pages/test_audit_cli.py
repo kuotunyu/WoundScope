@@ -13,6 +13,15 @@ from pathlib import Path
 import pytest
 
 REPOSITORY = Path(__file__).resolve().parents[2]
+TABLE_REGION_OPEN = (
+    '<div class="table-scroll" tabindex="0" role="region" '
+    'aria-labelledby="evidence-table-caption">'
+)
+TABLE_OPEN = '<table aria-describedby="evidence-summary">'
+TABLE_CAPTION = (
+    '<caption id="evidence-table-caption">'
+    "Locked Official Validation aggregate comparison</caption>"
+)
 
 
 def _import_module(name: str):
@@ -204,6 +213,120 @@ def _inject_duplicate_attribute(
     duplicate: str,
 ) -> str:
     return html_text.replace(original, f"{original} {duplicate}", 1)
+
+
+def _replace_focus_fragment(html_text: str, original: str, replacement: str) -> str:
+    mutated = html_text.replace(original, replacement, 1)
+    assert mutated != html_text
+    return mutated
+
+
+def _mutate_focus_region(html_text: str, mutation: str) -> str:
+    replacements = {
+        "missing_region_contract": (TABLE_REGION_OPEN, '<div class="table-scroll">'),
+        "wrong_region_class": (
+            TABLE_REGION_OPEN,
+            '<div class="table-pane" tabindex="0" role="region" '
+            'aria-labelledby="evidence-table-caption">',
+        ),
+        "duplicate_region": (TABLE_REGION_OPEN, f"{TABLE_REGION_OPEN}{TABLE_REGION_OPEN}"),
+        "missing_tabindex": (TABLE_REGION_OPEN, TABLE_REGION_OPEN.replace(' tabindex="0"', "")),
+        "wrong_tabindex": (
+            TABLE_REGION_OPEN,
+            TABLE_REGION_OPEN.replace('tabindex="0"', 'tabindex="-1"'),
+        ),
+        "positive_tabindex": (
+            TABLE_REGION_OPEN,
+            TABLE_REGION_OPEN.replace('tabindex="0"', 'tabindex="1"'),
+        ),
+        "missing_role": (TABLE_REGION_OPEN, TABLE_REGION_OPEN.replace(' role="region"', "")),
+        "wrong_role": (
+            TABLE_REGION_OPEN,
+            TABLE_REGION_OPEN.replace('role="region"', 'role="group"'),
+        ),
+        "missing_aria_labelledby": (
+            TABLE_REGION_OPEN,
+            TABLE_REGION_OPEN.replace(' aria-labelledby="evidence-table-caption"', ""),
+        ),
+        "broken_aria_labelledby": (
+            TABLE_REGION_OPEN,
+            TABLE_REGION_OPEN.replace(
+                'aria-labelledby="evidence-table-caption"',
+                'aria-labelledby="missing-caption"',
+            ),
+        ),
+        "outside_heading_target": (
+            TABLE_REGION_OPEN,
+            TABLE_REGION_OPEN.replace(
+                'aria-labelledby="evidence-table-caption"',
+                'aria-labelledby="evidence-title"',
+            ),
+        ),
+        "missing_caption_id": (
+            TABLE_CAPTION,
+            TABLE_CAPTION.replace(' id="evidence-table-caption"', ""),
+        ),
+        "wrong_caption_id": (
+            TABLE_CAPTION,
+            TABLE_CAPTION.replace('id="evidence-table-caption"', 'id="wrong-caption"'),
+        ),
+        "duplicate_caption_target": (TABLE_CAPTION, f"{TABLE_CAPTION}{TABLE_CAPTION}"),
+        "hidden_caption_target": (
+            TABLE_CAPTION,
+            TABLE_CAPTION.replace("<caption ", "<caption hidden "),
+        ),
+        "empty_caption_target": (
+            TABLE_CAPTION,
+            '<caption id="evidence-table-caption"></caption>',
+        ),
+        "other_div_zero_tabindex": (
+            '<div class="page-shell">',
+            '<div class="page-shell" tabindex="0">',
+        ),
+        "other_div_positive_tabindex": (
+            '<div class="page-shell">',
+            '<div class="page-shell" tabindex="2">',
+        ),
+        "extra_region_attribute": (
+            TABLE_REGION_OPEN,
+            TABLE_REGION_OPEN.replace(">", ' id="unexpected-region">'),
+        ),
+        "anchor_tabindex_exception": (
+            '<a class="skip-link" href="#main-content">',
+            '<a class="skip-link" href="#main-content" tabindex="0">',
+        ),
+    }
+    if mutation in replacements:
+        return _replace_focus_fragment(html_text, *replacements[mutation])
+    if mutation == "non_caption_target":
+        without_caption_id = _replace_focus_fragment(
+            html_text,
+            TABLE_CAPTION,
+            TABLE_CAPTION.replace(' id="evidence-table-caption"', ""),
+        )
+        return _replace_focus_fragment(
+            without_caption_id,
+            '<p id="evidence-summary" class="figure-caption">',
+            '<p id="evidence-table-caption" class="figure-caption">',
+        )
+    if mutation == "caption_outside_table":
+        original = f"{TABLE_OPEN}\n            {TABLE_CAPTION}"
+        replacement = f"{TABLE_CAPTION}\n          {TABLE_OPEN}"
+        return _replace_focus_fragment(html_text, original, replacement)
+    if mutation == "caption_outside_region":
+        original = f"{TABLE_REGION_OPEN}\n          {TABLE_OPEN}\n            {TABLE_CAPTION}"
+        replacement = f"{TABLE_CAPTION}\n        {TABLE_REGION_OPEN}\n          {TABLE_OPEN}"
+        return _replace_focus_fragment(html_text, original, replacement)
+    if mutation == "caption_in_wrong_table":
+        without_caption = _replace_focus_fragment(html_text, TABLE_CAPTION, "")
+        return _replace_focus_fragment(
+            without_caption,
+            "</table>\n        </div>",
+            f"</table>\n          <table>{TABLE_CAPTION}</table>\n        </div>",
+        )
+    if mutation == "table_outside_region":
+        return _replace_focus_fragment(html_text, TABLE_REGION_OPEN, f"{TABLE_REGION_OPEN}</div>")
+    raise AssertionError(f"unknown focus-region mutation: {mutation}")
 
 
 def _make_windows_junction(link: Path, target: Path) -> bool:
@@ -897,6 +1020,132 @@ def test_publish_tree_rejects_main_contract_drift_even_when_dag_is_resynced(
         verify_publish_tree(target_publish)
 
     assert _safe_error_text(excinfo.value) == f"HTML_MAIN_MISMATCH:{html_name}"
+
+
+def test_publish_tree_accepts_exact_table_focus_region_contract(tmp_path: Path) -> None:
+    _pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+
+    verified = verify_publish_tree(audited_publish(tmp_path))
+
+    assert verified.site_source_sha == _git_stdout("rev-parse", "HEAD")
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_code"),
+    [
+        ("missing_region_contract", "HTML_FOCUS_REGION_MISMATCH"),
+        ("wrong_region_class", "HTML_FOCUS_REGION_MISMATCH"),
+        ("duplicate_region", "HTML_FOCUS_REGION_MISMATCH"),
+        ("missing_tabindex", "HTML_FOCUS_REGION_MISMATCH"),
+        ("wrong_tabindex", "HTML_FOCUS_REGION_MISMATCH"),
+        ("positive_tabindex", "HTML_FOCUS_REGION_MISMATCH"),
+        ("missing_role", "HTML_FOCUS_REGION_MISMATCH"),
+        ("wrong_role", "HTML_FOCUS_REGION_MISMATCH"),
+        ("missing_aria_labelledby", "HTML_FOCUS_REGION_MISMATCH"),
+        ("broken_aria_labelledby", "HTML_FOCUS_REGION_MISMATCH"),
+        ("outside_heading_target", "HTML_FOCUS_REGION_MISMATCH"),
+        ("missing_caption_id", "HTML_FOCUS_REGION_MISMATCH"),
+        ("wrong_caption_id", "HTML_FOCUS_REGION_MISMATCH"),
+        ("duplicate_caption_target", "HTML_FOCUS_REGION_MISMATCH"),
+        ("hidden_caption_target", "HTML_ATTRIBUTE_INVALID"),
+        ("empty_caption_target", "HTML_FOCUS_REGION_MISMATCH"),
+        ("non_caption_target", "HTML_FOCUS_REGION_MISMATCH"),
+        ("caption_outside_table", "HTML_FOCUS_REGION_MISMATCH"),
+        ("caption_outside_region", "HTML_FOCUS_REGION_MISMATCH"),
+        ("caption_in_wrong_table", "HTML_FOCUS_REGION_MISMATCH"),
+        ("table_outside_region", "HTML_FOCUS_REGION_MISMATCH"),
+        ("other_div_zero_tabindex", "HTML_FOCUS_REGION_MISMATCH"),
+        ("other_div_positive_tabindex", "HTML_FOCUS_REGION_MISMATCH"),
+        ("extra_region_attribute", "HTML_ATTRIBUTE_INVALID"),
+        ("anchor_tabindex_exception", "HTML_ATTRIBUTE_INVALID"),
+    ],
+)
+def test_publish_tree_rejects_focus_region_contract_drift_when_dag_is_resynced(
+    tmp_path: Path, mutation: str, expected_code: str
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(
+        audited_publish(tmp_path), tmp_path / f"mutated-focus-{mutation}"
+    )
+    html_path = target_publish / "index.html"
+    html_path.write_text(
+        _mutate_focus_region(html_path.read_text("utf-8"), mutation),
+        encoding="utf-8",
+        newline="\n",
+    )
+    _rewrite_manifest_and_sbom_for_current_tree(target_publish)
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == f"{expected_code}:index.html"
+
+
+@pytest.mark.parametrize(
+    ("original", "duplicate"),
+    [
+        ('class="table-scroll"', 'CLASS="masked-region"'),
+        ('tabindex="0"', 'TABINDEX="1"'),
+        ('role="region"', 'ROLE="group"'),
+        (
+            'aria-labelledby="evidence-table-caption"',
+            'ARIA-LABELLEDBY="evidence-title"',
+        ),
+        ('id="evidence-table-caption"', 'ID="masked-caption"'),
+    ],
+)
+def test_publish_tree_rejects_focus_region_duplicate_attribute_masking(
+    tmp_path: Path, original: str, duplicate: str
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(
+        audited_publish(tmp_path), tmp_path / "mutated-focus-duplicate"
+    )
+    html_path = target_publish / "index.html"
+    html_path.write_text(
+        _inject_duplicate_attribute(
+            html_path.read_text("utf-8"),
+            original=original,
+            duplicate=duplicate,
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    _rewrite_manifest_and_sbom_for_current_tree(target_publish)
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == "HTML_ATTRIBUTE_INVALID:index.html"
+
+
+def test_not_found_rejects_any_table_focus_region_when_dag_is_resynced(
+    tmp_path: Path,
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(
+        audited_publish(tmp_path), tmp_path / "mutated-404-focus-region"
+    )
+    html_path = target_publish / "404.html"
+    injected = (
+        f"{TABLE_REGION_OPEN}{TABLE_OPEN}{TABLE_CAPTION}</table></div>"
+        '<main id="main-content" class="not-found">'
+    )
+    html_path.write_text(
+        _replace_focus_fragment(
+            html_path.read_text("utf-8"),
+            '<main id="main-content" class="not-found">',
+            injected,
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    _rewrite_manifest_and_sbom_for_current_tree(target_publish)
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == "HTML_FOCUS_REGION_MISMATCH:404.html"
 
 
 @pytest.mark.parametrize(
