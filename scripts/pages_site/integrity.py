@@ -106,7 +106,7 @@ _HTML_ALLOWED_ATTRIBUTES = {
     "img": frozenset({"alt", "height", "loading", "src", "width"}),
     "li": frozenset(),
     "link": frozenset({"href", "rel"}),
-    "main": frozenset({"class", "id"}),
+    "main": frozenset({"class", "id", "tabindex"}),
     "meta": frozenset({"charset", "content", "http-equiv", "media", "name"}),
     "nav": frozenset({"aria-label"}),
     "p": frozenset({"class", "id"}),
@@ -193,6 +193,16 @@ def _meta_record(**attrs: str) -> tuple[str, tuple[tuple[str, str], ...]]:
 
 def _url_record(tag: str, **attrs: str) -> tuple[str, tuple[tuple[str, str], ...]]:
     return (tag, tuple(sorted(attrs.items())))
+
+
+def _expected_main_records(
+    public_path: str,
+) -> Counter[tuple[tuple[str, str], ...]]:
+    if public_path == "index.html":
+        return Counter({tuple(sorted({"id": "main-content", "tabindex": "-1"}.items())): 1})
+    if public_path == "404.html":
+        return Counter({tuple(sorted({"class": "not-found", "id": "main-content"}.items())): 1})
+    raise PagesAuditError("HTML_MAIN_MISMATCH", public_path=public_path)
 
 
 def _expected_meta_records(
@@ -301,6 +311,7 @@ class _HtmlAuditParser(HTMLParser):
         self.invalid_attributes: list[str] = []
         self.invalid_external_resources: list[str] = []
         self.invalid_tags: list[str] = []
+        self.main_records: Counter[tuple[tuple[str, str], ...]] = Counter()
         self.meta_records: Counter[tuple[str, tuple[tuple[str, str], ...]]] = Counter()
         self.url_records: Counter[tuple[str, tuple[tuple[str, str], ...]]] = Counter()
 
@@ -324,6 +335,8 @@ class _HtmlAuditParser(HTMLParser):
         for name, _value in attrs:
             if name not in _HTML_ALLOWED_ATTRIBUTES[tag]:
                 self.invalid_attributes.append(f"{tag}[{name}]")
+        if tag == "main":
+            self.main_records.update({tuple(sorted(attr_map.items())): 1})
         if tag == "meta":
             self.meta_records.update(
                 {
@@ -981,6 +994,8 @@ def _verify_html(
         raise PagesAuditError("HTML_TAG_INVALID", public_path=public_path)
     if parser.invalid_attributes:
         raise PagesAuditError("HTML_ATTRIBUTE_INVALID", public_path=public_path)
+    if parser.main_records != _expected_main_records(public_path):
+        raise PagesAuditError("HTML_MAIN_MISMATCH", public_path=public_path)
     if parser.invalid_external_resources:
         raise PagesAuditError("HTML_EXTERNAL_RESOURCE", public_path=public_path)
     expected_meta = _expected_meta_records(public_path)
