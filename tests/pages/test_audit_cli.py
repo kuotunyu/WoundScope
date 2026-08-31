@@ -822,6 +822,84 @@ def test_publish_tree_rejects_meta_contract_drift_even_when_dag_is_resynced(
 
 
 @pytest.mark.parametrize(
+    ("html_name", "original", "replacement"),
+    [
+        (
+            "index.html",
+            '<main id="main-content" tabindex="-1">',
+            "",
+        ),
+        (
+            "index.html",
+            '<main id="main-content" tabindex="-1">',
+            '<main id="wrong-main" tabindex="-1">',
+        ),
+        (
+            "index.html",
+            '<main id="main-content" tabindex="-1">',
+            '<main id="main-content">',
+        ),
+        (
+            "index.html",
+            '<main id="main-content" tabindex="-1">',
+            '<main id="main-content" tabindex="0">',
+        ),
+        (
+            "index.html",
+            '<main id="main-content" tabindex="-1">',
+            '<main id="main-content" tabindex="-1" class="not-found">',
+        ),
+        (
+            "index.html",
+            '<main id="main-content" tabindex="-1">',
+            '<main id="main-content" tabindex="-1"><main id="main-content" tabindex="-1">',
+        ),
+        (
+            "404.html",
+            '<main id="main-content" class="not-found">',
+            "",
+        ),
+        (
+            "404.html",
+            '<main id="main-content" class="not-found">',
+            '<main id="wrong-main" class="not-found">',
+        ),
+        (
+            "404.html",
+            '<main id="main-content" class="not-found">',
+            '<main id="main-content">',
+        ),
+        (
+            "404.html",
+            '<main id="main-content" class="not-found">',
+            '<main id="main-content" class="not-found" tabindex="-1">',
+        ),
+        (
+            "404.html",
+            '<main id="main-content" class="not-found">',
+            '<main id="main-content" class="not-found"><main id="main-content" class="not-found">',
+        ),
+    ],
+)
+def test_publish_tree_rejects_main_contract_drift_even_when_dag_is_resynced(
+    tmp_path: Path, html_name: str, original: str, replacement: str
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(audited_publish(tmp_path), tmp_path / "mutated-main")
+    html_path = target_publish / html_name
+    original_text = html_path.read_text("utf-8")
+    mutated_text = original_text.replace(original, replacement, 1)
+    assert mutated_text != original_text
+    html_path.write_text(mutated_text, encoding="utf-8", newline="\n")
+    _rewrite_manifest_and_sbom_for_current_tree(target_publish)
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == f"HTML_MAIN_MISMATCH:{html_name}"
+
+
+@pytest.mark.parametrize(
     ("html_name", "mutate"),
     [
         (
@@ -926,6 +1004,22 @@ def test_publish_tree_rejects_meta_contract_drift_even_when_dag_is_resynced(
                 text,
                 original='class="page-shell"',
                 duplicate='class="mutated-shell"',
+            ),
+        ),
+        (
+            "index.html",
+            lambda publish, text: _inject_duplicate_attribute(
+                text,
+                original='id="main-content"',
+                duplicate='ID="masked-main"',
+            ),
+        ),
+        (
+            "index.html",
+            lambda publish, text: _inject_duplicate_attribute(
+                text,
+                original='tabindex="-1"',
+                duplicate='TABINDEX="0"',
             ),
         ),
     ],
