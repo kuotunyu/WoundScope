@@ -378,6 +378,7 @@ class _HtmlAuditParser(HTMLParser):
         self.caption_text: dict[int, list[str]] = {}
         self.title_records: list[int] = []
         self.title_text: dict[int, list[str]] = {}
+        self.invalid_title_content: list[str] = []
         self.id_records: Counter[str] = Counter()
         self.doctype_records: list[str] = []
         self.html_records: Counter[tuple[tuple[str, str], ...]] = Counter()
@@ -439,7 +440,21 @@ class _HtmlAuditParser(HTMLParser):
             and self._root_closed
         )
 
+    def _record_title_non_data(self, callback: str) -> None:
+        if self._nearest_open_element("title") is not None:
+            self.invalid_title_content.append(callback)
+
+    def handle_comment(self, data: str) -> None:
+        self._record_title_non_data("comment")
+
+    def handle_pi(self, data: str) -> None:
+        self._record_title_non_data("processing-instruction")
+
+    def unknown_decl(self, data: str) -> None:
+        self._record_title_non_data("unknown-declaration")
+
     def handle_decl(self, decl: str) -> None:
+        self._record_title_non_data("declaration")
         self.doctype_records.append(decl)
         if (
             decl != "doctype html"
@@ -1237,7 +1252,7 @@ def _verify_html(
     if parser.invalid_structure or not parser.has_valid_document_skeleton():
         raise PagesAuditError("HTML_STRUCTURE_INVALID", public_path=public_path)
     decoded_titles = ["".join(parser.title_text[title_id]) for title_id in parser.title_records]
-    if decoded_titles != [_expected_title(public_path)]:
+    if parser.invalid_title_content or decoded_titles != [_expected_title(public_path)]:
         raise PagesAuditError("HTML_TITLE_MISMATCH", public_path=public_path)
     if parser.main_records != _expected_main_records(public_path):
         raise PagesAuditError("HTML_MAIN_MISMATCH", public_path=public_path)

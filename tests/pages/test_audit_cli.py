@@ -1451,6 +1451,68 @@ def test_publish_tree_accepts_exact_decoded_title_text(tmp_path: Path, html_name
 
 
 @pytest.mark.parametrize("html_name", ["index.html", "404.html"])
+@pytest.mark.parametrize("payload", ["<!--review-->", "<?review?>", "<![CDATA[review]]>"])
+def test_publish_tree_rejects_non_data_syntax_in_title_rcdata(
+    tmp_path: Path, html_name: str, payload: str
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(
+        audited_publish(tmp_path),
+        tmp_path / f"title-rcdata-{html_name.removesuffix('.html')}",
+    )
+    html_path = target_publish / html_name
+    expected_title = EXPECTED_TITLES[html_name]
+    html_path.write_text(
+        _replace_focus_fragment(
+            html_path.read_text("utf-8"),
+            f"<title>{expected_title}</title>",
+            f"<title>{expected_title}{payload}</title>",
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    _rewrite_manifest_and_sbom_for_current_tree(target_publish)
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == f"HTML_TITLE_MISMATCH:{html_name}"
+
+
+@pytest.mark.parametrize("html_name", ["index.html", "404.html"])
+@pytest.mark.parametrize("payload", ["<!--review-->", "<?review?>", "<![CDATA[review]]>"])
+def test_publish_tree_rejects_title_payload_when_parser_uses_non_data_callback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, html_name: str, payload: str
+) -> None:
+    integrity = _import_module("scripts.pages_site.integrity")
+    rcdata_elements = tuple(
+        tag for tag in integrity._HtmlAuditParser.RCDATA_CONTENT_ELEMENTS if tag != "title"
+    )
+    monkeypatch.setattr(integrity._HtmlAuditParser, "RCDATA_CONTENT_ELEMENTS", rcdata_elements)
+    target_publish = _clone_publish_tree(
+        audited_publish(tmp_path),
+        tmp_path / f"title-callback-{html_name.removesuffix('.html')}",
+    )
+    html_path = target_publish / html_name
+    expected_title = EXPECTED_TITLES[html_name]
+    html_path.write_text(
+        _replace_focus_fragment(
+            html_path.read_text("utf-8"),
+            f"<title>{expected_title}</title>",
+            f"<title>{expected_title}{payload}</title>",
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    _rewrite_manifest_and_sbom_for_current_tree(target_publish)
+
+    with pytest.raises(integrity.PagesAuditError) as excinfo:
+        integrity.verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == f"HTML_TITLE_MISMATCH:{html_name}"
+
+
+@pytest.mark.parametrize("html_name", ["index.html", "404.html"])
 @pytest.mark.parametrize("mutation", ["nested", "unclosed"])
 def test_publish_tree_rejects_malformed_title_as_structure_error(
     tmp_path: Path, html_name: str, mutation: str
