@@ -10,6 +10,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from html.parser import HTMLParser
@@ -180,6 +181,117 @@ class _Anchor:
     target: str | None
 
 
+def _canonical_rel_tokens(value: str | None) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    return tuple(sorted(token for token in value.split() if token))
+
+
+def _meta_record(**attrs: str) -> tuple[str, tuple[tuple[str, str], ...]]:
+    return ("meta", tuple(sorted(attrs.items())))
+
+
+def _url_record(tag: str, **attrs: str) -> tuple[str, tuple[tuple[str, str], ...]]:
+    return (tag, tuple(sorted(attrs.items())))
+
+
+def _expected_meta_records(
+    public_path: str,
+) -> Counter[tuple[str, tuple[tuple[str, str], ...]]]:
+    records = Counter(
+        {
+            _meta_record(charset="utf-8"): 1,
+            _meta_record(name="viewport", content="width=device-width, initial-scale=1"): 1,
+            _meta_record(
+                name="theme-color",
+                media="(prefers-color-scheme: light)",
+                content="#f4f0e8",
+            ): 1,
+            _meta_record(
+                name="theme-color",
+                media="(prefers-color-scheme: dark)",
+                content="#151310",
+            ): 1,
+        }
+    )
+    if public_path == "index.html":
+        records.update(
+            {
+                _meta_record(
+                    name="description",
+                    content="WoundScope 足部潰瘍二元語意分割的靜態研究成果展示。",
+                ): 1,
+                _meta_record(
+                    name="woundscope:candidate-canonical-url",
+                    content="https://kuotunyu.github.io/WoundScope/",
+                ): 1,
+                _meta_record(
+                    **{"http-equiv": "Content-Security-Policy", "content": EXPECTED_CSP}
+                ): 1,
+            }
+        )
+        return records
+    if public_path == "404.html":
+        records.update(
+            {
+                _meta_record(
+                    name="description",
+                    content="WoundScope 靜態研究成果展示頁面。",
+                ): 1,
+                _meta_record(
+                    **{"http-equiv": "Content-Security-Policy", "content": EXPECTED_CSP}
+                ): 1,
+            }
+        )
+        return records
+    raise PagesAuditError("HTML_META_MISMATCH", public_path=public_path)
+
+
+def _expected_url_records(
+    public_path: str, *, css_relative: str, svg_relative: str
+) -> Counter[tuple[str, tuple[tuple[str, str], ...]]]:
+    stylesheet_href = f"{BASE_PATH}{css_relative}"
+    if public_path == "index.html":
+        records = Counter(
+            {
+                _url_record("link", href=stylesheet_href, rel="stylesheet"): 1,
+                _url_record("a", href="#main-content"): 1,
+                _url_record("a", href="#overview"): 1,
+                _url_record("a", href="#evidence"): 1,
+                _url_record("a", href="#provenance"): 1,
+                _url_record(
+                    "img",
+                    src=f"{BASE_PATH}{svg_relative}",
+                    alt="鎖定 Official Validation 的彙總 SVG，比較 EfficientNet-B0 U-Net 與 "
+                    "SegFormer-B0 的 Dice 與 IoU。",
+                    width="1200",
+                    height="520",
+                    loading="lazy",
+                ): 1,
+            }
+        )
+        for href in EXTERNAL_LINK_ALLOWLIST:
+            records.update(
+                {
+                    _url_record(
+                        "a",
+                        href=href,
+                        rel="noopener noreferrer",
+                        target="_blank",
+                    ): 1
+                }
+            )
+        return records
+    if public_path == "404.html":
+        return Counter(
+            {
+                _url_record("link", href=stylesheet_href, rel="stylesheet"): 1,
+                _url_record("a", href=BASE_PATH): 1,
+            }
+        )
+    raise PagesAuditError("HTML_WIRING_MISMATCH", public_path=public_path)
+
+
 class _HtmlAuditParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -189,12 +301,14 @@ class _HtmlAuditParser(HTMLParser):
         self.invalid_attributes: list[str] = []
         self.invalid_external_resources: list[str] = []
         self.invalid_tags: list[str] = []
+        self.meta_records: Counter[tuple[str, tuple[tuple[str, str], ...]]] = Counter()
+        self.url_records: Counter[tuple[str, tuple[tuple[str, str], ...]]] = Counter()
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag not in _HTML_ALLOWED_ATTRIBUTES:
             self.invalid_tags.append(tag)
             return
-        attr_map = dict(attrs)
+        attr_map = {name: value or "" for name, value in attrs}
         if any(name.startswith("on") for name, _value in attrs):
             self.invalid_attributes.append(tag)
         for forbidden_attr in ("style", "contenteditable", "download"):
@@ -203,32 +317,80 @@ class _HtmlAuditParser(HTMLParser):
         for name, _value in attrs:
             if name not in _HTML_ALLOWED_ATTRIBUTES[tag]:
                 self.invalid_attributes.append(f"{tag}[{name}]")
+        if tag == "meta":
+            self.meta_records.update(
+                {
+                    _meta_record(
+                        **{
+                            key: value
+                            for key, value in attr_map.items()
+                            if key in {"charset", "content", "http-equiv", "media", "name"}
+                        }
+                    ): 1
+                }
+            )
         if tag == "meta" and attr_map.get("http-equiv") == "Content-Security-Policy":
             content = attr_map.get("content")
             if content is not None:
                 self.csp_values.append(content)
         if tag == "link" and (attr_map.get("rel") or "").casefold() != "stylesheet":
             self.invalid_external_resources.append("link[rel]")
+        if tag == "a" and "href" in attr_map:
+            href = attr_map["href"]
+            rel_tokens = _canonical_rel_tokens(attr_map.get("rel"))
+            target = attr_map.get("target")
+            self.url_records.update(
+                {
+                    _url_record(
+                        "a",
+                        href=href,
+                        **({"rel": " ".join(rel_tokens)} if rel_tokens else {}),
+                        **({"target": target} if target else {}),
+                    ): 1
+                }
+            )
+            if href.startswith("https://"):
+                self.external_anchors.append(
+                    _Anchor(href=href, rel=frozenset(rel_tokens), target=target or None)
+                )
+            else:
+                self.internal_references.append((tag, href))
+        elif tag == "img" and "src" in attr_map:
+            src = attr_map["src"]
+            self.url_records.update(
+                {
+                    _url_record(
+                        "img",
+                        src=src,
+                        **{
+                            key: value
+                            for key, value in attr_map.items()
+                            if key in {"alt", "height", "loading", "width"}
+                        },
+                    ): 1
+                }
+            )
+            self.internal_references.append((tag, src))
+        elif tag == "link" and "href" in attr_map:
+            href = attr_map["href"]
+            rel_tokens = _canonical_rel_tokens(attr_map.get("rel"))
+            self.url_records.update(
+                {
+                    _url_record(
+                        "link",
+                        href=href,
+                        **({"rel": " ".join(rel_tokens)} if rel_tokens else {}),
+                    ): 1
+                }
+            )
+            self.internal_references.append((tag, href))
         for name in _HTML_URL_ATTRIBUTES:
-            value = attr_map.get(name)
-            if value is None:
-                continue
-            if tag == "a" and name == "href":
-                if value.startswith("https://"):
-                    rel = frozenset(token for token in (attr_map.get("rel") or "").split() if token)
-                    self.external_anchors.append(
-                        _Anchor(href=value, rel=rel, target=attr_map.get("target"))
-                    )
-                    continue
-                self.internal_references.append((tag, value))
-                continue
-            if tag == "img" and name == "src":
-                self.internal_references.append((tag, value))
-                continue
-            if tag == "link" and name == "href":
-                self.internal_references.append((tag, value))
-                continue
-            self.invalid_external_resources.append(f"{tag}[{name}]")
+            if name in attr_map and not (
+                (tag == "a" and name == "href")
+                or (tag == "img" and name == "src")
+                or (tag == "link" and name == "href")
+            ):
+                self.invalid_external_resources.append(f"{tag}[{name}]")
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self.handle_starttag(tag, attrs)
@@ -767,22 +929,26 @@ def _verify_inventory(publish: Path) -> tuple[str, str]:
 
 
 def _validate_internal_reference(tag: str, value: str, *, public_path: str) -> None:
+    if value.startswith("//"):
+        raise PagesAuditError(
+            "HTML_EXTERNAL_LINK" if tag == "a" else "HTML_EXTERNAL_RESOURCE",
+            public_path=public_path,
+        )
+    if re.match(r"(?i)[a-z][a-z0-9+.-]*:", value):
+        raise PagesAuditError(
+            "HTML_EXTERNAL_LINK" if tag == "a" else "HTML_EXTERNAL_RESOURCE",
+            public_path=public_path,
+        )
     if tag == "a":
-        if value in {"#main-content", "#overview", "#evidence", "#provenance"}:
+        if value.startswith("#"):
             return
-        if value in {BASE_PATH, f"{BASE_PATH}index.html", f"{BASE_PATH}404.html"}:
+        if value.startswith(BASE_PATH):
             return
         if value.startswith("/"):
             raise PagesAuditError("HTML_SUBPATH", public_path=public_path)
         raise PagesAuditError("HTML_EXTERNAL_LINK", public_path=public_path)
-    if tag == "img":
-        if value == f"{BASE_PATH}assets/{EXPECTED_PUBLIC_SVG_FILENAME}":
-            return
-        if value.startswith("/"):
-            raise PagesAuditError("HTML_SUBPATH", public_path=public_path)
-        raise PagesAuditError("HTML_EXTERNAL_RESOURCE", public_path=public_path)
-    if tag == "link":
-        if re.fullmatch(rf"{re.escape(BASE_PATH)}assets/site-[0-9a-f]{{16}}\.css", value):
+    if tag in {"img", "link"}:
+        if value.startswith(BASE_PATH):
             return
         if value.startswith("/"):
             raise PagesAuditError("HTML_SUBPATH", public_path=public_path)
@@ -790,7 +956,13 @@ def _validate_internal_reference(tag: str, value: str, *, public_path: str) -> N
     raise PagesAuditError("HTML_EXTERNAL_RESOURCE", public_path=public_path)
 
 
-def _verify_html(path: Path, public_path: str) -> None:
+def _verify_html(
+    path: Path,
+    public_path: str,
+    *,
+    css_relative: str,
+    svg_relative: str,
+) -> None:
     if path.stat().st_size > PUBLISH_FILE_BUDGETS[public_path]:
         raise PagesAuditError("TREE_BUDGET_EXCEEDED", public_path=public_path)
     text = _decode_utf8(path, public_path)
@@ -798,20 +970,46 @@ def _verify_html(path: Path, public_path: str) -> None:
     parser = _HtmlAuditParser()
     parser.feed(text)
     parser.close()
-    if parser.csp_values != [EXPECTED_CSP]:
-        raise PagesAuditError("HTML_CSP_MISMATCH", public_path=public_path)
     if parser.invalid_tags:
         raise PagesAuditError("HTML_TAG_INVALID", public_path=public_path)
     if parser.invalid_attributes:
         raise PagesAuditError("HTML_ATTRIBUTE_INVALID", public_path=public_path)
     if parser.invalid_external_resources:
         raise PagesAuditError("HTML_EXTERNAL_RESOURCE", public_path=public_path)
+    expected_meta = _expected_meta_records(public_path)
+    expected_csp_record = _meta_record(
+        **{"http-equiv": "Content-Security-Policy", "content": EXPECTED_CSP}
+    )
+    if parser.meta_records != expected_meta:
+        actual_csp_records = [
+            record
+            for record, count in parser.meta_records.items()
+            for _ in range(count)
+            if any(key == "http-equiv" for key, _value in record[1])
+        ]
+        if (
+            expected_meta[expected_csp_record] == 1
+            and parser.meta_records.get(expected_csp_record, 0) == 0
+            and len(actual_csp_records) == 1
+            and parser.csp_values == []
+        ):
+            raise PagesAuditError("HTML_CSP_MISMATCH", public_path=public_path)
+        if (
+            expected_meta[expected_csp_record] == 1
+            and parser.meta_records.get(expected_csp_record, 0) == 0
+            and len(actual_csp_records) == 1
+            and parser.csp_values != [EXPECTED_CSP]
+            and actual_csp_records[0][1]
+            != tuple(
+                sorted({"http-equiv": "Content-Security-Policy", "content": EXPECTED_CSP}.items())
+            )
+        ):
+            raise PagesAuditError("HTML_CSP_MISMATCH", public_path=public_path)
+        raise PagesAuditError("HTML_META_MISMATCH", public_path=public_path)
     if _RUNTIME_JS_RE.search(text):
         raise PagesAuditError("TREE_JAVASCRIPT", public_path=public_path)
     if _CLIENT_DIGEST_RE.search(text):
         raise PagesAuditError("HTML_RUNTIME_VERIFICATION_CLAIM", public_path=public_path)
-    for tag, value in parser.internal_references:
-        _validate_internal_reference(tag, value, public_path=public_path)
     for anchor in parser.external_anchors:
         if (
             anchor.href not in EXTERNAL_LINK_ALLOWLIST
@@ -819,6 +1017,12 @@ def _verify_html(path: Path, public_path: str) -> None:
             or anchor.rel != {"noopener", "noreferrer"}
         ):
             raise PagesAuditError("HTML_EXTERNAL_LINK", public_path=public_path)
+    for tag, value in parser.internal_references:
+        _validate_internal_reference(tag, value, public_path=public_path)
+    if parser.url_records != _expected_url_records(
+        public_path, css_relative=css_relative, svg_relative=svg_relative
+    ):
+        raise PagesAuditError("HTML_WIRING_MISMATCH", public_path=public_path)
 
 
 def _normalize_css_for_scan(text: str) -> str:
@@ -1282,8 +1486,18 @@ def verify_publish_tree(publish: Path) -> VerifiedPublish:
         raise PagesAuditError("TREE_BUDGET_EXCEEDED", public_path="publish")
     if (publish / ".nojekyll").stat().st_size != PUBLISH_FILE_BUDGETS[".nojekyll"]:
         raise PagesAuditError("TREE_BUDGET_EXCEEDED", public_path=".nojekyll")
-    _verify_html(publish / "index.html", "index.html")
-    _verify_html(publish / "404.html", "404.html")
+    _verify_html(
+        publish / "index.html",
+        "index.html",
+        css_relative=css_relative,
+        svg_relative=svg_relative,
+    )
+    _verify_html(
+        publish / "404.html",
+        "404.html",
+        css_relative=css_relative,
+        svg_relative=svg_relative,
+    )
     _verify_css(publish / css_relative, css_relative)
     _verify_license(publish / "LICENSE.txt")
     _verify_notices(publish / "THIRD_PARTY_NOTICES.txt")
