@@ -197,6 +197,15 @@ def _write_mutated_html_and_rewrite(
     _rewrite_manifest_and_sbom_for_current_tree(publish)
 
 
+def _inject_duplicate_attribute(
+    html_text: str,
+    *,
+    original: str,
+    duplicate: str,
+) -> str:
+    return html_text.replace(original, f"{original} {duplicate}", 1)
+
+
 def _make_windows_junction(link: Path, target: Path) -> bool:
     if os.name != "nt":
         return False
@@ -810,6 +819,136 @@ def test_publish_tree_rejects_meta_contract_drift_even_when_dag_is_resynced(
         verify_publish_tree(target_publish)
 
     assert _safe_error_text(excinfo.value) == f"HTML_META_MISMATCH:{html_name}"
+
+
+@pytest.mark.parametrize(
+    ("html_name", "mutate"),
+    [
+        (
+            "index.html",
+            lambda publish, text: _inject_duplicate_attribute(
+                text,
+                original=f'href="/WoundScope/assets/{_publish_css_name(publish)}"',
+                duplicate=f'href="/WoundScope/assets/{_publish_css_name(publish)}"',
+            ),
+        ),
+        (
+            "index.html",
+            lambda publish, text: _inject_duplicate_attribute(
+                text,
+                original=f'href="/WoundScope/assets/{_publish_css_name(publish)}"',
+                duplicate=f'href="/WoundScope/assets/{_publish_svg_name(publish)}"',
+            ),
+        ),
+        (
+            "index.html",
+            lambda publish, text: _inject_duplicate_attribute(
+                text,
+                original='href="#overview"',
+                duplicate='href="#overview"',
+            ),
+        ),
+        (
+            "index.html",
+            lambda publish, text: _inject_duplicate_attribute(
+                text,
+                original='href="https://github.com/kuotunyu/WoundScope"',
+                duplicate='href="#overview"',
+            ),
+        ),
+        (
+            "index.html",
+            lambda publish, text: _inject_duplicate_attribute(
+                text,
+                original=f'src="/WoundScope/assets/{_publish_svg_name(publish)}"',
+                duplicate='src="https://example.com/remote.png"',
+            ),
+        ),
+        (
+            "index.html",
+            lambda publish, text: _inject_duplicate_attribute(
+                text,
+                original=f'src="/WoundScope/assets/{_publish_svg_name(publish)}"',
+                duplicate=f'src="/WoundScope/assets/{_publish_svg_name(publish)}"',
+            ),
+        ),
+        (
+            "index.html",
+            lambda publish, text: _inject_duplicate_attribute(
+                text,
+                original='content="https://kuotunyu.github.io/WoundScope/"',
+                duplicate='content="https://kuotunyu.github.io/WoundScope/"',
+            ),
+        ),
+        (
+            "index.html",
+            lambda publish, text: _inject_duplicate_attribute(
+                text,
+                original='content="https://kuotunyu.github.io/WoundScope/"',
+                duplicate='content="https://example.com/"',
+            ),
+        ),
+        (
+            "index.html",
+            lambda publish, text: _inject_duplicate_attribute(
+                text,
+                original='http-equiv="Content-Security-Policy"',
+                duplicate='http-equiv="Refresh"',
+            ),
+        ),
+        (
+            "index.html",
+            lambda publish, text: _inject_duplicate_attribute(
+                text,
+                original='target="_blank"',
+                duplicate='target="_self"',
+            ),
+        ),
+        (
+            "index.html",
+            lambda publish, text: _inject_duplicate_attribute(
+                text,
+                original='rel="noopener noreferrer"',
+                duplicate='rel="nofollow"',
+            ),
+        ),
+        (
+            "index.html",
+            lambda publish, text: _inject_duplicate_attribute(
+                text,
+                original='rel="stylesheet"',
+                duplicate='rel="preload"',
+            ),
+        ),
+        (
+            "index.html",
+            lambda publish, text: _inject_duplicate_attribute(
+                text,
+                original='class="page-shell"',
+                duplicate='class="mutated-shell"',
+            ),
+        ),
+    ],
+)
+def test_publish_tree_rejects_duplicate_html_attributes_before_meta_or_url_validation(
+    tmp_path: Path, html_name: str, mutate
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(
+        audited_publish(tmp_path), tmp_path / "mutated-duplicate-attributes"
+    )
+    html_path = target_publish / html_name
+    html_path.write_text(
+        mutate(target_publish, html_path.read_text("utf-8")),
+        encoding="utf-8",
+        newline="\n",
+    )
+    _rewrite_manifest_and_sbom_for_current_tree(target_publish)
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == f"HTML_ATTRIBUTE_INVALID:{html_name}"
 
 
 @pytest.mark.parametrize(

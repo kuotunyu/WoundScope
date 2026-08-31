@@ -308,6 +308,13 @@ class _HtmlAuditParser(HTMLParser):
         if tag not in _HTML_ALLOWED_ATTRIBUTES:
             self.invalid_tags.append(tag)
             return
+        seen_attributes: set[str] = set()
+        for name, _value in attrs:
+            normalized_name = name.casefold()
+            if normalized_name in seen_attributes:
+                self.invalid_attributes.append(f"{tag}[{normalized_name}]")
+                return
+            seen_attributes.add(normalized_name)
         attr_map = {name: value or "" for name, value in attrs}
         if any(name.startswith("on") for name, _value in attrs):
             self.invalid_attributes.append(tag)
