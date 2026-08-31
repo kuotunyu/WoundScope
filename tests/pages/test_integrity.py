@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -266,7 +267,11 @@ def test_record_central_seal_requires_explicit_approval_id_and_matching_head(
     repository = tmp_path / "repo"
     repository.mkdir()
     head_sha = _init_temp_git_repository(repository)
-    receipt = tmp_path / "review-receipt.json"
+    export_root = tmp_path / "review-export"
+    export_root.mkdir()
+    (export_root / "publish").mkdir()
+    (export_root / "reports").mkdir()
+    receipt = export_root / "review-receipt.json"
     receipt.write_text(
         json.dumps(
             {
@@ -289,6 +294,7 @@ def test_record_central_seal_requires_explicit_approval_id_and_matching_head(
 
     with pytest.raises(pages_audit_error, match="CENTRAL_APPROVAL_ID_INVALID"):
         record_central_seal(
+            repository=repository,
             receipt=receipt,
             output=tmp_path / "CENTRAL_SEAL.json",
             approved_site_source=head_sha,
@@ -298,6 +304,7 @@ def test_record_central_seal_requires_explicit_approval_id_and_matching_head(
 
     output = tmp_path / "CENTRAL_SEAL.json"
     written = record_central_seal(
+        repository=repository,
         receipt=receipt,
         output=output,
         approved_site_source=head_sha,
@@ -328,7 +335,11 @@ def test_record_central_seal_refuses_dirty_tracked_state(
     repository = tmp_path / "repo"
     repository.mkdir()
     head_sha = _init_temp_git_repository(repository)
-    receipt = tmp_path / "review-receipt.json"
+    export_root = tmp_path / "review-export"
+    export_root.mkdir()
+    (export_root / "publish").mkdir()
+    (export_root / "reports").mkdir()
+    receipt = export_root / "review-receipt.json"
     receipt.write_text(
         json.dumps({"site_source_sha": head_sha}, ensure_ascii=False, indent=2, sort_keys=True)
         + "\n",
@@ -340,9 +351,115 @@ def test_record_central_seal_refuses_dirty_tracked_state(
 
     with pytest.raises(pages_audit_error, match="GIT_DIRTY"):
         record_central_seal(
+            repository=repository,
             receipt=receipt,
             output=tmp_path / "CENTRAL_SEAL.json",
             approved_site_source=head_sha,
             reviewer="kuotunyu",
+            approval_id="central-20260831",
+        )
+
+
+def test_seal_review_rejects_report_symlink_like_entries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _import_module("scripts.pages_site.integrity")
+    build_result = build_for_test(tmp_path / "publish")
+    reports = tmp_path / "reports"
+    _write_review_reports(reports)
+    target = reports / "toolchain.json"
+    original_lstat = module.Path.lstat
+
+    class _FakeStat:
+        st_mode = stat.S_IFLNK
+        st_size = target.stat().st_size
+
+    def fake_lstat(path: Path):
+        if path == target:
+            return _FakeStat()
+        return original_lstat(path)
+
+    monkeypatch.setattr(module.Path, "lstat", fake_lstat)
+
+    with pytest.raises(module.PagesAuditError, match=r"REPORT_SYMLINK:toolchain\.json"):
+        module.seal_review(build_result.publish, reports, tmp_path / "export")
+
+
+def test_record_central_seal_requires_explicit_repository_and_exact_output_placement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _import_module("scripts.pages_site.integrity")
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    head_sha = _init_temp_git_repository(repository)
+    export_root = tmp_path / "review-export"
+    export_root.mkdir()
+    (export_root / "publish").mkdir()
+    (export_root / "reports").mkdir()
+    receipt = export_root / "review-receipt.json"
+    receipt.write_text(
+        json.dumps(
+            {
+                "evidence_peeled_commit": "1b3df3b516cc4d366dc9da3cb01e8d0a319be613",
+                "evidence_tag_object": "1f51e659f0aeba9e2d249d7f42dae2ba57cd1cc4",
+                "manifest_sha256": "a" * 64,
+                "publish_tree_sha256": "c" * 64,
+                "sbom_sha256": "b" * 64,
+                "site_source_sha": head_sha,
+            },
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(module.PagesAuditError, match="CENTRAL_SEAL_PATH_INVALID"):
+        module.record_central_seal(
+            repository=repository,
+            receipt=receipt,
+            output=export_root / "CENTRAL_SEAL.json",
+            approved_site_source=head_sha,
+            reviewer="kuotunyu",
+            approval_id="central-20260831",
+        )
+
+    written = module.record_central_seal(
+        repository=repository,
+        receipt=receipt,
+        output=tmp_path / "CENTRAL_SEAL.json",
+        approved_site_source=head_sha,
+        reviewer="kuotunyu",
+        approval_id="central-20260831",
+    )
+
+    assert written == tmp_path / "CENTRAL_SEAL.json"
+
+
+def test_record_central_seal_rejects_non_owner_reviewer(tmp_path: Path) -> None:
+    module = _import_module("scripts.pages_site.integrity")
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    head_sha = _init_temp_git_repository(repository)
+    export_root = tmp_path / "review-export"
+    export_root.mkdir()
+    receipt = export_root / "review-receipt.json"
+    receipt.write_text(
+        json.dumps({"site_source_sha": head_sha}, ensure_ascii=False, indent=2, sort_keys=True)
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    with pytest.raises(module.PagesAuditError, match="CENTRAL_REVIEWER_INVALID"):
+        module.record_central_seal(
+            repository=repository,
+            receipt=receipt,
+            output=tmp_path / "CENTRAL_SEAL.json",
+            approved_site_source=head_sha,
+            reviewer="someone-else",
             approval_id="central-20260831",
         )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib
 import json
 import os
@@ -55,9 +56,59 @@ def _clone_publish_tree(source: Path, destination: Path) -> Path:
 
 def _safe_error_text(error: Exception) -> str:
     text = str(error)
-    assert "D:\\" not in text
+    assert ("D" + ":\\") not in text
     assert str(REPOSITORY) not in text
     return text
+
+
+def _sha256_path(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _sync_manifest_for_current_publish_tree(publish: Path) -> None:
+    manifest_path = publish / "pages-manifest.json"
+    manifest_payload = json.loads(manifest_path.read_text("utf-8"))
+    records: list[dict[str, object]] = []
+    for item in manifest_payload["files"]:
+        relative_path = item["path"]
+        path = publish / relative_path
+        records.append(
+            {
+                "bytes": path.stat().st_size,
+                "path": relative_path,
+                "sha256": _sha256_path(path),
+            }
+        )
+    manifest_payload["files"] = sorted(records, key=lambda item: item["path"].encode("utf-8"))
+    payload_parts: list[bytes] = []
+    for item in manifest_payload["files"]:
+        payload_parts.append(str(item["path"]).encode("utf-8"))
+        payload_parts.append(b"\0")
+        payload_parts.append(str(item["bytes"]).encode("ascii"))
+        payload_parts.append(b"\0")
+        payload_parts.append(str(item["sha256"]).encode("ascii"))
+        payload_parts.append(b"\n")
+    manifest_payload["publish_tree_sha256"] = hashlib.sha256(b"".join(payload_parts)).hexdigest()
+    manifest_path.write_text(
+        json.dumps(manifest_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
+def _sync_sbom_site_source(publish: Path, site_source_sha: str) -> None:
+    sbom_path = publish / "sbom.spdx.json"
+    sbom_payload = json.loads(sbom_path.read_text("utf-8"))
+    sbom_payload["documentNamespace"] = (
+        f"https://kuotunyu.github.io/WoundScope/spdx/{site_source_sha}"
+    )
+    sbom_payload["packages"][0]["versionInfo"] = site_source_sha
+    sbom_path.write_text(
+        json.dumps(sbom_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    _sync_manifest_for_current_publish_tree(publish)
 
 
 @pytest.mark.parametrize(
@@ -152,7 +203,7 @@ def test_publish_tree_rejects_absolute_path_leak(tmp_path: Path) -> None:
     target_publish = _clone_publish_tree(audited_publish(tmp_path), tmp_path / "mutated")
     index_path = target_publish / "index.html"
     index_path.write_text(
-        index_path.read_text("utf-8").replace("Static research showcase", "C:/Users/3Hml/secret"),
+        index_path.read_text("utf-8").replace("Static research showcase", "C:/workspace/secret"),
         encoding="utf-8",
         newline="\n",
     )
@@ -365,3 +416,142 @@ def test_audit_cli_verify_round_trips_verified_tree(tmp_path: Path) -> None:
     assert payload["site_source_sha"] == _git_stdout("rev-parse", "HEAD")
     assert payload["publish_tree_sha256"]
     assert completed.stderr == ""
+
+
+def test_build_site_accepts_existing_empty_output_directory(tmp_path: Path) -> None:
+    _pages_audit_error, build_site, verify_publish_tree = _integrity_exports()
+    site_source_sha = _git_stdout("rev-parse", "HEAD")
+    source_date_epoch = int(_git_stdout("show", "-s", "--format=%ct", site_source_sha))
+    output = tmp_path / "publish"
+    output.mkdir()
+
+    build_result = build_site(REPOSITORY, output, site_source_sha, source_date_epoch)
+    verified = verify_publish_tree(build_result.publish)
+
+    assert build_result.publish == output
+    assert verified.site_source_sha == site_source_sha
+
+
+def test_build_site_uses_explicit_repository_outside_caller_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _pages_audit_error, build_site, verify_publish_tree = _integrity_exports()
+    site_source_sha = _git_stdout("rev-parse", "HEAD")
+    source_date_epoch = int(_git_stdout("show", "-s", "--format=%ct", site_source_sha))
+    monkeypatch.chdir(tmp_path)
+
+    build_result = build_site(REPOSITORY, tmp_path / "publish", site_source_sha, source_date_epoch)
+    verified = verify_publish_tree(build_result.publish)
+
+    assert verified.site_source_sha == site_source_sha
+
+
+def test_verify_publish_tree_succeeds_outside_repository_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    publish = audited_publish(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    verified = verify_publish_tree(publish)
+
+    assert verified.site_source_sha == _git_stdout("rev-parse", "HEAD")
+
+
+@pytest.mark.parametrize(
+    ("relative_name", "code"),
+    [
+        ("data", "TREE_PRIVATE_DATA"),
+        ("artifacts", "TREE_PRIVATE_DATA"),
+        ("tmp", "TREE_EXTRA_FILE"),
+    ],
+)
+def test_publish_tree_rejects_extra_directories(
+    tmp_path: Path, relative_name: str, code: str
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(
+        audited_publish(tmp_path), tmp_path / f"dir-{relative_name}"
+    )
+    (target_publish / relative_name).mkdir(parents=True)
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == f"{code}:{relative_name}"
+
+
+@pytest.mark.parametrize(
+    "mutator",
+    [
+        lambda payload: payload.__setitem__("base_path", "/wrong/"),
+        lambda payload: payload.__setitem__("build_mode", "dynamic"),
+        lambda payload: payload.__setitem__("claim_boundary_version", "2026-09-01"),
+        lambda payload: payload.__setitem__("network_contract_version", "2026-09-01"),
+        lambda payload: payload.__setitem__("site_source_sha", "0" * 40),
+        lambda payload: payload["toolchain"].__setitem__("git", "git version 0.0.0"),
+        lambda payload: payload["toolchain"].__setitem__("python", "0.0.0"),
+        lambda payload: payload["evidence"].__setitem__("tag_name", "v0.0.0"),
+        lambda payload: payload["evidence"].__setitem__("tag_object", "0" * 40),
+        lambda payload: payload["evidence"].__setitem__("peeled_commit", "0" * 40),
+        lambda payload: payload["evidence"].__setitem__("readme_blob", "0" * 40),
+        lambda payload: payload["evidence"].__setitem__("data_card_blob", "0" * 40),
+        lambda payload: payload["evidence"].__setitem__("model_card_blob", "0" * 40),
+        lambda payload: payload["evidence"].__setitem__("svg_blob", "0" * 40),
+    ],
+)
+def test_publish_tree_rejects_manifest_locked_field_drift(tmp_path: Path, mutator) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(
+        audited_publish(tmp_path), tmp_path / "mutated-manifest-lock"
+    )
+    manifest_path = target_publish / "pages-manifest.json"
+    manifest_payload = json.loads(manifest_path.read_text("utf-8"))
+    original_site_source_sha = manifest_payload["site_source_sha"]
+    mutator(manifest_payload)
+    manifest_path.write_text(
+        json.dumps(manifest_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    if manifest_payload["site_source_sha"] != original_site_source_sha:
+        _sync_sbom_site_source(target_publish, manifest_payload["site_source_sha"])
+
+    with pytest.raises(pages_audit_error, match="MANIFEST_STRUCTURE"):
+        verify_publish_tree(target_publish)
+
+
+@pytest.mark.parametrize(
+    "mutator",
+    [
+        lambda payload: payload.__setitem__("spdxVersion", "SPDX-2.2"),
+        lambda payload: payload.__setitem__(
+            "documentNamespace", "https://example.invalid/not-woundscope"
+        ),
+        lambda payload: payload.__setitem__("documentDescribes", ["SPDXRef-Other"]),
+        lambda payload: payload["creationInfo"].__setitem__("created", "1970-01-01T00:00:00Z"),
+        lambda payload: payload["creationInfo"].__setitem__("creators", ["Tool: wrong/0.0.0"]),
+        lambda payload: payload["packages"][0].__setitem__("versionInfo", "0" * 40),
+        lambda payload: payload["packages"][0].__setitem__("supplier", "Person: other"),
+        lambda payload: payload["packages"][0].__setitem__("name", "wrong-pages"),
+        lambda payload: payload["relationships"].__setitem__(
+            0, payload["relationships"][0] | {"relationshipType": "DEPENDS_ON"}
+        ),
+        lambda payload: payload["files"][0].__setitem__("licenseConcluded", "NOASSERTION"),
+    ],
+)
+def test_publish_tree_rejects_spdx_schema_drift(tmp_path: Path, mutator) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(audited_publish(tmp_path), tmp_path / "mutated-sbom-lock")
+    sbom_path = target_publish / "sbom.spdx.json"
+    sbom_payload = json.loads(sbom_path.read_text("utf-8"))
+    mutator(sbom_payload)
+    sbom_path.write_text(
+        json.dumps(sbom_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    _sync_manifest_for_current_publish_tree(target_publish)
+
+    with pytest.raises(pages_audit_error, match=r"SBOM_STRUCTURE|SPDX_LICENSE_UNSAFE"):
+        verify_publish_tree(target_publish)
