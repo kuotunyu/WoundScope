@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import stat
 import subprocess
 import sys
@@ -87,6 +86,56 @@ _SITE_SOURCE_FOOTER_RE = re.compile(
     r"<code>(?P<tag_object>[0-9a-f]{40})</code>\s*·\s*peeled commit:\s*"
     r"<code>(?P<peeled_commit>[0-9a-f]{40})</code>"
 )
+_HTML_ALLOWED_ATTRIBUTES = {
+    "a": frozenset({"class", "href", "rel", "target"}),
+    "body": frozenset(),
+    "caption": frozenset(),
+    "circle": frozenset({"cx", "cy", "r"}),
+    "code": frozenset(),
+    "div": frozenset({"class"}),
+    "figcaption": frozenset({"class"}),
+    "figure": frozenset({"class"}),
+    "footer": frozenset({"class"}),
+    "h1": frozenset({"id"}),
+    "h2": frozenset({"id"}),
+    "h3": frozenset(),
+    "head": frozenset(),
+    "header": frozenset({"class"}),
+    "html": frozenset({"lang"}),
+    "img": frozenset({"alt", "height", "loading", "src", "width"}),
+    "li": frozenset(),
+    "link": frozenset({"href", "rel"}),
+    "main": frozenset({"class", "id"}),
+    "meta": frozenset({"charset", "content", "http-equiv", "media", "name"}),
+    "nav": frozenset({"aria-label"}),
+    "p": frozenset({"class", "id"}),
+    "path": frozenset({"d", "fill", "stroke", "stroke-width"}),
+    "section": frozenset({"aria-labelledby", "class", "id"}),
+    "span": frozenset(),
+    "svg": frozenset({"aria-hidden", "focusable", "viewbox"}),
+    "table": frozenset({"aria-describedby"}),
+    "tbody": frozenset(),
+    "td": frozenset(),
+    "th": frozenset({"scope"}),
+    "thead": frozenset(),
+    "title": frozenset(),
+    "tr": frozenset(),
+    "ul": frozenset({"class"}),
+}
+_HTML_URL_ATTRIBUTES = frozenset(
+    {
+        "action",
+        "cite",
+        "data",
+        "formaction",
+        "href",
+        "poster",
+        "src",
+        "srcset",
+    }
+)
+_CSS_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
+_CSS_ESCAPE_RE = re.compile(r"\\([0-9a-fA-F]{1,6})(?:\r\n|[ \t\r\n\f])?|\\(.)", re.DOTALL)
 
 
 class PagesAuditError(RuntimeError):
@@ -135,35 +184,54 @@ class _HtmlAuditParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.external_anchors: list[_Anchor] = []
-        self.root_references: list[str] = []
         self.csp_values: list[str] = []
-        self.forbidden_attributes = False
-        self.forbidden_tags: list[str] = []
+        self.internal_references: list[tuple[str, str]] = []
+        self.invalid_attributes: list[str] = []
+        self.invalid_external_resources: list[str] = []
+        self.invalid_tags: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag not in _HTML_ALLOWED_ATTRIBUTES:
+            self.invalid_tags.append(tag)
+            return
         attr_map = dict(attrs)
-        if tag in {"script", "style", "form", "input", "iframe"}:
-            self.forbidden_tags.append(tag)
         if any(name.startswith("on") for name, _value in attrs):
-            self.forbidden_attributes = True
+            self.invalid_attributes.append(tag)
         for forbidden_attr in ("style", "contenteditable", "download"):
             if forbidden_attr in attr_map:
-                self.forbidden_attributes = True
+                self.invalid_attributes.append(f"{tag}[{forbidden_attr}]")
+        for name, _value in attrs:
+            if name not in _HTML_ALLOWED_ATTRIBUTES[tag]:
+                self.invalid_attributes.append(f"{tag}[{name}]")
         if tag == "meta" and attr_map.get("http-equiv") == "Content-Security-Policy":
             content = attr_map.get("content")
             if content is not None:
                 self.csp_values.append(content)
-        for name in ("href", "src"):
+        if tag == "link" and (attr_map.get("rel") or "").casefold() != "stylesheet":
+            self.invalid_external_resources.append("link[rel]")
+        for name in _HTML_URL_ATTRIBUTES:
             value = attr_map.get(name)
-            if value is not None and value.startswith("/"):
-                self.root_references.append(value)
-        if tag == "a":
-            href = attr_map.get("href")
-            if href is not None and href.startswith("https://"):
-                rel = frozenset(token for token in (attr_map.get("rel") or "").split() if token)
-                self.external_anchors.append(
-                    _Anchor(href=href, rel=rel, target=attr_map.get("target"))
-                )
+            if value is None:
+                continue
+            if tag == "a" and name == "href":
+                if value.startswith("https://"):
+                    rel = frozenset(token for token in (attr_map.get("rel") or "").split() if token)
+                    self.external_anchors.append(
+                        _Anchor(href=value, rel=rel, target=attr_map.get("target"))
+                    )
+                    continue
+                self.internal_references.append((tag, value))
+                continue
+            if tag == "img" and name == "src":
+                self.internal_references.append((tag, value))
+                continue
+            if tag == "link" and name == "href":
+                self.internal_references.append((tag, value))
+                continue
+            self.invalid_external_resources.append(f"{tag}[{name}]")
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.handle_starttag(tag, attrs)
 
 
 def _json_bytes(payload: object) -> bytes:
@@ -184,6 +252,105 @@ def _require_hex40(value: str, *, code: str) -> str:
     if _HEX40_RE.fullmatch(value) is None:
         raise PagesAuditError(code)
     return value
+
+
+def _absolute_lexical_path(path: Path) -> Path:
+    return path if path.is_absolute() else Path.cwd() / path
+
+
+def _existing_lstat(path: Path) -> os.stat_result | None:
+    try:
+        return path.lstat()
+    except FileNotFoundError:
+        return None
+
+
+def _validate_path_components(path: Path, *, code: str, public_path: str) -> Path:
+    if any(part == ".." for part in path.parts):
+        raise PagesAuditError(code, public_path=public_path)
+    anchored = _absolute_lexical_path(path)
+    current: Path | None = None
+    for index, part in enumerate(anchored.parts):
+        current = Path(part) if index == 0 else current / part
+        current_stat = _existing_lstat(current)
+        if current_stat is None:
+            return anchored
+        if stat.S_ISLNK(current_stat.st_mode) or _is_reparse_point(current_stat):
+            raise PagesAuditError(code, public_path=public_path)
+        if index < len(anchored.parts) - 1 and not stat.S_ISDIR(current_stat.st_mode):
+            raise PagesAuditError(code, public_path=public_path)
+    return anchored
+
+
+def _require_existing_directory(
+    path: Path,
+    *,
+    missing_code: str,
+    unsafe_code: str,
+    special_code: str,
+    public_path: str,
+) -> Path:
+    anchored = _validate_path_components(path, code=unsafe_code, public_path=public_path)
+    path_stat = _existing_lstat(anchored)
+    if path_stat is None:
+        raise PagesAuditError(missing_code, public_path=public_path)
+    if stat.S_ISLNK(path_stat.st_mode) or _is_reparse_point(path_stat):
+        raise PagesAuditError(unsafe_code, public_path=public_path)
+    if not stat.S_ISDIR(path_stat.st_mode):
+        raise PagesAuditError(special_code, public_path=public_path)
+    return anchored
+
+
+def _require_existing_regular_file(path: Path, *, code: str, public_path: str) -> Path:
+    anchored = _validate_path_components(path, code=code, public_path=public_path)
+    path_stat = _existing_lstat(anchored)
+    if path_stat is None or stat.S_ISLNK(path_stat.st_mode) or _is_reparse_point(path_stat):
+        raise PagesAuditError(code, public_path=public_path)
+    if not stat.S_ISREG(path_stat.st_mode):
+        raise PagesAuditError(code, public_path=public_path)
+    return anchored
+
+
+def _ensure_safe_directory(path: Path, *, code: str, public_path: str) -> Path:
+    anchored = _validate_path_components(path, code=code, public_path=public_path)
+    path_stat = _existing_lstat(anchored)
+    if path_stat is None:
+        anchored.mkdir(parents=True, exist_ok=True)
+        path_stat = anchored.lstat()
+    if stat.S_ISLNK(path_stat.st_mode) or _is_reparse_point(path_stat):
+        raise PagesAuditError(code, public_path=public_path)
+    if not stat.S_ISDIR(path_stat.st_mode):
+        raise PagesAuditError(code, public_path=public_path)
+    return anchored
+
+
+def _prepare_output_directory(path: Path, *, public_path: str) -> tuple[Path, bool]:
+    anchored = _validate_path_components(path, code="OUTPUT_PATH_UNSAFE", public_path=public_path)
+    path_stat = _existing_lstat(anchored)
+    if path_stat is None:
+        return anchored, False
+    if stat.S_ISLNK(path_stat.st_mode) or _is_reparse_point(path_stat):
+        raise PagesAuditError("OUTPUT_PATH_UNSAFE", public_path=public_path)
+    if not stat.S_ISDIR(path_stat.st_mode):
+        raise PagesAuditError("OUTPUT_EXISTS", public_path=public_path)
+    if any(anchored.iterdir()):
+        raise PagesAuditError("OUTPUT_EXISTS", public_path=public_path)
+    return anchored, True
+
+
+def _write_bytes_exclusive(path: Path, payload: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("xb") as handle:
+        handle.write(payload)
+    path_stat = path.lstat()
+    if (
+        stat.S_ISLNK(path_stat.st_mode)
+        or _is_reparse_point(path_stat)
+        or not stat.S_ISREG(path_stat.st_mode)
+    ):
+        raise PagesAuditError("OUTPUT_PATH_UNSAFE", public_path=path.name)
+    if path_stat.st_size != len(payload) or _sha256_path(path) != _sha256_bytes(payload):
+        raise PagesAuditError("OUTPUT_WRITE_MISMATCH", public_path=path.name)
 
 
 def _run_git_bytes(repository: Path, arguments: list[str], *, code: str) -> bytes:
@@ -431,6 +598,7 @@ def _expected_spdx_payload(
             {
                 "SPDXID": file_id,
                 "checksums": [{"algorithm": "SHA256", "checksumValue": record.sha256}],
+                "copyrightText": "NOASSERTION",
                 "fileName": f"./{record.path}",
                 "licenseConcluded": "Apache-2.0",
                 "licenseInfoInFiles": ["Apache-2.0"],
@@ -457,6 +625,7 @@ def _expected_spdx_payload(
         "packages": [
             {
                 "SPDXID": package_id,
+                "copyrightText": "NOASSERTION",
                 "downloadLocation": "NOASSERTION",
                 "filesAnalyzed": True,
                 "licenseConcluded": "Apache-2.0",
@@ -542,13 +711,13 @@ def _assert_no_metric_drift(text: str, public_path: str) -> None:
 
 
 def _verify_inventory(publish: Path) -> tuple[str, str]:
-    if not publish.exists():
-        raise PagesAuditError("TREE_MISSING_FILE", public_path=".")
-    publish_stats = publish.lstat()
-    if stat.S_ISLNK(publish_stats.st_mode) or _is_reparse_point(publish_stats):
-        raise PagesAuditError("TREE_SYMLINK", public_path=".")
-    if not stat.S_ISDIR(publish_stats.st_mode):
-        raise PagesAuditError("TREE_SPECIAL_FILE", public_path=".")
+    publish = _require_existing_directory(
+        publish,
+        missing_code="TREE_MISSING_FILE",
+        unsafe_code="TREE_SYMLINK",
+        special_code="TREE_SPECIAL_FILE",
+        public_path=".",
+    )
     css_relative: str | None = None
     svg_relative: str | None = None
     for path in publish.rglob("*"):
@@ -558,8 +727,6 @@ def _verify_inventory(publish: Path) -> tuple[str, str]:
             raise PagesAuditError("TREE_SYMLINK", public_path=relative_path)
         if stat.S_ISDIR(stats.st_mode):
             if relative_path == "assets":
-                continue
-            if relative_path in {"data", "artifacts"} and any(path.iterdir()):
                 continue
             raise PagesAuditError(_classify_extra_path(relative_path), public_path=relative_path)
         if not stat.S_ISREG(stats.st_mode):
@@ -599,6 +766,30 @@ def _verify_inventory(publish: Path) -> tuple[str, str]:
     return css_relative, svg_relative
 
 
+def _validate_internal_reference(tag: str, value: str, *, public_path: str) -> None:
+    if tag == "a":
+        if value in {"#main-content", "#overview", "#evidence", "#provenance"}:
+            return
+        if value in {BASE_PATH, f"{BASE_PATH}index.html", f"{BASE_PATH}404.html"}:
+            return
+        if value.startswith("/"):
+            raise PagesAuditError("HTML_SUBPATH", public_path=public_path)
+        raise PagesAuditError("HTML_EXTERNAL_LINK", public_path=public_path)
+    if tag == "img":
+        if value == f"{BASE_PATH}assets/{EXPECTED_PUBLIC_SVG_FILENAME}":
+            return
+        if value.startswith("/"):
+            raise PagesAuditError("HTML_SUBPATH", public_path=public_path)
+        raise PagesAuditError("HTML_EXTERNAL_RESOURCE", public_path=public_path)
+    if tag == "link":
+        if re.fullmatch(rf"{re.escape(BASE_PATH)}assets/site-[0-9a-f]{{16}}\.css", value):
+            return
+        if value.startswith("/"):
+            raise PagesAuditError("HTML_SUBPATH", public_path=public_path)
+        raise PagesAuditError("HTML_EXTERNAL_RESOURCE", public_path=public_path)
+    raise PagesAuditError("HTML_EXTERNAL_RESOURCE", public_path=public_path)
+
+
 def _verify_html(path: Path, public_path: str) -> None:
     if path.stat().st_size > PUBLISH_FILE_BUDGETS[public_path]:
         raise PagesAuditError("TREE_BUDGET_EXCEEDED", public_path=public_path)
@@ -609,13 +800,18 @@ def _verify_html(path: Path, public_path: str) -> None:
     parser.close()
     if parser.csp_values != [EXPECTED_CSP]:
         raise PagesAuditError("HTML_CSP_MISMATCH", public_path=public_path)
-    if parser.forbidden_attributes or parser.forbidden_tags or _RUNTIME_JS_RE.search(text):
+    if parser.invalid_tags:
+        raise PagesAuditError("HTML_TAG_INVALID", public_path=public_path)
+    if parser.invalid_attributes:
+        raise PagesAuditError("HTML_ATTRIBUTE_INVALID", public_path=public_path)
+    if parser.invalid_external_resources:
+        raise PagesAuditError("HTML_EXTERNAL_RESOURCE", public_path=public_path)
+    if _RUNTIME_JS_RE.search(text):
         raise PagesAuditError("TREE_JAVASCRIPT", public_path=public_path)
     if _CLIENT_DIGEST_RE.search(text):
         raise PagesAuditError("HTML_RUNTIME_VERIFICATION_CLAIM", public_path=public_path)
-    for root_reference in parser.root_references:
-        if not root_reference.startswith(BASE_PATH):
-            raise PagesAuditError("HTML_SUBPATH", public_path=public_path)
+    for tag, value in parser.internal_references:
+        _validate_internal_reference(tag, value, public_path=public_path)
     for anchor in parser.external_anchors:
         if (
             anchor.href not in EXTERNAL_LINK_ALLOWLIST
@@ -625,12 +821,38 @@ def _verify_html(path: Path, public_path: str) -> None:
             raise PagesAuditError("HTML_EXTERNAL_LINK", public_path=public_path)
 
 
+def _normalize_css_for_scan(text: str) -> str:
+    def replace_escape(match: re.Match[str]) -> str:
+        hex_value, single = match.groups()
+        if hex_value is not None:
+            try:
+                return chr(int(hex_value, 16))
+            except ValueError:
+                return ""
+        return single or ""
+
+    without_comments = _CSS_COMMENT_RE.sub("", text)
+    decoded = _CSS_ESCAPE_RE.sub(replace_escape, without_comments)
+    return decoded.casefold()
+
+
 def _verify_css(path: Path, public_path: str) -> None:
     if path.stat().st_size > MAX_CSS_BYTES:
         raise PagesAuditError("TREE_BUDGET_EXCEEDED", public_path=public_path)
     text = _decode_utf8(path, public_path)
     _assert_no_path_or_secret_leak(text, public_path)
-    if _CSS_URL_RE.search(text):
+    normalized = _normalize_css_for_scan(text)
+    if (
+        _CSS_URL_RE.search(normalized)
+        or "@import" in normalized
+        or "image-set(" in normalized
+        or "@font-face" in normalized
+        or "https://" in normalized
+        or "http://" in normalized
+        or "//" in normalized
+        or "data:" in normalized
+        or "javascript:" in normalized
+    ):
         raise PagesAuditError("CSS_REMOTE_URL", public_path=public_path)
     expected_name = f"site-{_sha256_path(path)[:16]}.css"
     if path.name != expected_name:
@@ -828,13 +1050,13 @@ def _review_payload_sha256(
 
 
 def _verify_reports(reports: Path) -> tuple[_FileRecord, ...]:
-    if not reports.exists():
-        raise PagesAuditError("REPORT_MISSING", public_path="reports")
-    report_root_stats = reports.lstat()
-    if stat.S_ISLNK(report_root_stats.st_mode) or _is_reparse_point(report_root_stats):
-        raise PagesAuditError("REPORT_SYMLINK", public_path="reports")
-    if not stat.S_ISDIR(report_root_stats.st_mode):
-        raise PagesAuditError("REPORT_SPECIAL_FILE", public_path="reports")
+    reports = _require_existing_directory(
+        reports,
+        missing_code="REPORT_MISSING",
+        unsafe_code="REPORT_SYMLINK",
+        special_code="REPORT_SPECIAL_FILE",
+        public_path="reports",
+    )
     for path in sorted(reports.rglob("*")):
         relative_path = path.relative_to(reports).as_posix()
         path_stat = path.lstat()
@@ -873,22 +1095,103 @@ def _verify_reports(reports: Path) -> tuple[_FileRecord, ...]:
     return _report_records(reports)
 
 
+def _copy_publish_individually(
+    source_publish: Path, destination_publish: Path
+) -> tuple[_FileRecord, ...]:
+    source_records = _collect_records(source_publish, include_manifest=True, include_sbom=True)
+    destination_publish.mkdir(parents=True, exist_ok=True)
+    (destination_publish / "assets").mkdir(parents=True, exist_ok=True)
+    for record in source_records:
+        source = _require_existing_regular_file(
+            source_publish / record.path,
+            code="TREE_SYMLINK" if record.path == "." else "TREE_SPECIAL_FILE",
+            public_path=record.path,
+        )
+        source_stat = source.lstat()
+        if stat.S_ISLNK(source_stat.st_mode) or _is_reparse_point(source_stat):
+            raise PagesAuditError("TREE_SYMLINK", public_path=record.path)
+        if not stat.S_ISREG(source_stat.st_mode):
+            raise PagesAuditError("TREE_SPECIAL_FILE", public_path=record.path)
+        payload = source.read_bytes()
+        if len(payload) != record.bytes_size or _sha256_bytes(payload) != record.sha256:
+            raise PagesAuditError("TREE_COMPARE_MISMATCH")
+        target = destination_publish / record.path
+        _write_bytes_exclusive(target, payload)
+        copied_record = _file_record(target, record.path)
+        if copied_record != record:
+            raise PagesAuditError("TREE_COMPARE_MISMATCH")
+    return _collect_records(destination_publish, include_manifest=True, include_sbom=True)
+
+
+def _copy_reports_individually(reports: Path, destination: Path) -> tuple[_FileRecord, ...]:
+    copied_records: list[_FileRecord] = []
+    for record in _verify_reports(reports):
+        source = _require_existing_regular_file(
+            reports / record.path,
+            code="REPORT_SYMLINK" if record.path == "reports" else "REPORT_SPECIAL_FILE",
+            public_path=record.path,
+        )
+        source_stat = source.lstat()
+        if stat.S_ISLNK(source_stat.st_mode) or _is_reparse_point(source_stat):
+            raise PagesAuditError("REPORT_SYMLINK", public_path=record.path)
+        if not stat.S_ISREG(source_stat.st_mode):
+            raise PagesAuditError("REPORT_SPECIAL_FILE", public_path=record.path)
+        payload = source.read_bytes()
+        if len(payload) != record.bytes_size or _sha256_bytes(payload) != record.sha256:
+            raise PagesAuditError("REPORT_COPY_MISMATCH", public_path=record.path)
+        target = destination / record.path
+        _write_bytes_exclusive(target, payload)
+        copied_record = _file_record(target, record.path)
+        if copied_record != record:
+            raise PagesAuditError("REPORT_COPY_MISMATCH", public_path=record.path)
+        copied_records.append(copied_record)
+    copied = tuple(copied_records)
+    if _verify_reports(destination) != copied:
+        raise PagesAuditError("REPORT_COPY_MISMATCH", public_path="reports")
+    return copied
+
+
+def _verify_review_export_layout(export_root: Path) -> None:
+    export_stat = export_root.lstat()
+    if (
+        stat.S_ISLNK(export_stat.st_mode)
+        or _is_reparse_point(export_stat)
+        or not stat.S_ISDIR(export_stat.st_mode)
+    ):
+        raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
+    allowed_root_entries = {"publish", "reports", "review-receipt.json"}
+    for path in export_root.iterdir():
+        relative = path.relative_to(export_root).as_posix()
+        path_stat = path.lstat()
+        if stat.S_ISLNK(path_stat.st_mode) or _is_reparse_point(path_stat):
+            raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
+        if relative not in allowed_root_entries:
+            raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
+
+
 def build_site(
     repository: Path,
     output: Path,
     site_source_sha: str,
     source_date_epoch: int,
 ) -> BuildResult:
-    repository = repository.resolve()
-    output = output.resolve()
+    repository = _require_existing_directory(
+        repository,
+        missing_code="REPOSITORY_PATH_UNSAFE",
+        unsafe_code="REPOSITORY_PATH_UNSAFE",
+        special_code="REPOSITORY_PATH_UNSAFE",
+        public_path=repository.name or ".",
+    )
+    output, output_preexisting_empty = _prepare_output_directory(
+        output,
+        public_path=output.name or ".",
+    )
     normalized_sha = normalize_site_source_sha(repository, site_source_sha)
-    output_preexisting_empty = False
-    if output.exists():
-        if output.is_dir() and not any(output.iterdir()):
-            output_preexisting_empty = True
-        else:
-            raise PagesAuditError("OUTPUT_EXISTS", public_path=output.name)
-    output.parent.mkdir(parents=True, exist_ok=True)
+    output_parent = _ensure_safe_directory(
+        output.parent,
+        code="OUTPUT_PATH_UNSAFE",
+        public_path=output.parent.name or ".",
+    )
     with tempfile.TemporaryDirectory(prefix="woundscope-pages-", dir=output.parent) as temp_dir:
         staging_root = Path(temp_dir)
         snapshot_root = staging_root / "snapshot"
@@ -898,6 +1201,9 @@ def build_site(
         evidence = load_public_evidence(repository)
         verified_svg = load_verified_svg(repository, evidence)
         rendered = render_site(evidence, verified_svg, normalized_sha, site_root)
+        authored_css = _read_commit_blob(repository, normalized_sha, "site/site.css")
+        if rendered.css != authored_css:
+            raise PagesAuditError("CSS_SOURCE_MISMATCH", public_path="site.css")
         css_sha256 = _sha256_bytes(rendered.css)
         css_filename = f"site-{css_sha256[:16]}.css"
         _write_bytes(publish / ".nojekyll", b"")
@@ -927,7 +1233,21 @@ def build_site(
         )
         verified = verify_publish_tree(publish)
         if output_preexisting_empty:
+            output = _require_existing_directory(
+                output,
+                missing_code="OUTPUT_EXISTS",
+                unsafe_code="OUTPUT_PATH_UNSAFE",
+                special_code="OUTPUT_PATH_UNSAFE",
+                public_path=output.name or ".",
+            )
+            if any(output.iterdir()):
+                raise PagesAuditError("OUTPUT_EXISTS", public_path=output.name or ".")
             output.rmdir()
+        _ensure_safe_directory(
+            output_parent, code="OUTPUT_PATH_UNSAFE", public_path=output_parent.name or "."
+        )
+        if _existing_lstat(output) is not None:
+            raise PagesAuditError("OUTPUT_EXISTS", public_path=output.name or ".")
         publish.rename(output)
         return BuildResult(
             publish=output,
@@ -939,13 +1259,24 @@ def build_site(
 
 
 def verify_publish_tree(publish: Path) -> VerifiedPublish:
-    publish = publish.resolve()
+    publish = _require_existing_directory(
+        publish,
+        missing_code="TREE_MISSING_FILE",
+        unsafe_code="TREE_SYMLINK",
+        special_code="TREE_SPECIAL_FILE",
+        public_path=".",
+    )
     css_relative, svg_relative = _verify_inventory(publish)
     total_bytes = 0
     for relative_path in _publish_paths(publish):
         path = publish / relative_path
-        if not path.is_file():
+        path_stat = _existing_lstat(path)
+        if path_stat is None:
             raise PagesAuditError("TREE_MISSING_FILE", public_path=relative_path)
+        if stat.S_ISLNK(path_stat.st_mode) or _is_reparse_point(path_stat):
+            raise PagesAuditError("TREE_SYMLINK", public_path=relative_path)
+        if not stat.S_ISREG(path_stat.st_mode):
+            raise PagesAuditError("TREE_SPECIAL_FILE", public_path=relative_path)
         total_bytes += path.stat().st_size
     if total_bytes > MAX_TOTAL_PUBLISH_BYTES:
         raise PagesAuditError("TREE_BUDGET_EXCEEDED", public_path="publish")
@@ -986,28 +1317,38 @@ def compare_publish_trees(left: Path, right: Path) -> None:
 def seal_review(publish: Path, reports: Path, export_root: Path) -> Path:
     verified = verify_publish_tree(publish)
     report_records = _verify_reports(reports)
-    export_root = export_root.resolve()
-    if export_root.exists():
-        raise PagesAuditError("OUTPUT_EXISTS", public_path=export_root.name)
-    export_root.parent.mkdir(parents=True, exist_ok=True)
+    export_root = _validate_path_components(
+        export_root,
+        code="OUTPUT_PATH_UNSAFE",
+        public_path=export_root.name or ".",
+    )
+    if _existing_lstat(export_root) is not None:
+        raise PagesAuditError("OUTPUT_EXISTS", public_path=export_root.name or ".")
+    export_parent = _ensure_safe_directory(
+        export_root.parent,
+        code="OUTPUT_PATH_UNSAFE",
+        public_path=export_root.parent.name or ".",
+    )
     with tempfile.TemporaryDirectory(
         prefix="woundscope-review-", dir=export_root.parent
     ) as temp_dir:
         staging_root = Path(temp_dir) / export_root.name
-        shutil.copytree(verified.publish, staging_root / "publish")
-        copied_report_records = _copy_reports_individually(
-            reports.resolve(), staging_root / "reports"
-        )
-        publish_records = _collect_records(
-            staging_root / "publish",
-            include_manifest=True,
-            include_sbom=True,
-        )
+        staging_root.mkdir(parents=True, exist_ok=True)
+        publish_records = _copy_publish_individually(verified.publish, staging_root / "publish")
+        if (
+            verify_publish_tree(verified.publish).publish_tree_sha256
+            != verified.publish_tree_sha256
+        ):
+            raise PagesAuditError("TREE_COMPARE_MISMATCH")
+        destination_verified = verify_publish_tree(staging_root / "publish")
+        copied_report_records = _copy_reports_individually(reports, staging_root / "reports")
+        if _verify_reports(reports) != report_records:
+            raise PagesAuditError("REPORT_COPY_MISMATCH", public_path="reports")
         receipt = {
             "evidence_peeled_commit": PEELED_COMMIT,
             "evidence_tag_object": TAG_OBJECT,
-            "manifest_sha256": verified.manifest_sha256,
-            "publish_tree_sha256": verified.publish_tree_sha256,
+            "manifest_sha256": destination_verified.manifest_sha256,
+            "publish_tree_sha256": destination_verified.publish_tree_sha256,
             "report_hashes": [
                 {"bytes": record.bytes_size, "path": record.path, "sha256": record.sha256}
                 for record in sorted(
@@ -1015,35 +1356,28 @@ def seal_review(publish: Path, reports: Path, export_root: Path) -> Path:
                 )
             ],
             "review_payload_sha256": _review_payload_sha256(publish_records, copied_report_records),
-            "sbom_sha256": verified.sbom_sha256,
-            "site_source_sha": verified.site_source_sha,
+            "sbom_sha256": destination_verified.sbom_sha256,
+            "site_source_sha": destination_verified.site_source_sha,
         }
         receipt_path = staging_root / "review-receipt.json"
         _write_bytes(receipt_path, _json_bytes(receipt))
+        verify_publish_tree(staging_root / "publish")
+        if _verify_reports(staging_root / "reports") != copied_report_records:
+            raise PagesAuditError("REPORT_COPY_MISMATCH", public_path="reports")
+        _verify_review_export_layout(staging_root)
         if report_records != copied_report_records:
             raise PagesAuditError("REPORT_COPY_MISMATCH", public_path="reports")
+        _ensure_safe_directory(
+            export_parent, code="OUTPUT_PATH_UNSAFE", public_path=export_parent.name or "."
+        )
+        if _existing_lstat(export_root) is not None:
+            raise PagesAuditError("OUTPUT_EXISTS", public_path=export_root.name or ".")
         staging_root.rename(export_root)
     return export_root / "review-receipt.json"
 
 
 def _git_is_dirty(repository: Path) -> bool:
     return bool(_run_git_text(repository, ["status", "--porcelain=v1", "-uno"], code="GIT_DIRTY"))
-
-
-def _copy_reports_individually(reports: Path, destination: Path) -> tuple[_FileRecord, ...]:
-    copied_records: list[_FileRecord] = []
-    for record in _verify_reports(reports):
-        source = reports / record.path
-        source_stat = source.lstat()
-        if stat.S_ISLNK(source_stat.st_mode) or _is_reparse_point(source_stat):
-            raise PagesAuditError("REPORT_SYMLINK", public_path=record.path)
-        if not stat.S_ISREG(source_stat.st_mode):
-            raise PagesAuditError("REPORT_SPECIAL_FILE", public_path=record.path)
-        target = destination / record.path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target)
-        copied_records.append(_file_record(target, record.path))
-    return tuple(copied_records)
 
 
 def record_central_seal(
@@ -1054,37 +1388,57 @@ def record_central_seal(
     reviewer: str,
     approval_id: str,
 ) -> Path:
-    repository = repository.resolve()
+    repository = _require_existing_directory(
+        repository,
+        missing_code="REPOSITORY_PATH_UNSAFE",
+        unsafe_code="REPOSITORY_PATH_UNSAFE",
+        special_code="REPOSITORY_PATH_UNSAFE",
+        public_path=repository.name or ".",
+    )
     approved_site_source = _require_hex40(approved_site_source, code="SITE_SOURCE_SHA_INVALID")
     if reviewer != _REPORTED_OWNER:
         raise PagesAuditError("CENTRAL_REVIEWER_INVALID")
     if not _APPROVAL_ID_RE.fullmatch(approval_id):
         raise PagesAuditError("CENTRAL_APPROVAL_ID_INVALID")
-    receipt = receipt.resolve()
+    output = _validate_path_components(
+        output,
+        code="CENTRAL_SEAL_PATH_INVALID",
+        public_path="CENTRAL_SEAL.json",
+    )
+    receipt = _validate_path_components(
+        receipt,
+        code="CENTRAL_RECEIPT_PATH_INVALID",
+        public_path="review-receipt.json",
+    )
     if receipt.name != "review-receipt.json":
         raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
-    receipt_stat = receipt.lstat() if receipt.exists() else None
-    if receipt_stat is None:
-        raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
-    if stat.S_ISLNK(receipt_stat.st_mode) or _is_reparse_point(receipt_stat):
-        raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
-    if not stat.S_ISREG(receipt_stat.st_mode):
-        raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
+    receipt = _require_existing_regular_file(
+        receipt,
+        code="CENTRAL_RECEIPT_PATH_INVALID",
+        public_path="review-receipt.json",
+    )
     export_root = receipt.parent
-    export_root_stat = export_root.lstat()
-    if stat.S_ISLNK(export_root_stat.st_mode) or _is_reparse_point(export_root_stat):
-        raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
-    if not stat.S_ISDIR(export_root_stat.st_mode):
-        raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
-    publish_root = export_root / "publish"
-    reports_root = export_root / "reports"
-    if not publish_root.exists() or not reports_root.exists():
-        raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
-    if not stat.S_ISDIR(publish_root.lstat().st_mode) or not stat.S_ISDIR(
-        reports_root.lstat().st_mode
-    ):
-        raise PagesAuditError("CENTRAL_RECEIPT_PATH_INVALID")
-    output = output.resolve()
+    _require_existing_directory(
+        export_root,
+        missing_code="CENTRAL_RECEIPT_PATH_INVALID",
+        unsafe_code="CENTRAL_RECEIPT_PATH_INVALID",
+        special_code="CENTRAL_RECEIPT_PATH_INVALID",
+        public_path="review-export",
+    )
+    _require_existing_directory(
+        export_root / "publish",
+        missing_code="CENTRAL_RECEIPT_PATH_INVALID",
+        unsafe_code="CENTRAL_RECEIPT_PATH_INVALID",
+        special_code="CENTRAL_RECEIPT_PATH_INVALID",
+        public_path="publish",
+    )
+    _require_existing_directory(
+        export_root / "reports",
+        missing_code="CENTRAL_RECEIPT_PATH_INVALID",
+        unsafe_code="CENTRAL_RECEIPT_PATH_INVALID",
+        special_code="CENTRAL_RECEIPT_PATH_INVALID",
+        public_path="reports",
+    )
     if output != export_root.parent / "CENTRAL_SEAL.json":
         raise PagesAuditError("CENTRAL_SEAL_PATH_INVALID")
     if _git_is_dirty(repository):
@@ -1094,8 +1448,47 @@ def record_central_seal(
     receipt_payload = json.loads(receipt.read_text("utf-8"))
     if receipt_payload.get("site_source_sha") != approved_site_source:
         raise PagesAuditError("SITE_SOURCE_SHA_MISMATCH")
-    if output.exists():
+    output = _validate_path_components(
+        output,
+        code="CENTRAL_SEAL_PATH_INVALID",
+        public_path="CENTRAL_SEAL.json",
+    )
+    _require_existing_regular_file(
+        receipt,
+        code="CENTRAL_RECEIPT_PATH_INVALID",
+        public_path="review-receipt.json",
+    )
+    _require_existing_directory(
+        export_root,
+        missing_code="CENTRAL_RECEIPT_PATH_INVALID",
+        unsafe_code="CENTRAL_RECEIPT_PATH_INVALID",
+        special_code="CENTRAL_RECEIPT_PATH_INVALID",
+        public_path="review-export",
+    )
+    _require_existing_directory(
+        export_root / "publish",
+        missing_code="CENTRAL_RECEIPT_PATH_INVALID",
+        unsafe_code="CENTRAL_RECEIPT_PATH_INVALID",
+        special_code="CENTRAL_RECEIPT_PATH_INVALID",
+        public_path="publish",
+    )
+    _require_existing_directory(
+        export_root / "reports",
+        missing_code="CENTRAL_RECEIPT_PATH_INVALID",
+        unsafe_code="CENTRAL_RECEIPT_PATH_INVALID",
+        special_code="CENTRAL_RECEIPT_PATH_INVALID",
+        public_path="reports",
+    )
+    _require_existing_directory(
+        output.parent,
+        missing_code="CENTRAL_SEAL_PATH_INVALID",
+        unsafe_code="CENTRAL_SEAL_PATH_INVALID",
+        special_code="CENTRAL_SEAL_PATH_INVALID",
+        public_path=output.parent.name or ".",
+    )
+    if _existing_lstat(output) is not None:
         raise PagesAuditError("OUTPUT_EXISTS", public_path=output.name)
+    _verify_review_export_layout(export_root)
     payload = {
         "approval_id": approval_id,
         "decision": "approved",
@@ -1105,5 +1498,5 @@ def record_central_seal(
         "reviewer": reviewer,
         "site_source_sha": approved_site_source,
     }
-    _write_bytes(output, _json_bytes(payload))
+    _write_bytes_exclusive(output, _json_bytes(payload))
     return output
