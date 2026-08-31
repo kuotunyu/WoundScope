@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import stat
 import subprocess
 import sys
@@ -150,6 +151,20 @@ def _init_temp_git_repository(repository: Path) -> str:
     ).stdout.strip()
 
 
+def _make_windows_junction(link: Path, target: Path) -> bool:
+    if os.name != "nt":
+        return False
+    target.mkdir(parents=True, exist_ok=True)
+    completed = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    return completed.returncode == 0
+
+
 def test_integrity_graph_is_acyclic_and_exact(tmp_path: Path) -> None:
     build_result = build_for_test(tmp_path / "one")
     manifest = _manifest_payload(build_result)
@@ -205,6 +220,35 @@ def test_two_clean_builds_are_byte_identical(tmp_path: Path) -> None:
     assert left.publish_tree_sha256 == right.publish_tree_sha256
     assert left.manifest_sha256 == right.manifest_sha256
     assert left.sbom_sha256 == right.sbom_sha256
+
+
+def test_build_site_rejects_css_bytes_that_do_not_match_authored_git_object(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _import_module("scripts.pages_site.integrity")
+    site_source_sha = _site_source_sha()
+    original_render_site = module.render_site
+
+    def fake_render_site(*args, **kwargs):
+        rendered = original_render_site(*args, **kwargs)
+        return type(rendered)(
+            index_html=rendered.index_html,
+            not_found_html=rendered.not_found_html,
+            css=rendered.css + b"\n/* tampered css */\n",
+            notices=rendered.notices,
+        )
+
+    monkeypatch.setattr(module, "render_site", fake_render_site)
+
+    with pytest.raises(module.PagesAuditError, match="CSS_SOURCE_MISMATCH"):
+        module.build_site(
+            REPOSITORY,
+            tmp_path / "publish",
+            site_source_sha,
+            _source_date_epoch(site_source_sha),
+        )
+
+    assert not (tmp_path / "publish").exists()
 
 
 def test_seal_review_writes_receipt_outside_publish_and_copies_only_allowed_reports(
@@ -463,3 +507,178 @@ def test_record_central_seal_rejects_non_owner_reviewer(tmp_path: Path) -> None:
             reviewer="someone-else",
             approval_id="central-20260831",
         )
+
+
+def test_seal_review_rejects_publish_extra_injected_during_receipt_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _import_module("scripts.pages_site.integrity")
+    build_result = build_for_test(tmp_path / "publish")
+    reports = tmp_path / "reports"
+    export_root = tmp_path / "export"
+    _write_review_reports(reports)
+    original_write_bytes = module._write_bytes
+    injected = False
+
+    def fake_write_bytes(path: Path, payload: bytes) -> None:
+        nonlocal injected
+        if not injected and path.name == "review-receipt.json":
+            injected = True
+            (path.parent / "publish" / "extra.txt").write_text(
+                "injected\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+        original_write_bytes(path, payload)
+
+    monkeypatch.setattr(module, "_write_bytes", fake_write_bytes)
+
+    with pytest.raises(module.PagesAuditError, match=r"TREE_EXTRA_FILE:extra\.txt"):
+        module.seal_review(build_result.publish, reports, export_root)
+
+    assert not export_root.exists()
+
+
+@pytest.mark.parametrize("relative_name", ["publish", "reports"])
+def test_record_central_seal_rejects_reparse_publish_or_reports_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, relative_name: str
+) -> None:
+    module = _import_module("scripts.pages_site.integrity")
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    head_sha = _init_temp_git_repository(repository)
+    export_root = tmp_path / "review-export"
+    export_root.mkdir()
+    (export_root / "publish").mkdir()
+    (export_root / "reports").mkdir()
+    receipt = export_root / "review-receipt.json"
+    receipt.write_text(
+        json.dumps({"site_source_sha": head_sha}, ensure_ascii=False, indent=2, sort_keys=True)
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    target = export_root / relative_name
+    original_lstat = module.Path.lstat
+    original_is_reparse_point = module._is_reparse_point
+
+    class _FakeStat:
+        st_mode = stat.S_IFDIR
+        st_size = 0
+
+    def fake_lstat(path: Path):
+        if path == target:
+            return _FakeStat()
+        return original_lstat(path)
+
+    def fake_is_reparse_point(path_stat) -> bool:
+        if path_stat.__class__ is _FakeStat:
+            return True
+        return original_is_reparse_point(path_stat)
+
+    monkeypatch.setattr(module.Path, "lstat", fake_lstat)
+    monkeypatch.setattr(module, "_is_reparse_point", fake_is_reparse_point)
+
+    with pytest.raises(module.PagesAuditError, match="CENTRAL_RECEIPT_PATH_INVALID"):
+        module.record_central_seal(
+            repository=repository,
+            receipt=receipt,
+            output=tmp_path / "CENTRAL_SEAL.json",
+            approved_site_source=head_sha,
+            reviewer="kuotunyu",
+            approval_id="central-20260831",
+        )
+
+
+def test_record_central_seal_rejects_output_parent_junction_without_writing(
+    tmp_path: Path,
+) -> None:
+    module = _import_module("scripts.pages_site.integrity")
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    head_sha = _init_temp_git_repository(repository)
+    real_root = tmp_path / "real-root"
+    alias_root = tmp_path / "alias-root"
+    if not _make_windows_junction(alias_root, real_root):
+        pytest.skip("windows junction creation unavailable")
+    export_root = alias_root / "review-export"
+    export_root.mkdir()
+    (export_root / "publish").mkdir()
+    (export_root / "reports").mkdir()
+    receipt = export_root / "review-receipt.json"
+    receipt.write_text(
+        json.dumps({"site_source_sha": head_sha}, ensure_ascii=False, indent=2, sort_keys=True)
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    with pytest.raises(module.PagesAuditError, match="CENTRAL_SEAL_PATH_INVALID"):
+        module.record_central_seal(
+            repository=repository,
+            receipt=receipt,
+            output=alias_root / "CENTRAL_SEAL.json",
+            approved_site_source=head_sha,
+            reviewer="kuotunyu",
+            approval_id="central-20260831",
+        )
+
+    assert not (real_root / "CENTRAL_SEAL.json").exists()
+
+
+def test_record_central_seal_revalidates_output_parent_before_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _import_module("scripts.pages_site.integrity")
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    head_sha = _init_temp_git_repository(repository)
+    seal_parent = tmp_path / "seal-parent"
+    seal_parent.mkdir()
+    export_root = seal_parent / "review-export"
+    export_root.mkdir()
+    (export_root / "publish").mkdir()
+    (export_root / "reports").mkdir()
+    receipt = export_root / "review-receipt.json"
+    receipt.write_text(
+        json.dumps({"site_source_sha": head_sha}, ensure_ascii=False, indent=2, sort_keys=True)
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    original_lstat = module.Path.lstat
+    original_is_reparse_point = module._is_reparse_point
+    call_count = 0
+
+    class _FakeStat:
+        st_mode = stat.S_IFDIR
+        st_size = 0
+
+    def fake_lstat(path: Path):
+        nonlocal call_count
+        if path == seal_parent:
+            call_count += 1
+            if call_count >= 7:
+                return _FakeStat()
+        return original_lstat(path)
+
+    def fake_is_reparse_point(path_stat) -> bool:
+        if path_stat.__class__ is _FakeStat:
+            return True
+        return original_is_reparse_point(path_stat)
+
+    monkeypatch.setattr(module.Path, "lstat", fake_lstat)
+    monkeypatch.setattr(module, "_is_reparse_point", fake_is_reparse_point)
+
+    with pytest.raises(module.PagesAuditError, match="CENTRAL_SEAL_PATH_INVALID"):
+        module.record_central_seal(
+            repository=repository,
+            receipt=receipt,
+            output=seal_parent / "CENTRAL_SEAL.json",
+            approved_site_source=head_sha,
+            reviewer="kuotunyu",
+            approval_id="central-20260831",
+        )
+
+    assert call_count >= 7
+    assert not (seal_parent / "CENTRAL_SEAL.json").exists()

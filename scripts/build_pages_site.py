@@ -23,7 +23,7 @@ def main() -> int:
     parser.add_argument("--site-source", required=True)
     arguments = parser.parse_args()
 
-    repository = arguments.repository.resolve()
+    repository = arguments.repository
     try:
         site_source_sha = normalize_site_source_sha(repository, arguments.site_source)
         result = build_site(

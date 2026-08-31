@@ -111,6 +111,86 @@ def _sync_sbom_site_source(publish: Path, site_source_sha: str) -> None:
     _sync_manifest_for_current_publish_tree(publish)
 
 
+def _rewrite_manifest_and_sbom_for_current_tree(publish: Path) -> None:
+    module = _import_module("scripts.pages_site.integrity")
+    manifest_payload = json.loads((publish / "pages-manifest.json").read_text("utf-8"))
+    site_source_sha = manifest_payload["site_source_sha"]
+    source_date_epoch = manifest_payload["source_date_epoch"]
+    sbom_records = module._collect_records(publish, include_manifest=False, include_sbom=False)
+    (publish / "sbom.spdx.json").write_text(
+        json.dumps(
+            module._expected_spdx_payload(site_source_sha, source_date_epoch, sbom_records),
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    manifest_records = module._collect_records(publish, include_manifest=False, include_sbom=True)
+    publish_tree_sha256 = module._tree_digest(manifest_records)
+    (publish / "pages-manifest.json").write_text(
+        json.dumps(
+            module._expected_manifest_payload(
+                site_source_sha,
+                source_date_epoch,
+                manifest_records,
+                publish_tree_sha256,
+                repository=None,
+            ),
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
+def _rename_css_and_rewrite_publish(publish: Path, css_text: str) -> str:
+    assets = publish / "assets"
+    original_css = next(assets.glob("site-*.css"))
+    new_bytes = css_text.encode("utf-8")
+    new_name = f"site-{hashlib.sha256(new_bytes).hexdigest()[:16]}.css"
+    (assets / new_name).write_bytes(new_bytes)
+    for html_name in ("index.html", "404.html"):
+        html_path = publish / html_name
+        html_path.write_text(
+            html_path.read_text("utf-8").replace(original_css.name, new_name),
+            encoding="utf-8",
+            newline="\n",
+        )
+    original_css.unlink()
+    _rewrite_manifest_and_sbom_for_current_tree(publish)
+    return new_name
+
+
+def _write_mutated_html_and_rewrite(publish: Path, *, old: str, new: str, count: int = 1) -> None:
+    index_path = publish / "index.html"
+    index_path.write_text(
+        index_path.read_text("utf-8").replace(old, new, count),
+        encoding="utf-8",
+        newline="\n",
+    )
+    _rewrite_manifest_and_sbom_for_current_tree(publish)
+
+
+def _make_windows_junction(link: Path, target: Path) -> bool:
+    if os.name != "nt":
+        return False
+    target.mkdir(parents=True, exist_ok=True)
+    completed = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    return completed.returncode == 0
+
+
 @pytest.mark.parametrize(
     ("relative_name", "code"),
     [
@@ -134,7 +214,10 @@ def test_publish_tree_fails_closed_on_extra_content(
     with pytest.raises(pages_audit_error) as excinfo:
         verify_publish_tree(target_publish)
 
-    assert _safe_error_text(excinfo.value) == f"{code}:{relative_name.replace(os.sep, '/')}"
+    expected_path = (
+        "data" if relative_name == "data/rows.csv" else relative_name.replace(os.sep, "/")
+    )
+    assert _safe_error_text(excinfo.value) == f"{code}:{expected_path}"
 
 
 def test_publish_tree_rejects_missing_required_file(tmp_path: Path) -> None:
@@ -555,3 +638,222 @@ def test_publish_tree_rejects_spdx_schema_drift(tmp_path: Path, mutator) -> None
 
     with pytest.raises(pages_audit_error, match=r"SBOM_STRUCTURE|SPDX_LICENSE_UNSAFE"):
         verify_publish_tree(target_publish)
+
+
+def test_build_site_rejects_output_junction_without_touching_target(tmp_path: Path) -> None:
+    pages_audit_error, build_site, _verify_publish_tree = _integrity_exports()
+    site_source_sha = _git_stdout("rev-parse", "HEAD")
+    source_date_epoch = int(_git_stdout("show", "-s", "--format=%ct", site_source_sha))
+    target = tmp_path / "real-output"
+    output = tmp_path / "publish"
+    if not _make_windows_junction(output, target):
+        pytest.skip("windows junction creation unavailable")
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        build_site(REPOSITORY, output, site_source_sha, source_date_epoch)
+
+    assert _safe_error_text(excinfo.value) == "OUTPUT_PATH_UNSAFE:publish"
+    assert list(target.iterdir()) == []
+
+
+def test_verify_publish_tree_rejects_root_reparse_point_from_lstat_patch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = _import_module("scripts.pages_site.integrity")
+    target_publish = _clone_publish_tree(audited_publish(tmp_path), tmp_path / "mutated")
+    original_lstat = module.Path.lstat
+    original_is_reparse_point = module._is_reparse_point
+
+    class _FakeStat:
+        st_mode = stat.S_IFDIR
+        st_size = 0
+
+    def fake_lstat(path: Path):
+        if path == target_publish:
+            return _FakeStat()
+        return original_lstat(path)
+
+    def fake_is_reparse_point(path_stat) -> bool:
+        if path_stat.__class__ is _FakeStat:
+            return True
+        return original_is_reparse_point(path_stat)
+
+    monkeypatch.setattr(module.Path, "lstat", fake_lstat)
+    monkeypatch.setattr(module, "_is_reparse_point", fake_is_reparse_point)
+
+    with pytest.raises(module.PagesAuditError) as excinfo:
+        module.verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == "TREE_SYMLINK:."
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "code"),
+    [
+        (
+            'href="https://github.com/kuotunyu/WoundScope"',
+            'href="mailto:research@example.com"',
+            "HTML_EXTERNAL_LINK:index.html",
+        ),
+        (
+            'src="/WoundScope/assets/model-comparison-1eafa7c35b06928b.svg"',
+            'src="https://example.com/remote.png"',
+            "HTML_EXTERNAL_RESOURCE:index.html",
+        ),
+    ],
+)
+def test_publish_tree_rejects_denied_html_urls_even_when_dag_is_resynced(
+    tmp_path: Path, old: str, new: str, code: str
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(audited_publish(tmp_path), tmp_path / "mutated-html")
+    _write_mutated_html_and_rewrite(target_publish, old=old, new=new)
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == code
+
+
+@pytest.mark.parametrize(
+    "css_suffix",
+    [
+        '@import "https://example.com/theme.css";\n',
+        '@im\\70 ort "https://example.com/theme.css";\n',
+        ".hero{background:u\\72l (/WoundScope/x)}\n",
+        ".hero{background:image-set(url(https://example.com/x.png) 1x)}\n",
+    ],
+)
+def test_publish_tree_rejects_css_egress_variants_even_when_hash_and_dag_are_resynced(
+    tmp_path: Path, css_suffix: str
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(audited_publish(tmp_path), tmp_path / "mutated-css-egress")
+    css_path = next((target_publish / "assets").glob("site-*.css"))
+    new_name = _rename_css_and_rewrite_publish(
+        target_publish,
+        css_path.read_text("utf-8") + "\n" + css_suffix,
+    )
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == f"CSS_REMOTE_URL:assets/{new_name}"
+
+
+def test_publish_tree_rejects_link_resource_hint_rel_even_when_dag_is_resynced(
+    tmp_path: Path,
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(audited_publish(tmp_path), tmp_path / "mutated-link-rel")
+    _write_mutated_html_and_rewrite(
+        target_publish,
+        old='rel="stylesheet"',
+        new='rel="preload"',
+    )
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == "HTML_EXTERNAL_RESOURCE:index.html"
+
+
+@pytest.mark.parametrize(
+    "mutator",
+    [
+        lambda payload: payload.setdefault("unexpected", "value"),
+        lambda payload: payload["toolchain"].__setitem__("unexpected", "value"),
+        lambda payload: payload["evidence"].pop("tag_object"),
+    ],
+)
+def test_publish_tree_rejects_manifest_exact_structure_drift(tmp_path: Path, mutator) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(
+        audited_publish(tmp_path), tmp_path / "mutated-manifest-structure"
+    )
+    manifest_path = target_publish / "pages-manifest.json"
+    manifest_payload = json.loads(manifest_path.read_text("utf-8"))
+    mutator(manifest_payload)
+    manifest_path.write_text(
+        json.dumps(manifest_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == "MANIFEST_STRUCTURE:pages-manifest.json"
+
+
+def test_publish_tree_rejects_source_date_epoch_cross_file_consistency_drift(
+    tmp_path: Path,
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(
+        audited_publish(tmp_path), tmp_path / "mutated-manifest-epoch"
+    )
+    manifest_path = target_publish / "pages-manifest.json"
+    manifest_payload = json.loads(manifest_path.read_text("utf-8"))
+    manifest_payload["source_date_epoch"] = 0
+    manifest_path.write_text(
+        json.dumps(manifest_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == "SBOM_STRUCTURE:sbom.spdx.json"
+
+
+@pytest.mark.parametrize(
+    "mutator",
+    [
+        lambda payload: payload.__setitem__("dataLicense", "MIT"),
+        lambda payload: payload.__setitem__("name", "Wrong Name"),
+        lambda payload: payload.__setitem__("SPDXID", "SPDXRef-WRONG"),
+        lambda payload: payload["packages"][0].__setitem__(
+            "downloadLocation", "https://example.com"
+        ),
+        lambda payload: payload["packages"][0].__setitem__("filesAnalyzed", False),
+        lambda payload: payload["packages"][0].__setitem__("licenseDeclared", "MIT"),
+        lambda payload: payload["packages"][0].__setitem__("copyrightText", "copyright"),
+        lambda payload: payload["files"][0].__setitem__("SPDXID", "SPDXRef-File-Wrong"),
+        lambda payload: payload["files"][0].__setitem__("copyrightText", "copyright"),
+        lambda payload: payload["files"][0].__setitem__("licenseInfoInFiles", ["MIT"]),
+        lambda payload: payload["relationships"][0].__setitem__(
+            "spdxElementId", "SPDXRef-OtherPackage"
+        ),
+        lambda payload: payload["relationships"][0].__setitem__(
+            "relatedSpdxElement", "SPDXRef-File-Wrong"
+        ),
+        lambda payload: payload["relationships"][0].__setitem__("relationshipType", "DEPENDS_ON"),
+        lambda payload: payload["files"][0]["checksums"].append(
+            {"algorithm": "SHA1", "checksumValue": "0" * 40}
+        ),
+        lambda payload: payload.setdefault("unexpected", "value"),
+    ],
+)
+def test_publish_tree_rejects_spdx_exact_structure_drift(tmp_path: Path, mutator) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(audited_publish(tmp_path), tmp_path / "mutated-sbom-exact")
+    sbom_path = target_publish / "sbom.spdx.json"
+    sbom_payload = json.loads(sbom_path.read_text("utf-8"))
+    mutator(sbom_payload)
+    sbom_path.write_text(
+        json.dumps(sbom_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    _sync_manifest_for_current_publish_tree(target_publish)
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) in {
+        "SBOM_STRUCTURE:sbom.spdx.json",
+        "SPDX_LICENSE_UNSAFE:sbom.spdx.json",
+        "SBOM_CHECKSUM_MISMATCH:sbom.spdx.json",
+    }
