@@ -350,6 +350,7 @@ class _HtmlAuditParser(HTMLParser):
         self.internal_references: list[tuple[str, str]] = []
         self.invalid_attributes: list[str] = []
         self.invalid_external_resources: list[str] = []
+        self.invalid_structure: list[str] = []
         self.invalid_tags: list[str] = []
         self.main_records: Counter[tuple[tuple[str, str], ...]] = Counter()
         self.meta_records: Counter[tuple[str, tuple[tuple[str, str], ...]]] = Counter()
@@ -510,14 +511,26 @@ class _HtmlAuditParser(HTMLParser):
             self.caption_text[caption_id].append(data)
 
     def handle_endtag(self, tag: str) -> None:
-        for index in range(len(self._open_elements) - 1, -1, -1):
-            if self._open_elements[index][1] == tag:
-                del self._open_elements[index:]
-                return
+        if tag in _VOID_HTML_TAGS:
+            self.invalid_structure.append(f"void-close:{tag}")
+            return
+        if not self._open_elements or self._open_elements[-1][1] != tag:
+            self.invalid_structure.append(f"unexpected-close:{tag}")
+            return
+        self._open_elements.pop()
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        original_depth = len(self._open_elements)
         self.handle_starttag(tag, attrs)
-        self.handle_endtag(tag)
+        if tag not in _VOID_HTML_TAGS:
+            self.invalid_structure.append(f"nonvoid-startend:{tag}")
+            if len(self._open_elements) > original_depth:
+                self._open_elements.pop()
+
+    def close(self) -> None:
+        super().close()
+        if self._open_elements:
+            self.invalid_structure.append("unclosed-eof")
 
 
 def _json_bytes(payload: object) -> bytes:
@@ -1142,6 +1155,8 @@ def _verify_html(
         raise PagesAuditError("HTML_TAG_INVALID", public_path=public_path)
     if parser.invalid_attributes:
         raise PagesAuditError("HTML_ATTRIBUTE_INVALID", public_path=public_path)
+    if parser.invalid_structure:
+        raise PagesAuditError("HTML_STRUCTURE_INVALID", public_path=public_path)
     if parser.main_records != _expected_main_records(public_path):
         raise PagesAuditError("HTML_MAIN_MISMATCH", public_path=public_path)
     _validate_focus_region_contract(parser, public_path=public_path)
