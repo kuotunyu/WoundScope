@@ -229,7 +229,10 @@ def _mutate_focus_region(html_text: str, mutation: str) -> str:
             '<div class="table-pane" tabindex="0" role="region" '
             'aria-labelledby="evidence-table-caption">',
         ),
-        "duplicate_region": (TABLE_REGION_OPEN, f"{TABLE_REGION_OPEN}{TABLE_REGION_OPEN}"),
+        "duplicate_region": (
+            TABLE_REGION_OPEN,
+            f"{TABLE_REGION_OPEN}</div>{TABLE_REGION_OPEN}",
+        ),
         "missing_tabindex": (TABLE_REGION_OPEN, TABLE_REGION_OPEN.replace(' tabindex="0"', "")),
         "wrong_tabindex": (
             TABLE_REGION_OPEN,
@@ -325,8 +328,64 @@ def _mutate_focus_region(html_text: str, mutation: str) -> str:
             f"</table>\n          <table>{TABLE_CAPTION}</table>\n        </div>",
         )
     if mutation == "table_outside_region":
-        return _replace_focus_fragment(html_text, TABLE_REGION_OPEN, f"{TABLE_REGION_OPEN}</div>")
+        empty_region = _replace_focus_fragment(
+            html_text,
+            TABLE_REGION_OPEN,
+            f"{TABLE_REGION_OPEN}</div>",
+        )
+        return _replace_focus_fragment(
+            empty_region,
+            "</table>\n        </div>",
+            "</table>",
+        )
     raise AssertionError(f"unknown focus-region mutation: {mutation}")
+
+
+def _mutate_html_structure(html_text: str, mutation: str) -> str:
+    if mutation == "caption_closes_div":
+        return _replace_focus_fragment(
+            html_text,
+            TABLE_CAPTION,
+            TABLE_CAPTION.replace("</caption>", "</div></caption>"),
+        )
+    if mutation == "caption_closes_table":
+        return _replace_focus_fragment(
+            html_text,
+            TABLE_CAPTION,
+            TABLE_CAPTION.replace("</caption>", "</table></caption>"),
+        )
+    if mutation == "caption_closes_caption_then_div":
+        return _replace_focus_fragment(
+            html_text,
+            TABLE_CAPTION,
+            TABLE_CAPTION.replace("</caption>", "</caption></div></caption>"),
+        )
+    if mutation == "unmatched_close":
+        return _replace_focus_fragment(html_text, "</body>", "</aside></body>")
+    if mutation == "misnested_region_table":
+        return _replace_focus_fragment(
+            html_text,
+            "</table>\n        </div>",
+            "</div>\n        </table>",
+        )
+    if mutation == "extra_closing_div":
+        return _replace_focus_fragment(html_text, "</body>", "</div></body>")
+    if mutation == "unclosed_html_eof":
+        return _replace_focus_fragment(html_text, "</html>\n", "")
+    if mutation == "explicit_void_end":
+        aggregate_image_end = 'height="520" loading="lazy">'
+        return _replace_focus_fragment(
+            html_text,
+            aggregate_image_end,
+            f"{aggregate_image_end}</img>",
+        )
+    if mutation == "nonvoid_startend":
+        return _replace_focus_fragment(
+            html_text,
+            '<div class="page-shell">',
+            '<div class="page-shell"/>',
+        )
+    raise AssertionError(f"unknown HTML-structure mutation: {mutation}")
 
 
 def _make_windows_junction(link: Path, target: Path) -> bool:
@@ -975,7 +1034,8 @@ def test_publish_tree_rejects_meta_contract_drift_even_when_dag_is_resynced(
         (
             "index.html",
             '<main id="main-content" tabindex="-1">',
-            '<main id="main-content" tabindex="-1"><main id="main-content" tabindex="-1">',
+            '<main id="main-content" tabindex="-1"></main>'
+            '<main id="main-content" tabindex="-1">',
         ),
         (
             "404.html",
@@ -1000,7 +1060,8 @@ def test_publish_tree_rejects_meta_contract_drift_even_when_dag_is_resynced(
         (
             "404.html",
             '<main id="main-content" class="not-found">',
-            '<main id="main-content" class="not-found"><main id="main-content" class="not-found">',
+            '<main id="main-content" class="not-found"></main>'
+            '<main id="main-content" class="not-found">',
         ),
     ],
 )
@@ -1012,6 +1073,8 @@ def test_publish_tree_rejects_main_contract_drift_even_when_dag_is_resynced(
     html_path = target_publish / html_name
     original_text = html_path.read_text("utf-8")
     mutated_text = original_text.replace(original, replacement, 1)
+    if not replacement:
+        mutated_text = mutated_text.replace("</main>", "", 1)
     assert mutated_text != original_text
     html_path.write_text(mutated_text, encoding="utf-8", newline="\n")
     _rewrite_manifest_and_sbom_for_current_tree(target_publish)
@@ -1146,6 +1209,41 @@ def test_not_found_rejects_any_table_focus_region_when_dag_is_resynced(
         verify_publish_tree(target_publish)
 
     assert _safe_error_text(excinfo.value) == "HTML_FOCUS_REGION_MISMATCH:404.html"
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "caption_closes_div",
+        "caption_closes_table",
+        "caption_closes_caption_then_div",
+        "unmatched_close",
+        "misnested_region_table",
+        "extra_closing_div",
+        "unclosed_html_eof",
+        "explicit_void_end",
+        "nonvoid_startend",
+    ],
+)
+def test_publish_tree_rejects_unbalanced_or_misnested_html_before_semantics(
+    tmp_path: Path, mutation: str
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(
+        audited_publish(tmp_path), tmp_path / f"mutated-structure-{mutation}"
+    )
+    html_path = target_publish / "index.html"
+    html_path.write_text(
+        _mutate_html_structure(html_path.read_text("utf-8"), mutation),
+        encoding="utf-8",
+        newline="\n",
+    )
+    _rewrite_manifest_and_sbom_for_current_tree(target_publish)
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == "HTML_STRUCTURE_INVALID:index.html"
 
 
 @pytest.mark.parametrize(
