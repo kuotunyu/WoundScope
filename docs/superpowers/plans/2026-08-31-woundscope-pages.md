@@ -27,7 +27,7 @@
 - Every pnpm dependency installation first runs the stdlib package-policy audit, then uses the committed exact lockfile with both `--frozen-lockfile` and `--ignore-scripts`. `package.json` has no lifecycle hook, no production dependency, and no script／dependency outside the approved exact maps. Browser acquisition is a later explicit `playwright install` phase, never an install lifecycle side effect.
 - Controlled package／browser acquisition may use its explicitly approved registries before review execution. The later browser no-egress gate means loopback-only application server plus pre-navigation request ledger／abort; it does not claim a host firewall, air gap, or whole-host offline isolation.
 - Publish byte budgets are blocking: `.nojekyll` = 0; `index.html` ≤ 65,536; `404.html` ≤ 8,192; CSS ≤ 32,768; aggregate SVG = 3,009 exact bytes; `LICENSE.txt` = 11,577 exact bytes; `THIRD_PARTY_NOTICES.txt` ≤ 16,384; `sbom.spdx.json` ≤ 65,536; `pages-manifest.json` ≤ 32,768; all nine files together ≤ 237,568 bytes as a design upper bound, not an exact required sum.
-- Browser gates cover Chromium／Firefox／WebKit × 375×667, 390×844, 768×1024, 1024×768, 1440×900 × light／dark; keyboard, focus, contrast, 200% reflow, no-egress, subpath, and 404 checks are mandatory.
+- Browser gates cover Chromium／Firefox／WebKit × 375×667, 390×844, 768×1024, 1024×768, 1440×900 × light／dark; keyboard, focus, contrast, 200% reflow, no-egress, subpath, and 404 checks are mandatory. The first Tab focuses the skip link and its pre-Enter outline is at least 2 CSS px; Enter then programmatically focuses exact `<main id="main-content" tabindex="-1">` without applying that focused-link outline-width assertion to main. All other sequential focusability is limited to governed anchors and exact `.table-scroll[tabindex="0"][role="region"][aria-labelledby]` regions whose label is a visible unique caption／heading for the same table; positive `tabindex` and every other non-link exception are forbidden.
 
 ---
 
@@ -491,7 +491,7 @@ Builder validation compares normalized URLs byte-for-byte to this set and reject
 
 - [ ] **Step 4: Author semantic templates and approved claim ceiling**
 
-`index.template.html` contains `<html lang="zh-Hant-TW">`, viewport, description, candidate canonical URL, exact meta CSP, skip link, one H1, header／nav／main／section／figure／table／footer, and only named `{{SLOT_NAME}}` tokens. Dynamic metric rows are not present in source.
+`index.template.html` contains `<html lang="zh-Hant-TW">`, viewport, description, candidate canonical URL, exact meta CSP, skip link, one H1, exact `<main id="main-content" tabindex="-1">`, header／nav／section／figure／table／footer, and only named `{{SLOT_NAME}}` tokens. Each table scroller has exact `tabindex="0" role="region" aria-labelledby="<id>"`; `<id>` resolves to a visible unique caption／heading for that same table. Governed anchors and those `.table-scroll` regions are the only sequential-focus elements; positive `tabindex` and any other non-link focus exception are forbidden. Dynamic metric rows are not present in source.
 
 The visible copy must include these exact boundaries without hiding them in `<details>`:
 
@@ -514,7 +514,7 @@ The overview includes a fixed inline decorative abstract contour `<svg aria-hidd
 
 - [ ] **Step 5: Author minimal responsive CSS and NOTICE**
 
-CSS uses system stacks only, no `@import`, `url(`, font bytes, animation dependency, or external token. It defines visible `:focus-visible`, skip-link reveal, 44×44 px link targets, a single-column narrow layout, a bounded `.table-scroll` region, `color-scheme: light dark`, `@media (prefers-color-scheme: dark)`, `@media (prefers-contrast: more)`, `@media (forced-colors: active)`, and `@media (prefers-reduced-motion: reduce)`. At ≤640 CSS px, page body never scrolls horizontally.
+CSS uses system stacks only, no `@import`, `url(`, font bytes, animation dependency, or external token. It defines visible `:focus-visible` for governed anchors and `.table-scroll` regions, skip-link reveal with an outline at least 2 CSS px before Enter, 44×44 px link targets, a single-column narrow layout, a bounded `.table-scroll` region, `color-scheme: light dark`, `@media (prefers-color-scheme: dark)`, `@media (prefers-contrast: more)`, `@media (forced-colors: active)`, and `@media (prefers-reduced-motion: reduce)`. The programmatically focused main is not subject to the focused-link outline-width rule. At ≤640 CSS px, page body never scrolls horizontally.
 
 `site/THIRD_PARTY_NOTICES.txt` is deterministic and contains:
 
@@ -851,9 +851,11 @@ expect(await page.locator('footer').isVisible()).toBe(true);
 
 It also validates full site/evidence SHAs are distinct, table precedes aggregate image, external link attributes match the nine-item allowlist without clicking, CSS and SVG are same-origin, meta CSP is exact, no resource hint exists, and `performance.getEntriesByType('resource')` contains only expected same-origin files.
 
+The DOM gate also requires exact `<main id="main-content" tabindex="-1">`; every `.table-scroll` has exact `tabindex="0" role="region" aria-labelledby="<id>"`, where `<id>` names a visible unique caption／heading for that same table; all anchors are governed by the internal／external link contracts; no positive `tabindex` exists; and no other element may create a sequential-focus or non-link focus exception.
+
 - [ ] **Step 6: Add keyboard, axe, contrast, zoom, subpath, and 404 gates**
 
-- Keyboard: first Tab focuses the skip link; Enter moves focus to `main`; subsequent focus order contains links only; every focused link has visible outline and a bounding box at least 44×44 CSS px where the spec marks it touch-targeted.
+- Keyboard: first Tab focuses the skip link and, before Enter, that link has a visible outline at least 2 CSS px; Enter moves focus to exact `<main id="main-content" tabindex="-1">`, whose programmatic focus is not judged by the focused-link outline-width assertion. The sequential focus order otherwise contains only governed anchors plus exact `.table-scroll[tabindex="0"][role="region"][aria-labelledby]` regions, with each `aria-labelledby` resolving to a visible unique caption／heading for the same table. Every keyboard-focused governed anchor and table region has visible focus, governed links have a bounding box at least 44×44 CSS px where the spec marks them touch-targeted, positive `tabindex` is forbidden, and there is no other non-link exception.
 - Axe: read exact local `axe-core/axe.min.js`, inject through Playwright evaluation after load, run WCAG 2.2 A／AA tags, and require zero serious／critical violations. This injected test code is not a network request or publish file.
 - Contrast: axe color-contrast plus computed light／dark focus and non-text contrast; re-run with `forcedColors: 'active'` where the engine supports it and store exceptions as explicit unsupported capability, never a silent pass.
 - Zoom: in all engines execute `document.documentElement.style.zoom = '2'`, then assert every visible landmark has a nonzero bounding box, body has no two-dimensional scroll, table scroller remains operable, footer is visible, and focus stays sequential. This is labeled automated 200% content-reflow emulation, not browser-chrome zoom. Final Task 7 separately requires an actual manual 200% browser-zoom receipt for all three engines.
