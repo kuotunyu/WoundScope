@@ -36,3 +36,23 @@ EXPECTED_COLUMNS: Final = (
 EXPECTED_MODEL_IDS: Final = ("unet_efficientnet_b0", "segformer_b0")
 EXPECTED_LOSS: Final = "bce_dice"
 EXPECTED_SEEDS: Final = (42, 43, 44)
+EXPECTED_MODEL_DISPLAY_NAMES: Final = (
+    "EfficientNet-B0 U-Net",
+    "SegFormer-B0",
+)
+
+EXPECTED_PUBLIC_SVG_LENGTH: Final = 3009
+EXPECTED_PUBLIC_SVG_SHA256: Final = (
+    "1eafa7c35b06928b6cfc2910326f9c0adaf88098ab3a734ba43e16914fd7814d"
+)
+EXPECTED_PUBLIC_SVG_FILENAME: Final = "model-comparison-1eafa7c35b06928b.svg"
+EXPECTED_PUBLIC_SVG_TITLE: Final = "WoundScope locked official-validation aggregate comparison"
+EXPECTED_PUBLIC_SVG_DESC: Final = (
+    "EfficientNet-B0 U-Net and SegFormer-B0 aggregate Dice and IoU across three "
+    "training seeds on locked official validation."
+)
+EXPECTED_PUBLIC_SVG_HEADLINE: Final = "Locked official-validation aggregate"
+EXPECTED_PUBLIC_SVG_SUBHEAD: Final = "EfficientNet-B0 U-Net vs SegFormer-B0 · BCE+Dice · n=3 seeds"
+EXPECTED_PUBLIC_SVG_FOOTNOTE: Final = (
+    "locked official validation · n=3 seeds · not official-test or clinical performance"
+)
