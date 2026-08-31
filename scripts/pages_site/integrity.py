@@ -219,6 +219,14 @@ def _expected_main_records(
     raise PagesAuditError("HTML_MAIN_MISMATCH", public_path=public_path)
 
 
+def _expected_title(public_path: str) -> str:
+    if public_path == "index.html":
+        return "WoundScope | 靜態研究成果展示"
+    if public_path == "404.html":
+        return "WoundScope | 找不到此頁面"
+    raise PagesAuditError("HTML_TITLE_MISMATCH", public_path=public_path)
+
+
 def _expected_focus_region_records(
     public_path: str,
 ) -> Counter[tuple[tuple[str, str], ...]]:
@@ -368,6 +376,8 @@ class _HtmlAuditParser(HTMLParser):
             tuple[int, tuple[tuple[str, str], ...], int | None, int | None]
         ] = []
         self.caption_text: dict[int, list[str]] = {}
+        self.title_records: list[int] = []
+        self.title_text: dict[int, list[str]] = {}
         self.id_records: Counter[str] = Counter()
         self.doctype_records: list[str] = []
         self.html_records: Counter[tuple[tuple[str, str], ...]] = Counter()
@@ -487,6 +497,9 @@ class _HtmlAuditParser(HTMLParser):
                 )
             )
             self.caption_text[element_id] = []
+        if tag == "title":
+            self.title_records.append(element_id)
+            self.title_text[element_id] = []
         if tag == "meta":
             self.meta_records.update(
                 {
@@ -570,6 +583,9 @@ class _HtmlAuditParser(HTMLParser):
         caption_id = self._nearest_open_element("caption")
         if caption_id is not None:
             self.caption_text[caption_id].append(data)
+        title_id = self._nearest_open_element("title")
+        if title_id is not None:
+            self.title_text[title_id].append(data)
 
     def handle_endtag(self, tag: str) -> None:
         if tag in _VOID_HTML_TAGS:
@@ -1220,6 +1236,9 @@ def _verify_html(
         raise PagesAuditError("HTML_ATTRIBUTE_INVALID", public_path=public_path)
     if parser.invalid_structure or not parser.has_valid_document_skeleton():
         raise PagesAuditError("HTML_STRUCTURE_INVALID", public_path=public_path)
+    decoded_titles = ["".join(parser.title_text[title_id]) for title_id in parser.title_records]
+    if decoded_titles != [_expected_title(public_path)]:
+        raise PagesAuditError("HTML_TITLE_MISMATCH", public_path=public_path)
     if parser.main_records != _expected_main_records(public_path):
         raise PagesAuditError("HTML_MAIN_MISMATCH", public_path=public_path)
     _validate_focus_region_contract(parser, public_path=public_path)

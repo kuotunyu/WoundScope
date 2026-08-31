@@ -22,6 +22,10 @@ TABLE_CAPTION = (
     '<caption id="evidence-table-caption">'
     "Locked Official Validation aggregate comparison</caption>"
 )
+EXPECTED_TITLES = {
+    "index.html": "WoundScope | 靜態研究成果展示",
+    "404.html": "WoundScope | 找不到此頁面",
+}
 
 
 def _import_module(name: str):
@@ -1380,6 +1384,91 @@ def test_publish_tree_rejects_document_skeleton_drift_before_semantics(
     html_path = target_publish / html_name
     html_path.write_text(
         _mutate_document_skeleton(html_path.read_text("utf-8"), mutation),
+        encoding="utf-8",
+        newline="\n",
+    )
+    _rewrite_manifest_and_sbom_for_current_tree(target_publish)
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == f"HTML_STRUCTURE_INVALID:{html_name}"
+
+
+@pytest.mark.parametrize("html_name", ["index.html", "404.html"])
+@pytest.mark.parametrize("mutation", ["missing", "duplicate", "empty", "wrong"])
+def test_publish_tree_rejects_exact_title_contract_drift(
+    tmp_path: Path, html_name: str, mutation: str
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(
+        audited_publish(tmp_path),
+        tmp_path / f"mutated-title-{html_name.removesuffix('.html')}-{mutation}",
+    )
+    html_path = target_publish / html_name
+    expected_title = EXPECTED_TITLES[html_name]
+    title_tag = f"<title>{expected_title}</title>"
+    replacements = {
+        "missing": "",
+        "duplicate": f"{title_tag}\n  {title_tag}",
+        "empty": "<title></title>",
+        "wrong": "<title>WoundScope | 錯誤頁面標題</title>",
+    }
+    html_path.write_text(
+        _replace_focus_fragment(html_path.read_text("utf-8"), title_tag, replacements[mutation]),
+        encoding="utf-8",
+        newline="\n",
+    )
+    _rewrite_manifest_and_sbom_for_current_tree(target_publish)
+
+    with pytest.raises(pages_audit_error) as excinfo:
+        verify_publish_tree(target_publish)
+
+    assert _safe_error_text(excinfo.value) == f"HTML_TITLE_MISMATCH:{html_name}"
+
+
+@pytest.mark.parametrize("html_name", ["index.html", "404.html"])
+def test_publish_tree_accepts_exact_decoded_title_text(tmp_path: Path, html_name: str) -> None:
+    _pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(
+        audited_publish(tmp_path),
+        tmp_path / f"encoded-title-{html_name.removesuffix('.html')}",
+    )
+    html_path = target_publish / html_name
+    expected_title = EXPECTED_TITLES[html_name]
+    html_path.write_text(
+        _replace_focus_fragment(
+            html_path.read_text("utf-8"),
+            f"<title>{expected_title}</title>",
+            f"<title>{expected_title.replace('|', '&#124;')}</title>",
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    _rewrite_manifest_and_sbom_for_current_tree(target_publish)
+
+    verify_publish_tree(target_publish)
+
+
+@pytest.mark.parametrize("html_name", ["index.html", "404.html"])
+@pytest.mark.parametrize("mutation", ["nested", "unclosed"])
+def test_publish_tree_rejects_malformed_title_as_structure_error(
+    tmp_path: Path, html_name: str, mutation: str
+) -> None:
+    pages_audit_error, _build_site, verify_publish_tree = _integrity_exports()
+    target_publish = _clone_publish_tree(
+        audited_publish(tmp_path),
+        tmp_path / f"malformed-title-{html_name.removesuffix('.html')}-{mutation}",
+    )
+    html_path = target_publish / html_name
+    expected_title = EXPECTED_TITLES[html_name]
+    title_tag = f"<title>{expected_title}</title>"
+    replacements = {
+        "nested": f"<title><title>{expected_title}</title></title>",
+        "unclosed": f"<title>{expected_title}",
+    }
+    html_path.write_text(
+        _replace_focus_fragment(html_path.read_text("utf-8"), title_tag, replacements[mutation]),
         encoding="utf-8",
         newline="\n",
     )
