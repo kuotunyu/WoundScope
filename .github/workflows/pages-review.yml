@@ -61,9 +61,9 @@ jobs:
           pnpm -C site-review exec -- node node_modules/@playwright/test/cli.js install --with-deps chromium firefox webkit
           pnpm -C site-review check:toolchain
       - name: Browser execution phase (loopback-only server) and unsealed review bundle
-        # seal-review is deliberately not run here: the seal requires the manual 200% browser-zoom
+        # The review is deliberately left unsealed here: sealing requires the manual 200% browser-zoom
         # receipt for all three exact engines, which only the central operator can produce. CI
-        # exports the verified publish tree and the automated reports for that operator to seal.
+        # exports the verified publish tree and the automated reports for that operator.
         run: |
           mkdir -p "$WOUNDSCOPE_PAGES_REPORT_DIR"
           pnpm -C site-review exec -- node node_modules/@playwright/test/cli.js test
