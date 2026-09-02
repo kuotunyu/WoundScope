@@ -25,10 +25,12 @@ def test_pages_review_workflow_is_read_only() -> None:
         " --package site-review/package.json --lockfile site-review/pnpm-lock.yaml"
     )
     install = "pnpm -C site-review install --frozen-lockfile --ignore-scripts"
+    # pnpm 11 skips bin-linking under --ignore-scripts, so the CLI file is invoked directly.
     browser_acquire = (
-        "pnpm -C site-review exec playwright install --with-deps chromium firefox webkit"
+        "pnpm -C site-review exec -- node node_modules/@playwright/test/cli.js install"
+        " --with-deps chromium firefox webkit"
     )
-    browser_execute = "pnpm -C site-review test"
+    browser_execute = "pnpm -C site-review exec -- node node_modules/@playwright/test/cli.js test"
     assert text.count(install) == 1
     assert text.index(policy) < text.index(install) < text.index(browser_acquire)
     assert text.index(browser_acquire) < text.index(browser_execute)

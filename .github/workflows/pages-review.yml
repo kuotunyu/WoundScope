@@ -53,7 +53,8 @@ jobs:
           uv run python scripts/verify_pages_review_package.py --package site-review/package.json --lockfile site-review/pnpm-lock.yaml
           corepack enable && corepack prepare pnpm@11.16.0 --activate
           pnpm -C site-review install --frozen-lockfile --ignore-scripts
-          pnpm -C site-review exec playwright install --with-deps chromium firefox webkit
+          # pnpm 11 skips bin-linking under --ignore-scripts, so call the Playwright CLI file directly.
+          pnpm -C site-review exec -- node node_modules/@playwright/test/cli.js install --with-deps chromium firefox webkit
           pnpm -C site-review check:toolchain
       - name: Browser execution phase (loopback-only server) and review seal
         env:
@@ -61,7 +62,7 @@ jobs:
           WOUNDSCOPE_PAGES_REPORT_DIR: ${{ github.workspace }}/temp/pages-review/reports
         run: |
           mkdir -p "$WOUNDSCOPE_PAGES_REPORT_DIR"
-          pnpm -C site-review test
+          pnpm -C site-review exec -- node node_modules/@playwright/test/cli.js test
           uv run python scripts/audit_pages_site.py seal-review --publish temp/pages-review/first/publish --reports temp/pages-review/reports --output temp/pages-review/export
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
