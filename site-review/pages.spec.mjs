@@ -98,6 +98,14 @@ async function attachLedger(page, options = {}) {
       await route.abort();
       return;
     }
+    // Firefox and WebKit request /favicon.ico on their own when a document declares no icon.
+    // The page never references it, so it is recorded as browser chrome and kept out of the
+    // page-level allow/abort verdicts.
+    if (requestUrl.origin === BASE_ORIGIN && pathAndQuery === '/favicon.ico') {
+      events.push({ disposition: 'browser-favicon', method: request.method(), url: pathAndQuery });
+      await route.abort();
+      return;
+    }
     if (!allowed) {
       events.push({ disposition: 'aborted', method: request.method(), url: pathAndQuery });
       await route.abort();
@@ -164,10 +172,23 @@ async function assertPageContract(page, browserName) {
   });
   expect(tableBeforeImage).toBe(true);
 
+  // The aggregate SVG is loading="lazy", so it is only fetched once it nears the viewport.
+  await page.locator(`img[src="${expectedSvgHref}"]`).scrollIntoViewIfNeeded();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        (href) => performance.getEntriesByType('resource').some((entry) => new URL(entry.name).pathname === href),
+        expectedSvgHref,
+      ),
+    )
+    .toBe(true);
+  await page.evaluate(() => window.scrollTo(0, 0));
+
   const resources = await page.evaluate(() =>
     performance
       .getEntriesByType('resource')
       .map((entry) => new URL(entry.name).pathname)
+      .filter((pathname) => pathname !== '/favicon.ico')
       .sort(),
   );
   expect(resources).toEqual([expectedStylesheetHref, expectedSvgHref].sort());
@@ -304,6 +325,14 @@ test('zoom and images-disabled contract', async ({ browserName, page }) => {
   await expect(page.locator('table')).toBeVisible();
   await expect(page.locator('caption')).toHaveText('Locked Official Validation aggregate comparison');
 
+  // Bring the lazily loaded image into range so the browser actually attempts (and is refused)
+  // the SVG request before the ledger is judged.
+  await page.locator(`img[src="${expectedSvgHref}"]`).scrollIntoViewIfNeeded();
+  await expect
+    .poll(() => ledger.events.filter((entry) => entry.disposition === 'aborted-image').length)
+    .toBe(1);
+  await page.evaluate(() => window.scrollTo(0, 0));
+
   await page.evaluate(() => {
     document.documentElement.style.zoom = '2';
   });
@@ -333,7 +362,7 @@ test('zoom and images-disabled contract', async ({ browserName, page }) => {
   expect(zoomChecks.scrollable).toBe(true);
   expect(zoomChecks.footer_visible).toBe(true);
   expect(zoomChecks.no_2d_scroll).toBe(true);
-  expect(ledger.events.filter((entry) => entry.disposition === 'aborted')).toEqual([
+  expect(ledger.events.filter((entry) => entry.disposition !== 'allowed' && entry.disposition !== 'browser-favicon')).toEqual([
     { disposition: 'aborted-image', method: 'GET', url: expectedSvgHref },
   ]);
   zoomRecords.push({
