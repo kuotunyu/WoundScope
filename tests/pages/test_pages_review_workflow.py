@@ -48,8 +48,11 @@ def test_pages_review_workflow_is_read_only() -> None:
         assert action in text
     assert 'node-version: "24.16.0"' in text
     assert "corepack prepare pnpm@11.16.0 --activate" in text
-    assert "path: temp/pages-review/export" in text
+    assert "path: temp/pages-review/bundle" in text
     assert "if-no-files-found: error" in text
+    # Sealing needs the manual 200% browser-zoom receipt, so CI must never seal on its own.
+    assert "seal-review" not in text
+    assert "record-central-seal" not in text
 
 
 def test_pages_review_workflow_uses_only_pinned_action_shas() -> None:

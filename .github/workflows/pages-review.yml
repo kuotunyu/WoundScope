@@ -60,14 +60,20 @@ jobs:
           # pnpm 11 skips bin-linking under --ignore-scripts, so call the Playwright CLI file directly.
           pnpm -C site-review exec -- node node_modules/@playwright/test/cli.js install --with-deps chromium firefox webkit
           pnpm -C site-review check:toolchain
-      - name: Browser execution phase (loopback-only server) and review seal
+      - name: Browser execution phase (loopback-only server) and unsealed review bundle
+        # seal-review is deliberately not run here: the seal requires the manual 200% browser-zoom
+        # receipt for all three exact engines, which only the central operator can produce. CI
+        # exports the verified publish tree and the automated reports for that operator to seal.
         run: |
           mkdir -p "$WOUNDSCOPE_PAGES_REPORT_DIR"
           pnpm -C site-review exec -- node node_modules/@playwright/test/cli.js test
-          uv run python scripts/audit_pages_site.py seal-review --publish temp/pages-review/first/publish --reports temp/pages-review/reports --output temp/pages-review/export
+          mkdir -p temp/pages-review/bundle
+          uv run python scripts/audit_pages_site.py verify --publish temp/pages-review/first/publish > temp/pages-review/bundle/verify.json
+          cp -r temp/pages-review/first/publish temp/pages-review/bundle/publish
+          cp -r temp/pages-review/reports temp/pages-review/bundle/reports
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: woundscope-pages-review-${{ github.sha }}
-          path: temp/pages-review/export
+          path: temp/pages-review/bundle
           if-no-files-found: error
           retention-days: 7
