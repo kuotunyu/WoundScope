@@ -21,6 +21,10 @@ jobs:
     name: Build, audit and browser-review the Pages artifact (no deployment)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      # check:toolchain writes toolchain.json into the report directory, so both phases share it.
+      WOUNDSCOPE_PAGES_PUBLISH_DIR: ${{ github.workspace }}/temp/pages-review/first/publish
+      WOUNDSCOPE_PAGES_REPORT_DIR: ${{ github.workspace }}/temp/pages-review/reports
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -57,9 +61,6 @@ jobs:
           pnpm -C site-review exec -- node node_modules/@playwright/test/cli.js install --with-deps chromium firefox webkit
           pnpm -C site-review check:toolchain
       - name: Browser execution phase (loopback-only server) and review seal
-        env:
-          WOUNDSCOPE_PAGES_PUBLISH_DIR: ${{ github.workspace }}/temp/pages-review/first/publish
-          WOUNDSCOPE_PAGES_REPORT_DIR: ${{ github.workspace }}/temp/pages-review/reports
         run: |
           mkdir -p "$WOUNDSCOPE_PAGES_REPORT_DIR"
           pnpm -C site-review exec -- node node_modules/@playwright/test/cli.js test
