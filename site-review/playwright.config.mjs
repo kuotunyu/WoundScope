@@ -15,7 +15,9 @@ export default defineConfig({
   testDir: moduleDirectory,
   testMatch: 'pages.spec.mjs',
   fullyParallel: false,
-  outputDir: path.join(reportRoot, 'playwright-results'),
+  // Playwright's scratch output (error contexts, attachments) stays beside the report tree, not
+  // inside it: the review seal accepts only the named report files and screenshots/.
+  outputDir: path.join(reportRoot, '..', 'playwright-output'),
   projects: [
     { name: 'chromium', use: { browserName: 'chromium' } },
     { name: 'firefox', use: { browserName: 'firefox' } },
