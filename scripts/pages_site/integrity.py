@@ -365,12 +365,8 @@ class _HtmlAuditParser(HTMLParser):
         self.main_records: Counter[tuple[tuple[str, str], ...]] = Counter()
         self.meta_records: Counter[tuple[str, tuple[tuple[str, str], ...]]] = Counter()
         self.url_records: Counter[tuple[str, tuple[tuple[str, str], ...]]] = Counter()
-        self.focus_region_records: list[
-            tuple[int, tuple[tuple[str, str], ...]]
-        ] = []
-        self.tabindex_records: Counter[
-            tuple[str, tuple[tuple[str, str], ...]]
-        ] = Counter()
+        self.focus_region_records: list[tuple[int, tuple[tuple[str, str], ...]]] = []
+        self.tabindex_records: Counter[tuple[str, tuple[tuple[str, str], ...]]] = Counter()
         self.table_records: list[tuple[int, int | None]] = []
         self.caption_records: list[
             tuple[int, tuple[tuple[str, str], ...], int | None, int | None]
@@ -1204,8 +1200,7 @@ def _validate_focus_region_contract(
         raise PagesAuditError("HTML_FOCUS_REGION_MISMATCH", public_path=public_path)
 
     caption_attributes = Counter(
-        attributes
-        for _element_id, attributes, _table_id, _region_id in parser.caption_records
+        attributes for _element_id, attributes, _table_id, _region_id in parser.caption_records
     )
     if public_path == "404.html":
         if caption_attributes:
@@ -1222,9 +1217,7 @@ def _validate_focus_region_contract(
 
     region_id, _region_attributes = parser.focus_region_records[0]
     table_id, table_region_id = parser.table_records[0]
-    caption_id, _caption_attributes, caption_table_id, caption_region_id = (
-        parser.caption_records[0]
-    )
+    caption_id, _caption_attributes, caption_table_id, caption_region_id = parser.caption_records[0]
     if (
         table_region_id != region_id
         or caption_table_id != table_id
