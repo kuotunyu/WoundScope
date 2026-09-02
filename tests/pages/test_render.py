@@ -432,9 +432,7 @@ def test_renderer_emits_exact_table_focus_region_and_true_wrap_contract() -> Non
         assert document.index("<table") < document.index(expected_caption)
         assert document.index(expected_caption) < document.index("</table>")
 
-    tabindexed = [
-        (tag, attrs) for tag, attrs in structure.elements if "tabindex" in attrs
-    ]
+    tabindexed = [(tag, attrs) for tag, attrs in structure.elements if "tabindex" in attrs]
     assert tabindexed == [
         ("main", {"id": "main-content", "tabindex": "-1"}),
         ("div", region_attributes),
@@ -453,12 +451,7 @@ def test_renderer_emits_exact_table_focus_region_and_true_wrap_contract() -> Non
         "  outline-offset: 3px;\n"
         "}\n"
     ) in css_text
-    assert (
-        ".masthead h1,\n"
-        ".figure-caption {\n"
-        "  overflow-wrap: anywhere;\n"
-        "}\n"
-    ) in css_text
+    assert (".masthead h1,\n.figure-caption {\n  overflow-wrap: anywhere;\n}\n") in css_text
     for clipping_rule in (
         "overflow: clip",
         "overflow: hidden",

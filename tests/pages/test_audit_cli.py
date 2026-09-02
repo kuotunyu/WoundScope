@@ -14,13 +14,11 @@ import pytest
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 TABLE_REGION_OPEN = (
-    '<div class="table-scroll" tabindex="0" role="region" '
-    'aria-labelledby="evidence-table-caption">'
+    '<div class="table-scroll" tabindex="0" role="region" aria-labelledby="evidence-table-caption">'
 )
 TABLE_OPEN = '<table aria-describedby="evidence-summary">'
 TABLE_CAPTION = (
-    '<caption id="evidence-table-caption">'
-    "Locked Official Validation aggregate comparison</caption>"
+    '<caption id="evidence-table-caption">Locked Official Validation aggregate comparison</caption>'
 )
 EXPECTED_TITLES = {
     "index.html": "WoundScope | 靜態研究成果展示",
@@ -1136,8 +1134,7 @@ def test_publish_tree_rejects_meta_contract_drift_even_when_dag_is_resynced(
         (
             "index.html",
             '<main id="main-content" tabindex="-1">',
-            '<main id="main-content" tabindex="-1"></main>'
-            '<main id="main-content" tabindex="-1">',
+            '<main id="main-content" tabindex="-1"></main><main id="main-content" tabindex="-1">',
         ),
         (
             "404.html",
