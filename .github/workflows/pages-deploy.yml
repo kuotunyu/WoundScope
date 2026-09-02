@@ -1,0 +1,138 @@
+name: Pages deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      site_sha:
+        description: Exact reviewed site source commit (40 hex characters)
+        required: true
+        type: string
+      publish_tree_sha256:
+        description: publish_tree_sha256 from the approved review receipt (64 hex characters)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
+
+jobs:
+  build:
+    name: Rebuild the reviewed commit and bind the tree digest
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Reject malformed inputs before checkout
+        env:
+          SITE_SHA: ${{ inputs.site_sha }}
+          EXPECTED_TREE: ${{ inputs.publish_tree_sha256 }}
+        run: |
+          echo "$SITE_SHA" | grep -Eq '^[0-9a-f]{40}$'
+          echo "$EXPECTED_TREE" | grep -Eq '^[0-9a-f]{64}$'
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ inputs.site_sha }}
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          python-version: "3.12.13"
+          enable-cache: true
+      - name: Python gates on the exact reviewed commit
+        env:
+          SITE_SHA: ${{ inputs.site_sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$SITE_SHA"
+          uv sync --frozen --extra dev --python 3.12.13
+          uv run pytest -q tests/pages
+          uv run python scripts/audit_repository_privacy.py --repository .
+      - name: Build twice, compare bytes, verify, and bind the digest to the approved receipt
+        env:
+          SITE_SHA: ${{ inputs.site_sha }}
+          EXPECTED_TREE: ${{ inputs.publish_tree_sha256 }}
+        run: |
+          uv run python scripts/build_pages_site.py --repository . --output temp/pages-deploy/first/publish --site-source "$SITE_SHA"
+          uv run python scripts/build_pages_site.py --repository . --output temp/pages-deploy/second/publish --site-source "$SITE_SHA"
+          uv run python scripts/audit_pages_site.py compare --left temp/pages-deploy/first/publish --right temp/pages-deploy/second/publish
+          uv run python scripts/audit_pages_site.py verify --publish temp/pages-deploy/first/publish > temp/pages-deploy/verify.json
+          uv run python - <<'PY'
+          import json
+          import os
+          import sys
+
+          verified = json.load(open("temp/pages-deploy/verify.json", encoding="utf-8"))
+          bound = (
+              verified["site_source_sha"] == os.environ["SITE_SHA"]
+              and verified["publish_tree_sha256"] == os.environ["EXPECTED_TREE"]
+          )
+          print("DIGEST_BINDING", "PASS" if bound else "FAIL")
+          sys.exit(0 if bound else 1)
+          PY
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: temp/pages-deploy/first/publish
+          retention-days: 1
+
+  deploy:
+    name: Deploy the bound artifact (waits for github-pages environment approval)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  smoke:
+    name: Post-deploy smoke (URL, zero JavaScript, 404, live manifest binding)
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      SITE_SHA: ${{ inputs.site_sha }}
+      EXPECTED_TREE: ${{ inputs.publish_tree_sha256 }}
+      BASE_URL: https://kuotunyu.github.io/WoundScope/
+    steps:
+      - name: Wait for the deployed site and check the public contract
+        run: |
+          code=000
+          for attempt in $(seq 1 24); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL" || true)
+            if [ "$code" = "200" ]; then break; fi
+            sleep 15
+          done
+          test "$code" = "200"
+          curl -s "$BASE_URL" > index.html
+          if grep -qi "<script" index.html; then echo "JAVASCRIPT_PRESENT"; exit 1; fi
+          missing=$(curl -s -o /dev/null -w '%{http_code}' "${BASE_URL}definitely-missing-page" || true)
+          test "$missing" = "404"
+          curl -s "${BASE_URL}pages-manifest.json" > live-manifest.json
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          live = json.load(open("live-manifest.json", encoding="utf-8"))
+          bound = (
+              live["site_source_sha"] == os.environ["SITE_SHA"]
+              and live["publish_tree_sha256"] == os.environ["EXPECTED_TREE"]
+          )
+          print("LIVE_MANIFEST_BINDING", "PASS" if bound else "FAIL")
+          sys.exit(0 if bound else 1)
+          PY
