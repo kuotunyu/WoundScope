@@ -75,5 +75,7 @@ jobs:
         with:
           name: woundscope-pages-review-${{ github.sha }}
           path: temp/pages-review/bundle
+          # The publish tree carries .nojekyll, which upload-artifact v4 drops by default.
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
