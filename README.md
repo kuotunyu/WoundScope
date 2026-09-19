@@ -10,6 +10,8 @@ WoundScope 是以固定版本 FUSeg 建構的足部潰瘍 binary semantic segmen
 
 > **研究聲明**：本專案為研究用像素分割成果與工程管線展示，非臨床診斷建議；所有分析結果均需合格醫療專業人員複核。
 
+[靜態研究展示網站](https://kuotunyu.github.io/WoundScope/)：瀏覽研究方法與 aggregate evidence；不提供影像上傳或線上推論。
+
 ![WoundScope 研究展示模式：傷口分割複核工作台](reports/public/woundscope-ui-showcase.webp)
 
 全新複核工作台採 **React + TypeScript + Vite** 與 **FastAPI**，以正體中文為主，將原圖／Overlay／Mask 比較、透明度控制、mask area ratio、非臨床 confidence、review reasons、execution provider 與 artifact provenance 收斂在同一個高密度介面。公開 code-only 環境顯示**研究展示模式**；模型可用時才開啟本機分割複核，避免把私有 weights 或臆造 prediction 包進公開展示。
